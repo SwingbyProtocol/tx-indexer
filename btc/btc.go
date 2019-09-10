@@ -172,7 +172,7 @@ func (b *BTCNode) AddIndexEntry(addr string, height int64, txID string, vout *Vo
 		Txs:    newTxs,
 	}
 	lock.Unlock()
-	log.Infof("%50s index -> %d -> txs -> %4d Height -> %d LocalHeight -> %d", addr, len(b.Index), len(b.Index[addr].Txs), height, b.LocalBlocks)
+	log.Infof("%70s index -> %12d -> txs -> %4d Height -> %d LocalHeight -> %d", addr, len(b.Index), len(b.Index[addr].Txs), height, b.LocalBlocks)
 	return nil
 }
 
@@ -181,7 +181,8 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	txRes := []Tx{}
 	if b.Index[address] == nil {
 		w.WriteHeader(http.StatusNotFound)
-		w.WriteJson(`{"result":"false"}`)
+		res := []string{}
+		w.WriteJson(res)
 		return
 	}
 	txs := b.Index[address].Txs
