@@ -1,6 +1,7 @@
 package btc
 
 import (
+	"errors"
 	"net/http"
 	"sync"
 	"time"
@@ -10,20 +11,26 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	chainInfo = "/rest/chaininfo.json"
-)
-
 var lock = sync.RWMutex{}
 
 type BTCNode struct {
+	Index         map[string]*Meta
+	Txs           map[string]*Tx
+	PruneBlocks   int64
 	BestBlockHash string
+	BestBlocks    int64
 	Chain         string
-	Blocks        int64
+	LocalBlocks   int64
 	Headers       int64
 	Resolver      *resolver.Resolver
 	URI           string
-	Errors        int64
+	isStart       bool
+}
+
+type Meta struct {
+	Height int64
+	Count  int
+	Txs    []string
 }
 
 type ChainInfo struct {
@@ -34,23 +41,35 @@ type ChainInfo struct {
 }
 
 type Block struct {
-	Hash          string `json:"hash"`
-	Confirmations int64  `json:"confirmations"`
-	Height        int64  `json:"height"`
-	NTx           int64  `json:"nTx"`
-	Txs           []*Tx  `json:"tx"`
+	Hash              string `json:"hash"`
+	Confirmations     int64  `json:"confirmations"`
+	Height            int64  `json:"height"`
+	NTx               int64  `json:"nTx"`
+	Txs               []*Tx  `json:"tx"`
+	Previousblockhash string `json:"previousblockhash"`
 }
 
-func NewBTCNode(uri string) *BTCNode {
+func NewBTCNode(uri string, pruneBlocks int64) *BTCNode {
 	node := &BTCNode{
-		URI:      uri,
-		Resolver: resolver.NewResolver(),
+		Index:       make(map[string]*Meta),
+		Txs:         make(map[string]*Tx),
+		URI:         uri,
+		PruneBlocks: pruneBlocks,
+		Resolver:    resolver.NewResolver(),
 	}
 	return node
 }
 
 func (b *BTCNode) Start() {
-	ticker := time.NewTicker(13 * time.Second)
+	go b.doStart()
+}
+
+func (b *BTCNode) doStart() {
+	ticker := time.NewTicker(10 * time.Second)
+	err := b.GetBestBlockHash()
+	if err != nil {
+		log.Fatal(err)
+	}
 	for {
 		select {
 		case <-ticker.C:
@@ -61,16 +80,23 @@ func (b *BTCNode) Start() {
 
 func (b *BTCNode) GetBestBlockHash() error {
 	res := ChainInfo{}
-	err := b.Resolver.GetRequest(b.URI, chainInfo, &res)
+	err := b.Resolver.GetRequest(b.URI, "/rest/chaininfo.json", &res)
 	if err != nil {
-		b.Errors++
+		log.Info(err)
 		return err
 	}
 	b.BestBlockHash = res.BestBlockHash
-	b.Blocks = res.Blocks
-	b.Chain = res.Chain
-	log.Info(b)
-	go b.GetBlock(b.BestBlockHash)
+	if b.LocalBlocks == 0 {
+		b.LocalBlocks = res.Blocks - b.PruneBlocks
+	}
+	if b.BestBlocks != res.Blocks && b.isStart == false {
+		b.BestBlocks = res.Blocks
+		b.isStart = true
+		err := b.GetBlock(b.BestBlockHash)
+		if err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -78,25 +104,96 @@ func (b *BTCNode) GetBlock(bestblockhash string) error {
 	res := Block{}
 	err := b.Resolver.GetRequest(b.URI, "/rest/block/"+bestblockhash+".json", &res)
 	if err != nil {
-		b.Errors++
+		b.GetBlock(bestblockhash)
 		return err
+	}
+	if res.Height == 0 {
+		b.GetBlock(bestblockhash)
+		return errors.New("height is zero")
 	}
 	for _, tx := range res.Txs {
 		for _, vout := range tx.Vout {
 			for _, addr := range vout.ScriptPubkey.Addresses {
-				log.Info(vout.Value, " ", *addr)
+				b.AddIndexEntry(*addr, res.Height, tx.Txid, vout)
 			}
 		}
+		b.Txs[tx.Txid] = tx
+	}
+	if b.LocalBlocks == res.Height {
+		b.LocalBlocks = b.BestBlocks
+		b.isStart = false
+		err := b.UpdateIndex()
+		if err != nil {
+			return err
+		}
+		log.Infof("index count -> %3d syncing -> %5d purne blocks -> %3d", len(b.Index), b.LocalBlocks, b.PruneBlocks)
+		return nil
+	}
+	if b.LocalBlocks < res.Height {
+		go b.GetBlock(res.Previousblockhash)
 	}
 	return nil
 }
 
-func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
-	code := r.PathParam("code")
-	b.GetBestBlockHash()
-	log.Info(code)
+func (b *BTCNode) UpdateIndex() error {
+	if len(b.Index) == 0 {
+		return errors.New("index is empty")
+	}
+	lock.RLock()
+	for key, meta := range b.Index {
+		if b.LocalBlocks >= meta.Height+b.PruneBlocks {
+			delete(b.Index, key)
+		}
+	}
+	lock.RUnlock()
+	return nil
+}
+
+func (b *BTCNode) AddIndexEntry(addr string, height int64, txID string, vout *Vout) error {
+	meta := Meta{}
+	count := 0
+	lock.RLock()
+	if b.Index[addr] != nil {
+		meta = *b.Index[addr]
+		for _, tx := range meta.Txs {
+			if tx == txID {
+				lock.RUnlock()
+				return errors.New("tx is already added")
+			}
+		}
+	}
+	newTxs := append(meta.Txs, txID)
+	count = meta.Count + 1
+	lock.RUnlock()
 	lock.Lock()
+	b.Index[addr] = &Meta{
+		Height: b.BestBlocks,
+		Count:  count,
+		Txs:    newTxs,
+	}
 	lock.Unlock()
+	log.Infof("%50s index -> %d -> txs -> %4d Height -> %d LocalHeight -> %d", addr, len(b.Index), len(b.Index[addr].Txs), height, b.LocalBlocks)
+	return nil
+}
+
+func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
+	address := r.PathParam("address")
+	txRes := []Tx{}
+	if b.Index[address] == nil {
+		w.WriteHeader(http.StatusNotFound)
+		w.WriteJson(`{"result":"false"}`)
+		return
+	}
+	txs := b.Index[address].Txs
+	for _, tx := range txs {
+		if b.Txs[tx] == nil {
+			continue
+		}
+		t := *b.Txs[tx]
+		lock.Lock()
+		txRes = append(txRes, t)
+		lock.Unlock()
+	}
 	w.WriteHeader(http.StatusOK)
-	//w.WriteJson(&b.Txs)
+	w.WriteJson(txRes)
 }

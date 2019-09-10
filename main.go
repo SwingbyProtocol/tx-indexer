@@ -24,11 +24,12 @@ func init() {
 func main() {
 	bitcoind := flag.String("bitcoind", "http://localhost:8332", "bitcoind endpoint")
 	bind := flag.String("bind", "0.0.0.0:9095", "")
+	prune := flag.Int64("prune", 4, "prune blocks")
 	flag.Parse()
-	log.Println("bitcoind ->", *bitcoind, "bind ->", *bind)
+	log.Println("bitcoind ->", *bitcoind, "bind ->", *bind, "prune ->", *prune)
 	api := rest.NewApi()
 	api.Use(rest.DefaultDevStack...)
-	btcNode := btc.NewBTCNode(*bitcoind)
+	btcNode := btc.NewBTCNode(*bitcoind, *prune)
 	btcNode.Start()
 	router, err := rest.MakeRouter(
 		rest.Get("/txs/btc/:address", btcNode.GetBTCTxs),
