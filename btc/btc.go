@@ -3,6 +3,7 @@ package btc
 import (
 	"errors"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -179,6 +180,7 @@ func (b *BTCNode) AddIndexEntry(addr string, height int64, txID string, vout *Vo
 
 func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	address := r.PathParam("address")
+	sortFlag := r.FormValue("sort")
 	txRes := []Tx{}
 	lock.RLock()
 	if b.Index[address] == nil {
@@ -197,6 +199,15 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 		txRes = append(txRes, t)
 	}
 	lock.RUnlock()
+	if sortFlag == "asc" {
+		sort.SliceStable(txRes, func(i, j int) bool {
+			return txRes[i].Confirms < txRes[j].Confirms
+		})
+	} else {
+		sort.SliceStable(txRes, func(i, j int) bool {
+			return txRes[i].Confirms > txRes[j].Confirms
+		})
+	}
 	w.WriteHeader(http.StatusOK)
 	w.WriteJson(txRes)
 }
