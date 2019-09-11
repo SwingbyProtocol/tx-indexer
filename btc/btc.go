@@ -117,6 +117,7 @@ func (b *BTCNode) GetBlock(bestblockhash string) error {
 				b.AddIndexEntry(*addr, res.Height, tx.Txid, vout)
 			}
 		}
+		tx.Confirms = res.Height
 		b.Txs[tx.Txid] = tx
 	}
 	if b.LocalBlocks == res.Height {
@@ -172,15 +173,17 @@ func (b *BTCNode) AddIndexEntry(addr string, height int64, txID string, vout *Vo
 		Txs:    newTxs,
 	}
 	lock.Unlock()
-	log.Infof("%70s index -> %12d -> txs -> %4d Height -> %d LocalHeight -> %d", addr, len(b.Index), len(b.Index[addr].Txs), height, b.LocalBlocks)
+	log.Infof("%70s index -> %12d -> txs -> %4d Height -> %d BestHeight -> %d", addr, len(b.Index), len(b.Index[addr].Txs), height, b.BestBlocks)
 	return nil
 }
 
 func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	address := r.PathParam("address")
 	txRes := []Tx{}
+	lock.RLock()
 	if b.Index[address] == nil {
-		w.WriteHeader(http.StatusNotFound)
+		lock.RUnlock()
+		w.WriteHeader(http.StatusInternalServerError)
 		res := []string{}
 		w.WriteJson(res)
 		return
@@ -191,10 +194,9 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 			continue
 		}
 		t := *b.Txs[tx]
-		lock.Lock()
 		txRes = append(txRes, t)
-		lock.Unlock()
 	}
+	lock.RUnlock()
 	w.WriteHeader(http.StatusOK)
 	w.WriteJson(txRes)
 }

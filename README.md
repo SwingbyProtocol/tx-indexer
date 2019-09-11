@@ -1,4 +1,4 @@
-# sc-indexer
+# tx-indexer
 
 ## Usage
 ```

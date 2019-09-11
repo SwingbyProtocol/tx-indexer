@@ -3,6 +3,7 @@ package btc
 type Tx struct {
 	Txid     string  `json:"txid"`
 	Hash     string  `json:"hash"`
+	Confirms int64   `json:"confirms"`
 	Version  int     `json:"version"`
 	Weight   int     `json:"weight"`
 	Locktime int     `json:"locktime"`
