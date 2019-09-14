@@ -9,7 +9,7 @@ type Tx struct {
 	Locktime int     `json:"locktime"`
 	Vin      []*Vin  `json:"vin"`
 	Vout     []*Vout `json:"vout"`
-	Hex      string  `json:"hex"`
+	//Hex      string  `json:"hex"`
 }
 
 type Vin struct {
