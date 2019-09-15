@@ -25,9 +25,9 @@ type Vout struct {
 }
 
 type ScriptPubkey struct {
-	Asm       string    `json:"asm"`
-	Hex       string    `json:"hex"`
-	ReqSigs   int       `json:"reqSigs"`
-	Type      string    `json:"type"`
-	Addresses []*string `json:"addresses"`
+	Asm       string   `json:"asm"`
+	Hex       string   `json:"hex"`
+	ReqSigs   int      `json:"reqSigs"`
+	Type      string   `json:"type"`
+	Addresses []string `json:"addresses"`
 }

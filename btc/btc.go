@@ -73,32 +73,16 @@ func NewBTCNode(uri string, pruneBlocks int64) *BTCNode {
 }
 
 func (b *BTCNode) Start() {
-	go b.doStart()
-}
-
-func (b *BTCNode) doStart() {
-	ticker := time.NewTicker(10 * time.Second)
 	err := b.LoadData()
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = b.GetBestBlockHash()
-	if err != nil {
-		log.Info(err)
-	}
-	for {
-		select {
-		case <-ticker.C:
-			go b.GetBestBlockHash()
-		}
-	}
+	go b.Run()
 }
 
 func (b *BTCNode) LoadData() error {
 	iter := b.db.NewIterator(nil, nil)
 	for iter.Next() {
-		// Remember that the contents of the returned slice should not be modified, and
-		// only valid until the next call to Next.
 		key := iter.Key()
 		value := iter.Value()
 		if string(key[:5]) == "index" {
@@ -121,11 +105,12 @@ func (b *BTCNode) LoadData() error {
 	return nil
 }
 
-func (b *BTCNode) GetBestBlockHash() error {
+func (b *BTCNode) Run() error {
 	res := ChainInfo{}
 	err := b.Resolver.GetRequest(b.URI, "/rest/chaininfo.json", &res)
 	if err != nil {
-		log.Info(err)
+		time.Sleep(10 * time.Second)
+		b.Run()
 		return err
 	}
 	b.BestBlockHash = res.BestBlockHash
@@ -135,47 +120,44 @@ func (b *BTCNode) GetBestBlockHash() error {
 	if b.BestBlocks != res.Blocks && b.isStart == false {
 		b.BestBlocks = res.Blocks
 		b.isStart = true
-		err := b.GetBlock(b.BestBlockHash)
-		if err != nil {
-			return err
-		}
+		b.GetBlock(b.BestBlockHash)
 	}
+	time.Sleep(10 * time.Second)
+	b.Run()
 	return nil
 }
 
-func (b *BTCNode) GetBlock(bestblockhash string) error {
+func (b *BTCNode) GetBlock(blockHash string) error {
 	res := Block{}
-	err := b.Resolver.GetRequest(b.URI, "/rest/block/"+bestblockhash+".json", &res)
+	err := b.Resolver.GetRequest(b.URI, "/rest/block/"+blockHash+".json", &res)
 	if err != nil {
-		b.GetBlock(bestblockhash)
+		b.GetBlock(blockHash)
 		return err
 	}
 	if res.Height == 0 {
-		b.GetBlock(bestblockhash)
+		b.GetBlock(blockHash)
 		return errors.New("height is zero")
 	}
 	for _, tx := range res.Txs {
-		for _, vout := range tx.Vout {
-			for _, addr := range vout.ScriptPubkey.Addresses {
-				b.AddIndexEntry(*addr, res.Height, tx.Txid, vout)
-			}
+		if b.Txs[tx.Txid] != nil {
+			continue
 		}
 		tx.Confirms = res.Height
-		b.Txs[tx.Txid] = tx
-		b.PutTxs(tx.Txid, tx)
+		go b.PutTxs(tx.Txid, tx)
+		for _, vout := range tx.Vout {
+			for _, addr := range vout.ScriptPubkey.Addresses {
+				go b.PutIndex(addr, tx.Confirms, tx.Txid)
+			}
+		}
 	}
 	if b.LocalBlocks+1 == res.Height {
 		b.LocalBlocks = b.BestBlocks
+		b.UpdateIndex()
 		b.isStart = false
-		err := b.UpdateIndex()
-		if err != nil {
-			return err
-		}
-		log.Infof("index count -> %3d syncing -> %5d purne blocks -> %3d", len(b.Index), b.LocalBlocks, b.PruneBlocks)
 		return nil
 	}
 	if b.LocalBlocks < res.Height {
-		go b.GetBlock(res.Previousblockhash)
+		b.GetBlock(res.Previousblockhash)
 	}
 	return nil
 }
@@ -187,64 +169,71 @@ func (b *BTCNode) UpdateIndex() error {
 	lock.RLock()
 	for i, meta := range b.Index {
 		if meta.Height < b.LocalBlocks-b.PruneBlocks || meta.Height > b.LocalBlocks {
-			delete(b.Index, i)
-			err := b.db.Delete([]byte("index_"+i), nil)
-			if err != nil {
-				return err
-			}
+			go b.DeleteIndex(i)
 			for _, tx := range meta.Txs {
-				delete(b.Txs, tx)
-				err := b.db.Delete([]byte("txs_"+tx), nil)
-				if err != nil {
-					return err
-				}
+				go b.DeleteTxs(tx)
 			}
 		}
 	}
 	lock.RUnlock()
+	log.Infof("index count -> %3d syncing -> %5d purne blocks -> %3d", len(b.Index), b.LocalBlocks, b.PruneBlocks)
 	return nil
 }
 
-func (b *BTCNode) AddIndexEntry(addr string, height int64, txID string, vout *Vout) error {
-	meta := Meta{}
-	count := 0
-	lock.RLock()
-	if b.Index[addr] != nil {
-		meta = *b.Index[addr]
-		for _, tx := range meta.Txs {
-			if tx == txID {
-				lock.RUnlock()
-				return errors.New("tx is already added")
-			}
-		}
-	}
-	newTxs := append(meta.Txs, txID)
-	count = meta.Count + 1
-	lock.RUnlock()
+func (b *BTCNode) DeleteIndex(key string) error {
 	lock.Lock()
-	b.Index[addr] = &Meta{
+	delete(b.Index, key)
+	lock.Unlock()
+	err := b.db.Delete([]byte("index_"+key), nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *BTCNode) DeleteTxs(key string) error {
+	lock.Lock()
+	delete(b.Txs, key)
+	lock.Unlock()
+	err := b.db.Delete([]byte("txs_"+key), nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (b *BTCNode) PutIndex(addr string, confirms int64, txID string) error {
+	lock.RLock()
+	meta := b.Index[addr]
+	lock.RUnlock()
+	txs := []string{}
+	count := 0
+	if meta != nil {
+		txs = meta.Txs
+		count = meta.Count + 1
+	}
+	txs = append(txs, txID)
+	newMeta := &Meta{
 		Height: b.BestBlocks,
 		Count:  count,
-		Txs:    newTxs,
+		Txs:    txs,
 	}
-	err := b.PutIndex(addr, b.Index[addr])
+	m, err := json.Marshal(newMeta)
 	if err != nil {
-		log.Info(err)
+		fmt.Printf("Error: %s", err)
+		return err
 	}
+	err = b.db.Put([]byte("index_"+addr), []byte(m), nil)
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+		return err
+	}
+	lock.Lock()
+	b.Index[addr] = newMeta
 	lock.Unlock()
-	log.Infof("%70s index -> %12d -> txs -> %4d Height -> %d BestHeight -> %d", addr, len(b.Index), len(b.Index[addr].Txs), height, b.BestBlocks)
-	return nil
-}
-
-func (b *BTCNode) PutIndex(key string, meta *Meta) error {
-	m, err := json.Marshal(meta)
-	if err != nil {
-		fmt.Printf("Error: %s", err)
-	}
-	err = b.db.Put([]byte("index_"+key), []byte(m), nil)
-	if err != nil {
-		fmt.Printf("Error: %s", err)
-	}
+	lock.RLock()
+	log.Infof("%70s index -> %12d -> txs -> %4d Confirms -> %d BestHeight -> %d", addr, len(b.Index), len(b.Index[addr].Txs), confirms, b.BestBlocks)
+	lock.RUnlock()
 	return nil
 }
 
@@ -252,13 +241,19 @@ func (b *BTCNode) PutTxs(key string, tx *Tx) error {
 	t, err := json.Marshal(tx)
 	if err != nil {
 		fmt.Printf("Error: %s", err)
+		return err
 	}
 	err = b.db.Put([]byte("txs_"+key), []byte(t), nil)
 	if err != nil {
 		fmt.Printf("Error: %s", err)
+		return err
 	}
+	lock.Lock()
+	b.Txs[tx.Txid] = tx
+	lock.Unlock()
 	return nil
 }
+
 func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	address := r.PathParam("address")
 	sortFlag := r.FormValue("sort")
