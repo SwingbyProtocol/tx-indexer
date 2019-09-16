@@ -79,7 +79,7 @@ func (b *BTCNode) Start() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	go b.Run()
+	b.Run()
 }
 
 func (b *BTCNode) LoadData() error {
