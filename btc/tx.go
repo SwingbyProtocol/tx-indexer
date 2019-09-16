@@ -20,6 +20,7 @@ type Vin struct {
 
 type Vout struct {
 	Value        float32       `json:"value"`
+	Spent        bool          `json:"spent"`
 	N            int           `json:"n"`
 	ScriptPubkey *ScriptPubkey `json:"scriptPubkey"`
 }
