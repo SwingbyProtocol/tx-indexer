@@ -32,6 +32,7 @@ type BTCNode struct {
 	URI           string
 	db            *leveldb.DB
 	isStart       bool
+	Status        string
 }
 
 type Meta struct {
@@ -68,6 +69,7 @@ func NewBTCNode(uri string, pruneBlocks int64) *BTCNode {
 		PruneBlocks: pruneBlocks,
 		Resolver:    resolver.NewResolver(),
 		db:          db,
+		Status:      "init",
 	}
 	return node
 }
@@ -82,6 +84,8 @@ func (b *BTCNode) Start() {
 
 func (b *BTCNode) LoadData() error {
 	iter := b.db.NewIterator(nil, nil)
+	log.Info("loading data....")
+	underBlocks := int64(0)
 	for iter.Next() {
 		key := iter.Key()
 		value := iter.Value()
@@ -94,14 +98,23 @@ func (b *BTCNode) LoadData() error {
 			var tx Tx
 			json.Unmarshal(value, &tx)
 			b.Txs[string(key[4:])] = &tx
+			if underBlocks == 0 {
+				underBlocks = int64(1000000000000)
+			}
+			if underBlocks > tx.Confirms {
+				underBlocks = tx.Confirms
+			}
 		}
+		//log.Info(string(key))
 	}
+	b.LocalBlocks = underBlocks
 	iter.Release()
 	err := iter.Error()
 	if err != nil {
 		log.Info(err)
 		return err
 	}
+	log.Infof("loaded completed. old -> %d index -> %d txs -> %d", b.LocalBlocks, len(b.Index), len(b.Txs))
 	return nil
 }
 
@@ -110,20 +123,32 @@ func (b *BTCNode) Run() error {
 	err := b.Resolver.GetRequest(b.URI, "/rest/chaininfo.json", &res)
 	if err != nil {
 		time.Sleep(10 * time.Second)
-		b.Run()
+		go b.Run()
 		return err
 	}
-	b.BestBlockHash = res.BestBlockHash
-	if b.LocalBlocks == 0 {
-		b.LocalBlocks = res.Blocks - b.PruneBlocks
+	log.Info("call to bitcoind best blocks -> ", res.Blocks)
+
+	if b.Status == "init" {
+		b.Status = "loaded"
+		if b.LocalBlocks+b.PruneBlocks <= res.Blocks+1 && b.LocalBlocks != 0 {
+			b.BestBlocks = res.Blocks
+			b.LocalBlocks = res.Blocks
+		} else {
+			b.BestBlocks = 0
+			b.LocalBlocks = res.Blocks - b.PruneBlocks
+		}
 	}
 	if b.BestBlocks != res.Blocks && b.isStart == false {
+		b.BestBlockHash = res.BestBlockHash
 		b.BestBlocks = res.Blocks
 		b.isStart = true
-		b.GetBlock(b.BestBlockHash)
+		err := b.GetBlock(b.BestBlockHash)
+		if err != nil {
+			log.Info(err)
+		}
 	}
 	time.Sleep(10 * time.Second)
-	b.Run()
+	go b.Run()
 	return nil
 }
 
@@ -131,53 +156,75 @@ func (b *BTCNode) GetBlock(blockHash string) error {
 	res := Block{}
 	err := b.Resolver.GetRequest(b.URI, "/rest/block/"+blockHash+".json", &res)
 	if err != nil {
-		b.GetBlock(blockHash)
+		go b.GetBlock(blockHash)
 		return err
 	}
 	if res.Height == 0 {
-		b.GetBlock(blockHash)
+		go b.GetBlock(blockHash)
 		return errors.New("height is zero")
 	}
+	log.Infof("Fetch block -> %d", res.Height)
 	for _, tx := range res.Txs {
-		if b.Txs[tx.Txid] != nil {
+		lock.RLock()
+		old := b.Txs[tx.Txid]
+		lock.RUnlock()
+		if old != nil {
 			continue
 		}
 		tx.Confirms = res.Height
 		go b.PutTxs(tx.Txid, tx)
 		for _, vout := range tx.Vout {
 			for _, addr := range vout.ScriptPubkey.Addresses {
-				go b.PutIndex(addr, tx.Confirms, tx.Txid)
+				go b.PutIndex(addr, res.Height, tx.Txid)
 			}
 		}
 	}
-	if b.LocalBlocks+1 == res.Height {
+	if b.LocalBlocks+1 >= res.Height {
 		b.LocalBlocks = b.BestBlocks
-		b.UpdateIndex()
 		b.isStart = false
+		b.FinalizeIndex()
 		return nil
 	}
 	if b.LocalBlocks < res.Height {
-		b.GetBlock(res.Previousblockhash)
+		go func() {
+			time.Sleep(1 * time.Second)
+			b.GetBlock(res.Previousblockhash)
+		}()
 	}
 	return nil
 }
 
-func (b *BTCNode) UpdateIndex() error {
+func (b *BTCNode) FinalizeIndex() {
 	if len(b.Index) == 0 {
-		return errors.New("index is empty")
+		return
 	}
+	removeCountIndex := 0
+	removeCountTxs := 0
 	lock.RLock()
 	for i, meta := range b.Index {
 		if meta.Height < b.LocalBlocks-b.PruneBlocks || meta.Height > b.LocalBlocks {
-			go b.DeleteIndex(i)
+			removeCountIndex = removeCountIndex + 1
+			go func() {
+				err := b.DeleteIndex(i)
+				if err != nil {
+					log.Info(err)
+				}
+			}()
 			for _, tx := range meta.Txs {
-				go b.DeleteTxs(tx)
+				removeCountTxs = removeCountTxs + 1
+				txID := tx
+				go func() {
+					err := b.DeleteTxs(txID)
+					if err != nil {
+						log.Info(err)
+					}
+				}()
 			}
 		}
 	}
 	lock.RUnlock()
-	log.Infof("index count -> %3d syncing -> %5d purne blocks -> %3d", len(b.Index), b.LocalBlocks, b.PruneBlocks)
-	return nil
+	log.Infof("Removed index count -> %3d txs -> %3d", removeCountIndex, removeCountTxs)
+	log.Infof("Updated index count -> %3d syncing -> %5d purne blocks -> %3d", len(b.Index), b.LocalBlocks, b.PruneBlocks)
 }
 
 func (b *BTCNode) DeleteIndex(key string) error {
@@ -208,13 +255,17 @@ func (b *BTCNode) PutIndex(addr string, confirms int64, txID string) error {
 	lock.RUnlock()
 	txs := []string{}
 	count := 0
+	height := confirms
 	if meta != nil {
 		txs = meta.Txs
 		count = meta.Count + 1
+		if height > meta.Height {
+			height = meta.Height
+		}
 	}
 	txs = append(txs, txID)
 	newMeta := &Meta{
-		Height: b.BestBlocks,
+		Height: height,
 		Count:  count,
 		Txs:    txs,
 	}
@@ -231,9 +282,7 @@ func (b *BTCNode) PutIndex(addr string, confirms int64, txID string) error {
 	lock.Lock()
 	b.Index[addr] = newMeta
 	lock.Unlock()
-	lock.RLock()
-	log.Infof("%70s index -> %12d -> txs -> %4d Confirms -> %d BestHeight -> %d", addr, len(b.Index), len(b.Index[addr].Txs), confirms, b.BestBlocks)
-	lock.RUnlock()
+	//log.Info("put index -> ", addr)
 	return nil
 }
 
@@ -251,6 +300,7 @@ func (b *BTCNode) PutTxs(key string, tx *Tx) error {
 	lock.Lock()
 	b.Txs[tx.Txid] = tx
 	lock.Unlock()
+	//log.Info("put tx -> ", tx.Txid)
 	return nil
 }
 
