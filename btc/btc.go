@@ -197,7 +197,7 @@ func (b *BTCNode) GetBlock(blockHash string) error {
 	}
 	if b.LocalBlocks < res.Height {
 		go func() {
-			time.Sleep(1 * time.Second)
+			time.Sleep(5 * time.Second)
 			b.GetBlock(res.Previousblockhash)
 		}()
 	}
