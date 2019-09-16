@@ -131,9 +131,11 @@ func (b *BTCNode) GetBlock() error {
 	res := Block{}
 	err := b.Resolver.GetRequest(b.URI, "/rest/block/"+task[2:]+".json", &res)
 	if err != nil {
+		tasks = append(tasks, task)
 		return err
 	}
 	if res.Height == 0 {
+		tasks = append(tasks, task)
 		return errors.New("height is zero")
 	}
 	log.Infof("Fetch block -> %d", res.Height)
