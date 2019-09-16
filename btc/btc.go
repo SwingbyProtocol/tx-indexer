@@ -27,10 +27,10 @@ type BTCNode struct {
 	Spent       map[string]bool
 	PruneBlocks int64
 	LocalBlocks int64
+	BestBlocks  int64
 	Resolver    *resolver.Resolver
 	URI         string
 	db          *leveldb.DB
-	isStart     bool
 	Status      string
 }
 
@@ -80,7 +80,7 @@ func (b *BTCNode) Start() {
 		for {
 			select {
 			case <-ticker.C:
-				b.Run()
+				go b.Run()
 			}
 		}
 	}()
@@ -90,7 +90,7 @@ func (b *BTCNode) Start() {
 		for {
 			select {
 			case <-ticker2.C:
-				b.GetBlock()
+				go b.GetBlock()
 			}
 		}
 	}()
@@ -103,10 +103,16 @@ func (b *BTCNode) Run() error {
 		return err
 	}
 	log.Info("call to bitcoind best blocks -> ", res.Blocks)
-	b.LocalBlocks = res.Blocks - b.PruneBlocks
 	if b.Status == "init" {
+		b.LocalBlocks = res.Blocks - b.PruneBlocks
+		b.BestBlocks = res.Blocks
 		tasks = append(tasks, "0_"+res.BestBlockHash)
-		b.Status = "run"
+		b.Status = "start"
+	} else {
+		if b.Status == "loop" && b.BestBlocks != res.Blocks {
+			b.BestBlocks = res.Blocks
+			tasks = append(tasks, "0_"+res.BestBlockHash)
+		}
 	}
 	return nil
 }
@@ -115,8 +121,10 @@ func (b *BTCNode) GetBlock() error {
 	if len(tasks) == 0 {
 		return errors.New("no")
 	}
+	lock.Lock()
 	task := tasks[0]
 	tasks = tasks[1:]
+	lock.Unlock()
 	if task[:1] != "0" {
 		return errors.New("task is not zero")
 	}
@@ -134,6 +142,11 @@ func (b *BTCNode) GetBlock() error {
 	b.PutIndex(txs)
 	for key := range b.Index {
 		go b.showIndex(key)
+	}
+	if b.LocalBlocks+1 == res.Height {
+		b.LocalBlocks = b.BestBlocks
+		b.Status = "loop"
+		return nil
 	}
 	if b.LocalBlocks < res.Height {
 		tasks = append(tasks, "0_"+res.Previousblockhash)
