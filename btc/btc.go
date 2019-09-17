@@ -78,7 +78,7 @@ func NewBTCNode(uri string, pruneBlocks int64) *BTCNode {
 }
 
 func (b *BTCNode) Start() {
-	ticker := time.NewTicker(10 * time.Second)
+	runTime := time.NewTicker(10 * time.Second)
 	err := b.LoadData()
 	if err != nil {
 		log.Info(err)
@@ -87,17 +87,17 @@ func (b *BTCNode) Start() {
 		b.Run()
 		for {
 			select {
-			case <-ticker.C:
+			case <-runTime.C:
 				go b.Run()
 			}
 		}
 	}()
-	ticker2 := time.NewTicker(7 * time.Second)
+	taskTime := time.NewTicker(8 * time.Second)
 	go func() {
 		b.GetBlock()
 		for {
 			select {
-			case <-ticker2.C:
+			case <-taskTime.C:
 				go b.GetBlock()
 			}
 		}
@@ -212,8 +212,11 @@ func (b *BTCNode) CheckAllSpentTx(block *Block) []*Tx {
 func (b *BTCNode) DeleteIndex() {
 	for addr, date := range b.Updates {
 		if b.BestBlocks-b.PruneBlocks > date {
-			b.Index[addr] = ""
-			log.Info("delete ->", addr)
+			delete(b.Index, addr)
+			go b.RemoveIndex(addr)
+			delete(b.Updates, addr)
+			go b.RemoveUpdate(addr)
+			//log.Info("delete ->", addr)
 		}
 	}
 }
@@ -253,9 +256,27 @@ func (b *BTCNode) StoreIndex(addr string, data string) error {
 	return nil
 }
 
+func (b *BTCNode) RemoveIndex(addr string) error {
+	err := b.db.Delete([]byte("index_"+addr), nil)
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+		return err
+	}
+	return nil
+}
+
 func (b *BTCNode) StoreUpdate(addr string, update int) error {
 	str := strconv.Itoa(update)
 	err := b.db.Put([]byte("update_"+addr), []byte(str), nil)
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+		return err
+	}
+	return nil
+}
+
+func (b *BTCNode) RemoveUpdate(addr string) error {
+	err := b.db.Delete([]byte("update_"+addr), nil)
 	if err != nil {
 		fmt.Printf("Error: %s", err)
 		return err
