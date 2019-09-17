@@ -32,9 +32,9 @@ WORKDIR /root/
 # Copy the Pre-built binary file from the previous stage
 COPY --from=builder /app/main .
 
-# Expose port 8080 to the outside world
-EXPOSE 9092
+# Expose port 9096 to the outside world
+EXPOSE 9096
 
 # Command to run the executable
 ENTRYPOINT ["./main"]
-CMD ["-bitcoind=http://192.168.1.230:8332", "-prune=2", "-bind=0.0.0.0:9092"]
+CMD ["-bitcoind=http://192.168.1.230:8332", "-prune=12"]

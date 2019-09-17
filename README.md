@@ -2,14 +2,14 @@
 
 ## Usage
 ```
-go run main.go -bitcoind=http://<bitcoind rest api endpoint>:8332 -prune=12 -bind=0.0.0.0:9092
+go run main.go -bitcoind=http://<bitcoind rest api endpoint>:8332 -prune=12
 ```
 ## Docker run
 ```
 docker build -t index .
 ```
 ```
-docker run -d --name=index -p 9092:9092 index -bitcoind http://<bitcoind rest api endpoint>:8332 -prune 120
+docker run -d -v /var/leveldb:/root/db --name=index -p 9096:9096 index -bitcoind http://<bitcoind rest api endpoint>:8332 -prune 120
 ```
 ## bitcoind-node
 mainnet
