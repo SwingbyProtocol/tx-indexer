@@ -25,6 +25,7 @@ var (
 type BTCNode struct {
 	Index       map[string]string
 	Spent       map[string]bool
+	Updates     map[string]int64
 	PruneBlocks int64
 	LocalBlocks int64
 	BestBlocks  int64
@@ -53,6 +54,8 @@ type Block struct {
 	Height            int64  `json:"height"`
 	NTx               int64  `json:"nTx"`
 	Txs               []*Tx  `json:"tx"`
+	Time              int64  `json:"time"`
+	Mediantime        int64  `json:"mediantime"`
 	Previousblockhash string `json:"previousblockhash"`
 }
 
@@ -64,6 +67,7 @@ func NewBTCNode(uri string, pruneBlocks int64) *BTCNode {
 	node := &BTCNode{
 		Index:       make(map[string]string),
 		Spent:       make(map[string]bool),
+		Updates:     make(map[string]int64),
 		URI:         uri,
 		PruneBlocks: pruneBlocks,
 		Resolver:    resolver.NewResolver(),
@@ -75,6 +79,10 @@ func NewBTCNode(uri string, pruneBlocks int64) *BTCNode {
 
 func (b *BTCNode) Start() {
 	ticker := time.NewTicker(10 * time.Second)
+	err := b.LoadData()
+	if err != nil {
+		log.Info(err)
+	}
 	go func() {
 		b.Run()
 		for {
@@ -84,7 +92,7 @@ func (b *BTCNode) Start() {
 			}
 		}
 	}()
-	ticker2 := time.NewTicker(5 * time.Second)
+	ticker2 := time.NewTicker(7 * time.Second)
 	go func() {
 		b.GetBlock()
 		for {
@@ -140,8 +148,9 @@ func (b *BTCNode) GetBlock() error {
 	}
 	log.Infof("Fetch block -> %d", res.Height)
 	txs := b.CheckAllSpentTx(&res)
-	b.StoreTxs(res.Height, txs)
+	b.StoreTxs(res, txs)
 	b.PutIndex(txs)
+	b.DeleteIndex()
 	for key := range b.Index {
 		go b.showIndex(key)
 	}
@@ -159,9 +168,10 @@ func (b *BTCNode) GetBlock() error {
 func (b *BTCNode) showIndex(key string) {
 	lock.RLock()
 	txIDs := strings.Split(b.Index[key], "_")
+	update := b.Updates[key]
 	lock.RUnlock()
-	if len(txIDs) > 70 {
-		log.Infof("counts -> %12d addr -> %s ", len(txIDs), key)
+	if len(txIDs) > 3*int(b.PruneBlocks) {
+		log.Infof("counts -> %12d updated -> %12d addr -> %s ", len(txIDs), update, key)
 	}
 }
 
@@ -174,6 +184,7 @@ func (b *BTCNode) CheckAllSpentTx(block *Block) []*Tx {
 			}
 			key := vin.Txid + "_" + strconv.Itoa(vin.Vout)
 			b.Spent[key] = true
+			go b.StoreSpent(key)
 		}
 		vouts[tx.Txid] = len(tx.Vout)
 	}
@@ -198,6 +209,15 @@ func (b *BTCNode) CheckAllSpentTx(block *Block) []*Tx {
 	return txs
 }
 
+func (b *BTCNode) DeleteIndex() {
+	for addr, date := range b.Updates {
+		if b.BestBlocks-b.PruneBlocks > date {
+			b.Index[addr] = ""
+			log.Info("delete ->", addr)
+		}
+	}
+}
+
 func (b *BTCNode) PutIndex(txs []*Tx) {
 	for _, tx := range txs {
 		for _, vout := range tx.Vout {
@@ -214,6 +234,9 @@ func (b *BTCNode) PutIndex(txs []*Tx) {
 					}
 					if isMatch == false {
 						b.Index[addr] = b.Index[addr] + "_" + tx.Txid
+						b.Updates[addr] = b.BestBlocks
+						go b.StoreIndex(addr, b.Index[addr])
+						go b.StoreUpdate(addr, int(b.Updates[addr]))
 					}
 				}
 			}
@@ -221,15 +244,26 @@ func (b *BTCNode) PutIndex(txs []*Tx) {
 	}
 }
 
-func (b *BTCNode) StoreTxs(height int64, txs []*Tx) {
-	for _, tx := range txs {
-		tx.Confirms = height
-		go b.PutTxs(tx.Txid, tx)
+func (b *BTCNode) StoreIndex(addr string, data string) error {
+	err := b.db.Put([]byte("index_"+addr), []byte(data), nil)
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+		return err
 	}
+	return nil
 }
 
-func (b *BTCNode) PutSpent(txID string, output int) error {
-	key := txID + "_" + strconv.Itoa(output)
+func (b *BTCNode) StoreUpdate(addr string, update int) error {
+	str := strconv.Itoa(update)
+	err := b.db.Put([]byte("update_"+addr), []byte(str), nil)
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+		return err
+	}
+	return nil
+}
+
+func (b *BTCNode) StoreSpent(key string) error {
 	s, err := json.Marshal(true)
 	if err != nil {
 		fmt.Printf("Error: %s", err)
@@ -240,13 +274,19 @@ func (b *BTCNode) PutSpent(txID string, output int) error {
 		fmt.Printf("Error: %s", err)
 		return err
 	}
-	lock.Lock()
-	b.Spent[key] = true
-	lock.Unlock()
 	return nil
 }
 
-func (b *BTCNode) PutTxs(key string, tx *Tx) error {
+func (b *BTCNode) StoreTxs(block Block, txs []*Tx) {
+	for _, tx := range txs {
+		tx.Confirms = block.Height
+		tx.Time = block.Time
+		tx.Mediantime = block.Mediantime
+		go b.StpreTx(tx.Txid, tx)
+	}
+}
+
+func (b *BTCNode) StpreTx(key string, tx *Tx) error {
 	t, err := json.Marshal(tx)
 	if err != nil {
 		fmt.Printf("Error: %s", err)
@@ -257,15 +297,36 @@ func (b *BTCNode) PutTxs(key string, tx *Tx) error {
 		fmt.Printf("Error: %s", err)
 		return err
 	}
-	//log.Info("put tx -> ", tx.Txid)
 	return nil
 }
 
-func (b *BTCNode) DeleteIndex(key string) error {
-	err := b.db.Delete([]byte("index_"+key), nil)
+func (b *BTCNode) LoadData() error {
+	iter := b.db.NewIterator(nil, nil)
+	log.Info("loading leveldb....")
+	for iter.Next() {
+		key := iter.Key()
+		value := iter.Value()
+		if string(key[:5]) == "index" {
+			b.Index[string(key[6:])] = string(value)
+		}
+		if string(key[:5]) == "spent" {
+			b.Spent[string(key[6:])] = true
+		}
+		if string(key[:6]) == "update" {
+			i, err := strconv.Atoi(string(value))
+			if err != nil {
+				log.Info(err)
+				continue
+			}
+			b.Updates[string(key[7:])] = int64(i)
+		}
+	}
+	iter.Release()
+	err := iter.Error()
 	if err != nil {
 		return err
 	}
+	log.Infof("loaded completed. index -> %d update -> %d spent -> %d", len(b.Index), len(b.Updates), len(b.Spent))
 	return nil
 }
 
@@ -361,40 +422,3 @@ func res500(w rest.ResponseWriter, r *rest.Request) {
 	res := []string{}
 	w.WriteJson(res)
 }
-
-/**
-
-
-func (b *BTCNode) FinalizeIndex() {
-	if len(b.Index) == 0 {
-		return
-	}
-	removeCountIndex := 0
-	removeCountTxs := 0
-	lock.RLock()
-	for i, meta := range b.Index {
-		if meta.Height < b.LocalBlocks-b.PruneBlocks || meta.Height > b.LocalBlocks {
-			removeCountIndex = removeCountIndex + 1
-			go func() {
-				err := b.DeleteIndex(i)
-				if err != nil {
-					log.Info(err)
-				}
-			}()
-			for _, tx := range meta.Txs {
-				removeCountTxs = removeCountTxs + 1
-				txID := tx
-				go func() {
-					err := b.DeleteTxs(txID)
-					if err != nil {
-						log.Info(err)
-					}
-				}()
-			}
-		}
-	}
-	lock.RUnlock()
-	log.Infof("Removed index count -> %3d txs -> %3d", removeCountIndex, removeCountTxs)
-	log.Infof("Updated index count -> %3d syncing -> %5d purne blocks -> %3d", len(b.Index), b.LocalBlocks, b.PruneBlocks)
-}
-*/

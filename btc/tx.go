@@ -1,14 +1,16 @@
 package btc
 
 type Tx struct {
-	Txid     string  `json:"txid"`
-	Hash     string  `json:"hash"`
-	Confirms int64   `json:"confirms"`
-	Version  int     `json:"version"`
-	Weight   int     `json:"weight"`
-	Locktime int     `json:"locktime"`
-	Vin      []*Vin  `json:"vin"`
-	Vout     []*Vout `json:"vout"`
+	Txid       string  `json:"txid"`
+	Hash       string  `json:"hash"`
+	Confirms   int64   `json:"confirms"`
+	Time       int64   `json:"time"`
+	Mediantime int64   `json:"mediantime"`
+	Version    int     `json:"version"`
+	Weight     int     `json:"weight"`
+	Locktime   int     `json:"locktime"`
+	Vin        []*Vin  `json:"vin"`
+	Vout       []*Vout `json:"vout"`
 	//Hex      string  `json:"hex"`
 }
 
