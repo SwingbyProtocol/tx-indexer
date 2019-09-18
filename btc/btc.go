@@ -363,7 +363,15 @@ func (b *BTCNode) getSpending(from string, txs []*Tx) []string {
 			}
 			txIDs := strings.Split(b.Spent[key], "_")
 			for _, txID := range txIDs {
-				spents = append(spents, txID)
+				isAdd := false
+				for _, spent := range spents {
+					if spent == txID {
+						isAdd = true
+					}
+				}
+				if isAdd == false {
+					spents = append(spents, txID)
+				}
 			}
 			lock.RUnlock()
 		}
