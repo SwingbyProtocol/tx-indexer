@@ -38,16 +38,18 @@ func (r *Resolver) GetRequest(uri string, query string, res interface{}) error {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), r.ContextTimeout)
 	defer cancel()
 
 	reqWithDeadline := req.WithContext(ctx)
 	resp, err := r.Client.Do(reqWithDeadline)
 	if err != nil {
-		log.Println("get err:", err.Error()[:30])
+		log.Println("get err:", err.Error()[:33])
 		return err
 	}
 	if resp.StatusCode != 200 {
+		log.Info(uri + query)
+		resp.Body.Close()
 		return errors.New("get err: res code is not 200")
 	}
 	decoder := json.NewDecoder(resp.Body)
