@@ -264,7 +264,7 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	}
 	txIDs := strings.Split(b.Index[address], "_")
 	lock.RUnlock()
-	txRes := []Tx{}
+	txRes := []*Tx{}
 	// get txs for received
 	txs := b.LoadTxs(txIDs)
 	if spentFlag == "send" {
@@ -272,11 +272,11 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 		spents := b.getSpending(address, txs)
 		spentTxs := b.LoadTxs(spents)
 		for _, spent := range spentTxs {
-			txRes = append(txRes, *spent)
+			txRes = append(txRes, spent)
 		}
 	} else {
 		for _, tx := range txs {
-			txRes = append(txRes, *tx)
+			txRes = append(txRes, tx)
 		}
 	}
 	for _, tx := range txRes {
@@ -303,6 +303,15 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 			for _, txID := range txIDs {
 				vout.Txs = append(vout.Txs, txID)
 			}
+		}
+		isSpent := false
+		for _, vout := range tx.Vout {
+			if vout.Spent == true {
+				isSpent = true
+			}
+		}
+		if isSpent == true {
+			tx.ReceivedTime--
 		}
 	}
 
