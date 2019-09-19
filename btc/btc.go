@@ -88,7 +88,7 @@ func (b *BTCNode) Start() {
 		log.Info(err)
 	}
 	b.Loop(b.GetNewTxs, 10000)
-	b.Loop(b.Work, 20)
+	b.Loop(b.Work, 10)
 }
 
 func (b *BTCNode) Loop(f func(), t time.Duration) {
@@ -191,7 +191,7 @@ func (b *BTCNode) Work() {
 	if err != nil {
 		task.Errors++
 		log.Infof("%s count -> %d", err, task.Errors)
-		if task.Errors < 30 {
+		if task.Errors < 12 {
 			go func() {
 				time.Sleep(10 * time.Second)
 				taskList = append(taskList, task)

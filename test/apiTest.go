@@ -22,7 +22,7 @@ func init() {
 }
 
 var (
-	addr = "1AwDFdVohP1dQzUrAVrvex17exkbdLX5S6"
+	addr = "1TuoU8zq3EuLxAuyCNKWQ5vJGgr7E3i3Us"
 )
 
 func main() {

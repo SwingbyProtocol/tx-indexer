@@ -2,7 +2,7 @@
 
 ## Usage
 ```
-go run main.go -bitcoind=http://<bitcoind rest api endpoint>:8332 -prune=12
+go run index.go -bitcoind=http://<bitcoind rest api endpoint>:8332 -prune=12
 ```
 ## Docker run
 ```
