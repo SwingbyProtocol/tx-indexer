@@ -22,7 +22,7 @@ func init() {
 }
 
 var (
-	addr = "1TuoU8zq3EuLxAuyCNKWQ5vJGgr7E3i3Us"
+	addr = "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"
 )
 
 func main() {
@@ -37,7 +37,7 @@ func main() {
 	}
 	list := make(map[string]bool)
 	for i, tx := range txs {
-		if i > 14 {
+		if i > 20 {
 			continue
 		}
 		list[tx.Txid] = true
@@ -54,7 +54,11 @@ func main() {
 		txList = txList[:15]
 	}
 	for _, tx := range txList {
-		log.Info(tx.Hash)
+		if list[tx.Hash] == true {
+			log.Info("matched -> ", tx.Hash)
+		} else {
+			log.Info("esle -> ", tx.Hash)
+		}
 	}
 	log.Info(" ---------------> ")
 	time.Sleep(10 * time.Second)

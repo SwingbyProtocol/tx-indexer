@@ -27,7 +27,7 @@ func main() {
 	log.Println("bitcoind ->", *bitcoind, "bind ->", *bind, "prune ->", *prune)
 	api := rest.NewApi()
 	api.Use(rest.DefaultDevStack...)
-	btcNode := btc.NewBTCNode(*bitcoind, *prune)
+	btcNode := btc.NewNode(*bitcoind, *prune)
 	btcNode.Start()
 	router, err := rest.MakeRouter(
 		rest.Get("/txs/btc/:address", btcNode.GetBTCTxs),

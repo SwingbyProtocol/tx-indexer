@@ -4,22 +4,23 @@ import (
 	"encoding/json"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
-func (b *BTCNode) loadData() error {
-	iter := b.db.NewIterator(nil, nil)
+func loadData(node *Node) error {
+	iter := node.db.NewIterator(nil, nil)
 	log.Info("loading leveldb....")
 	for iter.Next() {
 		key := iter.Key()
 		value := iter.Value()
 		if string(key[:4]) == "pool" {
-			b.Pool[string(key[5:])] = true
+			node.Pool[string(key[5:])] = true
 		}
 		if string(key[:5]) == "index" {
-			b.Index[string(key[6:])] = string(value)
+			node.Index[string(key[6:])] = string(value)
 		}
 		if string(key[:5]) == "spent" {
-			b.Spent[string(key[6:])] = string(value)
+			node.Spent[string(key[6:])] = string(value)
 		}
 	}
 	iter.Release()
@@ -30,48 +31,71 @@ func (b *BTCNode) loadData() error {
 	return nil
 }
 
-func (b *BTCNode) storeIndex(addr string, data string) error {
-	err := b.db.Put([]byte("index_"+addr), []byte(data), nil)
+func loadTxs(db *leveldb.DB, txIDs []string) []*Tx {
+	txRes := []*Tx{}
+	c := make(chan Tx)
+	for _, txID := range txIDs {
+		go loadTx(db, "tx_"+txID, c)
+	}
+	for i := 0; i < len(txIDs); i++ {
+		tx := <-c
+		txRes = append(txRes, &tx)
+	}
+	return txRes
+}
+func loadTx(db *leveldb.DB, key string, c chan Tx) {
+	tx := Tx{}
+	value, err := db.Get([]byte(key), nil)
+	if err != nil {
+		c <- tx
+		return
+	}
+	json.Unmarshal(value, &tx)
+	c <- tx
+}
+
+func storeIndex(db *leveldb.DB, addr string, data string) error {
+	err := db.Put([]byte("index_"+addr), []byte(data), nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (b *BTCNode) storePool(key string) error {
+func storePool(db *leveldb.DB, key string) error {
 	s, err := json.Marshal(true)
 	if err != nil {
 		return err
 	}
-	err = b.db.Put([]byte("pool_"+key), []byte(s), nil)
+	err = db.Put([]byte("pool_"+key), []byte(s), nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (b *BTCNode) storeSpent(key string, data string) error {
-	err := b.db.Put([]byte("spent_"+key), []byte(data), nil)
+func storeSpent(db *leveldb.DB, key string, data string) error {
+	err := db.Put([]byte("spent_"+key), []byte(data), nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (b *BTCNode) storeTx(key string, tx *Tx) error {
+func storeTx(db *leveldb.DB, key string, tx *Tx) error {
 	t, err := json.Marshal(tx)
 	if err != nil {
 		return err
 	}
-	err = b.db.Put([]byte("tx_"+key), []byte(t), nil)
+	err = db.Put([]byte("tx_"+key), []byte(t), nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (b *BTCNode) removePool(txID string) error {
-	err := b.db.Delete([]byte("pool_"+txID), nil)
+func removePool(db *leveldb.DB, txID string) error {
+	err := db.Delete([]byte("pool_"+txID), nil)
 	if err != nil {
 		return err
 	}

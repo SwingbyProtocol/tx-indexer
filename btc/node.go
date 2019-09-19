@@ -1,7 +1,6 @@
 package btc
 
 import (
-	"encoding/json"
 	"net/http"
 	"sort"
 	"strconv"
@@ -20,7 +19,7 @@ var (
 	taskList = []Task{}
 )
 
-type BTCNode struct {
+type Node struct {
 	Index       map[string]string
 	Spent       map[string]string
 	Pool        map[string]bool
@@ -63,12 +62,12 @@ type Block struct {
 	Previousblockhash string   `json:"previousblockhash"`
 }
 
-func NewBTCNode(uri string, pruneBlocks int64) *BTCNode {
+func NewNode(uri string, pruneBlocks int64) *Node {
 	db, err := leveldb.OpenFile("./db", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
-	node := &BTCNode{
+	node := &Node{
 		Index:       make(map[string]string),
 		Spent:       make(map[string]string),
 		Pool:        make(map[string]bool),
@@ -82,56 +81,43 @@ func NewBTCNode(uri string, pruneBlocks int64) *BTCNode {
 	return node
 }
 
-func (b *BTCNode) Start() {
-	err := b.loadData()
+func (node *Node) Start() {
+	err := loadData(node)
 	if err != nil {
 		log.Info(err)
 	}
-	b.Loop(b.GetNewTxs, 10000)
-	b.Loop(b.Work, 10)
+	Loop(node.getTxs, 10000)
+	Loop(node.work, 10)
 }
 
-func (b *BTCNode) Loop(f func(), t time.Duration) {
-	inv := time.NewTicker(t * time.Millisecond)
-	go func() {
-		f()
-		for {
-			select {
-			case <-inv.C:
-				go f()
-			}
-		}
-	}()
-}
-
-func (b *BTCNode) GetNewTxs() {
-	tasks, err := b.checkMemPool()
+func (node *Node) getTxs() {
+	tasks, err := checkMemPool(node.Resolver, node.URI)
 	if err != nil {
 		log.Info(err)
 		return
 	}
-	if b.Status != "stop" {
+	if node.Status != "stop" {
 		return
 	}
-	b.Status = "start"
+	node.Status = "start"
 	for _, task := range tasks {
 		lock.Lock()
-		if b.Pool[task.Txid] != true {
+		if node.Pool[task.Txid] != true {
 			taskList = append(taskList, task)
 		}
 		lock.Unlock()
 	}
-	go b.removePools(tasks)
-	go b.checkBlock()
-	go b.showIndex()
+	go node.removePools(tasks)
+	go node.showIndex()
+	go checkBlock(node.Resolver, node.db, node.URI)
 	lock.RLock()
-	log.Infof("pushed -> %7d spent -> %7d pool -> %7d index -> %7d", len(taskList), len(b.Spent), len(b.Pool), len(b.Index))
+	log.Infof("pushed -> %7d spent -> %7d pool -> %7d index -> %7d", len(taskList), len(node.Spent), len(node.Pool), len(node.Index))
 	lock.RUnlock()
 }
 
-func (b *BTCNode) removePools(tasks []Task) {
+func (node *Node) removePools(tasks []Task) {
 	lock.Lock()
-	for key := range b.Pool {
+	for key := range node.Pool {
 		isMatch := false
 		for _, task := range tasks {
 			txID := task.Txid
@@ -140,45 +126,17 @@ func (b *BTCNode) removePools(tasks []Task) {
 			}
 		}
 		if isMatch == false {
-			delete(b.Pool, key)
-			go b.removePool(key)
+			delete(node.Pool, key)
+			go removePool(node.db, key)
 		}
 	}
 	lock.Unlock()
 }
 
-func (b *BTCNode) checkBlock() error {
-	info := ChainInfo{}
-	err := b.Resolver.GetRequest(b.URI, "/rest/chaininfo.json", &info)
-	if err != nil {
-		return err
-	}
-	block := Block{}
-	err = b.Resolver.GetRequest(b.URI, "/rest/block/notxdetails/"+info.BestBlockHash+".json", &block)
-	if err != nil {
-		return err
-	}
-	log.Info("get block -> ", block.Height)
-	txs := b.LoadTxs(block.Txs)
-	for _, tx := range txs {
-		if tx.Txid == "" {
-			continue
-		}
-		if tx.Confirms != 0 {
-			continue
-		}
-		tx.Confirms = block.Height
-		tx.MinedTime = block.Time
-		tx.Mediantime = block.Mediantime
-		go b.storeTx(tx.Txid, tx)
-	}
-	return nil
-}
-
-func (b *BTCNode) Work() {
+func (node *Node) work() {
 	lock.Lock()
 	if len(taskList) == 0 {
-		b.Status = "stop"
+		node.Status = "stop"
 		lock.Unlock()
 		return
 	}
@@ -187,7 +145,7 @@ func (b *BTCNode) Work() {
 	lock.Unlock()
 	txID := task.Txid
 	receiveTime := task.ReceivedTime
-	tx, err := b.checkTx(txID)
+	tx, err := checkTx(node.Resolver, node.URI, txID)
 	if err != nil {
 		task.Errors++
 		log.Infof("%s count -> %d", err, task.Errors)
@@ -203,108 +161,66 @@ func (b *BTCNode) Work() {
 	lock.Lock()
 	for _, vin := range tx.Vin {
 		key := vin.Txid + "_" + strconv.Itoa(vin.Vout)
-		if b.Spent[key] == "" {
-			b.Spent[key] = tx.Txid
+		if node.Spent[key] == "" {
+			node.Spent[key] = tx.Txid
 		} else {
-			if splitCheck(b.Spent[key], tx.Txid) {
+			if splitCheck(node.Spent[key], tx.Txid) {
 				continue
 			}
-			b.Spent[key] = b.Spent[key] + "_" + tx.Txid
+			node.Spent[key] = node.Spent[key] + "_" + tx.Txid
 		}
-		go b.storeSpent(key, b.Spent[key])
+		go storeSpent(node.db, key, node.Spent[key])
 	}
 	for _, vout := range tx.Vout {
 		for _, addr := range vout.ScriptPubkey.Addresses {
-			if b.Index[addr] == "" {
-				b.Index[addr] = tx.Txid
+			if node.Index[addr] == "" {
+				node.Index[addr] = tx.Txid
 			} else {
-				if splitCheck(b.Index[addr], tx.Txid) {
+				if splitCheck(node.Index[addr], tx.Txid) {
 					continue
 				}
-				b.Index[addr] = b.Index[addr] + "_" + tx.Txid
+				node.Index[addr] = node.Index[addr] + "_" + tx.Txid
 			}
-			go b.storeIndex(addr, b.Index[addr])
+			go storeIndex(node.db, addr, node.Index[addr])
 		}
 	}
-	b.Pool[txID] = true
+	node.Pool[txID] = true
 	lock.Unlock()
-	go b.storePool(txID)
-	go b.storeTx(txID, tx)
+	go storePool(node.db, txID)
+	go storeTx(node.db, txID, tx)
 }
 
-func splitCheck(str string, txID string) bool {
-	txIDs := strings.Split(str, "_")
-	isMatch := false
-	for _, tx := range txIDs {
-		if tx == txID {
-			isMatch = true
-		}
-	}
-	return isMatch
-}
-
-func (b *BTCNode) checkTx(txID string) (*Tx, error) {
-	tx := Tx{}
-	err := b.Resolver.GetRequest(b.URI, "/rest/tx/"+txID+".json", &tx)
-	if err != nil {
-		return nil, err
-	}
-	return &tx, nil
-}
-
-func (b *BTCNode) checkMemPool() ([]Task, error) {
-	res := make(map[string]PoolTx)
-	err := b.Resolver.GetRequest(b.URI, "/rest/mempool/contents.json", &res)
-	if err != nil {
-		return nil, err
-	}
-	txs := []Task{}
-	height := int64(0)
-	for _, tx := range res {
-		if tx.Height > height {
-			height = tx.Height
-		}
-	}
-	for id, tx := range res {
-		if tx.Height == height {
-			neTask := Task{id, tx.Time, 0}
-			txs = append(txs, neTask)
-		}
-	}
-	return txs, nil
-}
-
-func (b *BTCNode) showIndex() {
+func (node *Node) showIndex() {
 	lock.RLock()
-	for addr, value := range b.Index {
+	for addr, value := range node.Index {
 		txIDs := strings.Split(value, "_")
-		if len(txIDs) > 6*int(b.PruneBlocks) {
+		if len(txIDs) > 6*int(node.PruneBlocks) {
 			log.Infof("counts -> %12d addr -> %s ", len(txIDs), addr)
 		}
 	}
 	lock.RUnlock()
 }
 
-func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
+func (node *Node) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	address := r.PathParam("address")
 	sortFlag := r.FormValue("sort")
 	pageFlag := r.FormValue("page")
 	spentFlag := r.FormValue("type")
 	lock.RLock()
-	if b.Index[address] == "" {
+	if node.Index[address] == "" {
 		lock.RUnlock()
 		res500(w, r)
 		return
 	}
-	txIDs := strings.Split(b.Index[address], "_")
+	txIDs := strings.Split(node.Index[address], "_")
 	lock.RUnlock()
 	txRes := []*Tx{}
 	// get txs for received
-	txs := b.LoadTxs(txIDs)
+	txs := loadTxs(node.db, txIDs)
 	if spentFlag == "send" {
 		// get sending txs from txs
-		spents := b.getSpending(address, txs)
-		spentTxs := b.LoadTxs(spents)
+		spents := node.getSpending(address, txs)
+		spentTxs := loadTxs(node.db, spents)
 		for _, spent := range spentTxs {
 			txRes = append(txRes, spent)
 		}
@@ -315,6 +231,7 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	}
 	for _, tx := range txRes {
 		for _, vout := range tx.Vout {
+			vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
 			vout.Txs = []string{}
 			isMatchAddr := false
 			for _, addr := range vout.ScriptPubkey.Addresses {
@@ -327,11 +244,11 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 			}
 			key := tx.Txid + "_" + strconv.Itoa(vout.N)
 			lock.RLock()
-			if b.Spent[key] == "" {
+			if node.Spent[key] == "" {
 				lock.RUnlock()
 				continue
 			}
-			txIDs := strings.Split(b.Spent[key], "_")
+			txIDs := strings.Split(node.Spent[key], "_")
 			lock.RUnlock()
 			vout.Spent = true
 			for _, txID := range txIDs {
@@ -368,7 +285,6 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 		if len(txRes) < limit {
 			p = 100 * (len(txRes) / 100)
 			limit = len(txRes)
-			//log.Info(p, " ", limit, " ", len(txRes))
 		}
 		txRes = txRes[p:limit]
 	}
@@ -376,7 +292,7 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	w.WriteJson(txRes)
 }
 
-func (b *BTCNode) getSpending(from string, txs []*Tx) []string {
+func (b *Node) getSpending(from string, txs []*Tx) []string {
 	spents := []string{}
 	for _, tx := range txs {
 		for _, vout := range tx.Vout {
@@ -413,28 +329,87 @@ func (b *BTCNode) getSpending(from string, txs []*Tx) []string {
 	return spents
 }
 
-func (b *BTCNode) LoadTxs(txIDs []string) []*Tx {
-	txRes := []*Tx{}
-	c := make(chan Tx)
-	for _, txID := range txIDs {
-		go b.LoadTx("tx_"+txID, c)
-	}
-	for i := 0; i < len(txIDs); i++ {
-		tx := <-c
-		txRes = append(txRes, &tx)
-	}
-	return txRes
+func Loop(f func(), t time.Duration) {
+	inv := time.NewTicker(t * time.Millisecond)
+	go func() {
+		f()
+		for {
+			select {
+			case <-inv.C:
+				go f()
+			}
+		}
+	}()
 }
 
-func (b *BTCNode) LoadTx(key string, c chan Tx) {
-	tx := Tx{}
-	value, err := b.db.Get([]byte(key), nil)
-	if err != nil {
-		c <- tx
-		return
+func splitCheck(str string, txID string) bool {
+	txIDs := strings.Split(str, "_")
+	isMatch := false
+	for _, tx := range txIDs {
+		if tx == txID {
+			isMatch = true
+		}
 	}
-	json.Unmarshal(value, &tx)
-	c <- tx
+	return isMatch
+}
+
+func checkBlock(r *resolver.Resolver, db *leveldb.DB, uri string) error {
+	info := ChainInfo{}
+	err := r.GetRequest(uri, "/rest/chaininfo.json", &info)
+	if err != nil {
+		return err
+	}
+	block := Block{}
+	err = r.GetRequest(uri, "/rest/block/notxdetails/"+info.BestBlockHash+".json", &block)
+	if err != nil {
+		return err
+	}
+	log.Info("get block -> ", block.Height)
+	txs := loadTxs(db, block.Txs)
+	for _, tx := range txs {
+		if tx.Txid == "" {
+			continue
+		}
+		if tx.Confirms != 0 {
+			continue
+		}
+		tx.Confirms = block.Height
+		tx.MinedTime = block.Time
+		tx.Mediantime = block.Mediantime
+		go storeTx(db, tx.Txid, tx)
+	}
+	return nil
+}
+
+func checkTx(r *resolver.Resolver, uri string, txID string) (*Tx, error) {
+	tx := Tx{}
+	err := r.GetRequest(uri, "/rest/tx/"+txID+".json", &tx)
+	if err != nil {
+		return nil, err
+	}
+	return &tx, nil
+}
+
+func checkMemPool(r *resolver.Resolver, uri string) ([]Task, error) {
+	res := make(map[string]PoolTx)
+	err := r.GetRequest(uri, "/rest/mempool/contents.json", &res)
+	if err != nil {
+		return nil, err
+	}
+	txs := []Task{}
+	height := int64(0)
+	for _, tx := range res {
+		if tx.Height > height {
+			height = tx.Height
+		}
+	}
+	for id, tx := range res {
+		if tx.Height == height {
+			neTask := Task{id, tx.Time, 0}
+			txs = append(txs, neTask)
+		}
+	}
+	return txs, nil
 }
 
 func res500(w rest.ResponseWriter, r *rest.Request) {

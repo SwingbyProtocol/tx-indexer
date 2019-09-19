@@ -22,7 +22,7 @@ type Vin struct {
 }
 
 type Vout struct {
-	Value        float32       `json:"value"`
+	Value        interface{}   `json:"value"`
 	Spent        bool          `json:"spent"`
 	Txs          []string      `json:"txs"`
 	N            int           `json:"n"`
