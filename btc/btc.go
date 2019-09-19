@@ -53,14 +53,14 @@ type ChainInfo struct {
 }
 
 type Block struct {
-	Hash              string `json:"hash"`
-	Confirmations     int64  `json:"confirmations"`
-	Height            int64  `json:"height"`
-	NTx               int64  `json:"nTx"`
-	Txs               []*Tx  `json:"tx"`
-	Time              int64  `json:"time"`
-	Mediantime        int64  `json:"mediantime"`
-	Previousblockhash string `json:"previousblockhash"`
+	Hash              string   `json:"hash"`
+	Confirmations     int64    `json:"confirmations"`
+	Height            int64    `json:"height"`
+	NTx               int64    `json:"nTx"`
+	Txs               []string `json:"tx"`
+	Time              int64    `json:"time"`
+	Mediantime        int64    `json:"mediantime"`
+	Previousblockhash string   `json:"previousblockhash"`
 }
 
 func NewBTCNode(uri string, pruneBlocks int64) *BTCNode {
@@ -123,6 +123,7 @@ func (b *BTCNode) GetNewTxs() {
 	}
 	go b.removePools(tasks)
 	go b.showIndex()
+	go b.checkBlock()
 	lock.RLock()
 	log.Infof("pushed -> %7d spent -> %7d pool -> %7d index -> %7d", len(taskList), len(b.Spent), len(b.Pool), len(b.Index))
 	lock.RUnlock()
@@ -146,6 +147,31 @@ func (b *BTCNode) removePools(tasks []Task) {
 	lock.Unlock()
 }
 
+func (b *BTCNode) checkBlock() error {
+	info := ChainInfo{}
+	err := b.Resolver.GetRequest(b.URI, "/rest/chaininfo.json", &info)
+	if err != nil {
+		return err
+	}
+	block := Block{}
+	err = b.Resolver.GetRequest(b.URI, "/rest/block/notxdetails/"+info.BestBlockHash+".json", &block)
+	if err != nil {
+		return err
+	}
+	log.Info("get block -> ", block.Height)
+	txs := b.LoadTxs(block.Txs)
+	for _, tx := range txs {
+		if tx.Txid == "" {
+			continue
+		}
+		tx.Confirms = block.Height
+		tx.MinedTime = block.Time
+		tx.Mediantime = block.Mediantime
+		go b.storeTx(tx.Txid, tx)
+	}
+	return nil
+}
+
 func (b *BTCNode) Work() {
 	lock.Lock()
 	if len(taskList) == 0 {
@@ -164,7 +190,9 @@ func (b *BTCNode) Work() {
 		go func() {
 			time.Sleep(3 * time.Second)
 			task.Errors++
-			taskList = append(taskList, task)
+			if task.Errors < 30 {
+				taskList = append(taskList, task)
+			}
 		}()
 		return
 	}
