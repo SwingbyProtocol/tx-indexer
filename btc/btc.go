@@ -122,8 +122,8 @@ func (b *BTCNode) GetNewTxs() {
 		lock.Unlock()
 	}
 	go b.removePools(tasks)
-	go b.showIndex()
 	go b.checkBlock()
+	go b.showIndex()
 	lock.RLock()
 	log.Infof("pushed -> %7d spent -> %7d pool -> %7d index -> %7d", len(taskList), len(b.Spent), len(b.Pool), len(b.Index))
 	lock.RUnlock()
@@ -439,38 +439,3 @@ func res500(w rest.ResponseWriter, r *rest.Request) {
 	res := []string{}
 	w.WriteJson(res)
 }
-
-/*
-func (b *BTCNode) CheckAllSpentTx(block *Block) []*Tx {
-	vouts := make(map[string]int)
-	for _, tx := range block.Txs {
-		for _, vin := range tx.Vin {
-			if len(vin.Txid) != 64 {
-				continue
-			}
-			key := vin.Txid + "_" + strconv.Itoa(vin.Vout)
-			b.Spent[key] = true
-		}
-		vouts[tx.Txid] = len(tx.Vout)
-	}
-	for key := range b.Spent {
-		txID := key[0:64]
-		for _, tx := range block.Txs {
-			if txID == tx.Txid {
-				vouts[tx.Txid] = vouts[tx.Txid] - 1
-			}
-		}
-	}
-	txs := []*Tx{}
-	count := 0
-	for _, tx := range block.Txs {
-		if vouts[tx.Txid] != 0 {
-			txs = append(txs, tx)
-		} else {
-			count++
-		}
-	}
-	//log.Infof("removed -> %d", count)
-	return txs
-}
-*/
