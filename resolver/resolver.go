@@ -28,6 +28,11 @@ func NewResolver() *Resolver {
 	return resolver
 }
 
+func (r *Resolver) SetTimeout(time time.Duration) {
+	r.Client.Timeout = time
+	r.ContextTimeout = time
+}
+
 func (r *Resolver) GetRequest(uri string, query string, res interface{}) error {
 	req, err := http.NewRequest(
 		"GET",

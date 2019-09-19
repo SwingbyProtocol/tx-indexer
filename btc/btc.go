@@ -189,14 +189,14 @@ func (b *BTCNode) Work() {
 	receiveTime := task.ReceivedTime
 	tx, err := b.checkTx(txID)
 	if err != nil {
-		log.Info(err, " ", task.Errors)
-		go func() {
-			time.Sleep(3 * time.Second)
-			task.Errors++
-			if task.Errors < 30 {
+		task.Errors++
+		log.Infof("%s count -> %d", err, task.Errors)
+		if task.Errors < 30 {
+			go func() {
+				time.Sleep(10 * time.Second)
 				taskList = append(taskList, task)
-			}
-		}()
+			}()
+		}
 		return
 	}
 	tx.ReceivedTime = receiveTime
@@ -206,6 +206,9 @@ func (b *BTCNode) Work() {
 		if b.Spent[key] == "" {
 			b.Spent[key] = tx.Txid
 		} else {
+			if splitCheck(b.Spent[key], tx.Txid) {
+				continue
+			}
 			b.Spent[key] = b.Spent[key] + "_" + tx.Txid
 		}
 		go b.storeSpent(key, b.Spent[key])
