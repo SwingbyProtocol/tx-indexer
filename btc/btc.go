@@ -164,6 +164,9 @@ func (b *BTCNode) checkBlock() error {
 		if tx.Txid == "" {
 			continue
 		}
+		if tx.Confirms != 0 {
+			continue
+		}
 		tx.Confirms = block.Height
 		tx.MinedTime = block.Time
 		tx.Mediantime = block.Mediantime
@@ -356,11 +359,11 @@ func (b *BTCNode) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	if err != nil {
 		pageNum = 0
 	}
-	if len(txRes) >= 150 {
-		p := pageNum * 150
-		limit := p + 150
+	if len(txRes) >= 100 {
+		p := pageNum * 100
+		limit := p + 100
 		if len(txRes) < limit {
-			p = 150 * (len(txRes) / 150)
+			p = 100 * (len(txRes) / 100)
 			limit = len(txRes)
 			//log.Info(p, " ", limit, " ", len(txRes))
 		}
