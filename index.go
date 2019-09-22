@@ -31,6 +31,8 @@ func main() {
 	btcNode.Start()
 	router, err := rest.MakeRouter(
 		rest.Get("/txs/btc/:address", btcNode.GetBTCTxs),
+		rest.Get("/txs/btc/tx/:txid", btcNode.GetBTCTx),
+		rest.Get("/txs/btc/index/:address", btcNode.GetBTCIndex),
 	)
 	if err != nil {
 		log.Fatal(err)

@@ -1,5 +1,9 @@
 package btc
 
+import (
+	"github.com/SwingbyProtocol/sc-indexer/resolver"
+)
+
 type Tx struct {
 	Txid         string  `json:"txid"`
 	Hash         string  `json:"hash"`
@@ -35,4 +39,19 @@ type ScriptPubkey struct {
 	ReqSigs   int      `json:"reqSigs"`
 	Type      string   `json:"type"`
 	Addresses []string `json:"addresses"`
+}
+
+func (tx *Tx) getTxData(r *resolver.Resolver, uri string) error {
+	newTx := Tx{}
+	err := r.GetRequest(uri, "/rest/tx/"+tx.Txid+".json", &newTx)
+	if err != nil {
+		return err
+	}
+	tx.Hash = newTx.Hash
+	tx.Version = newTx.Version
+	tx.Weight = newTx.Weight
+	tx.Locktime = newTx.Locktime
+	tx.Vin = newTx.Vin
+	tx.Vout = newTx.Vout
+	return nil
 }

@@ -7,21 +7,40 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-func loadData(node *Node) error {
-	iter := node.db.NewIterator(nil, nil)
+type Database struct {
+	db *leveldb.DB
+}
+
+func NewDB(path string) *Database {
+	db, err := leveldb.OpenFile("./db", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	newDB := &Database{
+		db: db,
+	}
+	return newDB
+}
+
+func (d *Database) loadData(node *Node) error {
+	iter := d.db.NewIterator(nil, nil)
 	log.Info("loading leveldb....")
 	for iter.Next() {
 		key := iter.Key()
 		value := iter.Value()
-		if string(key[:4]) == "pool" {
-			node.Pool[string(key[5:])] = true
-		}
-		if string(key[:5]) == "index" {
-			node.Index[string(key[6:])] = string(value)
-		}
 		if string(key[:5]) == "spent" {
-			node.Spent[string(key[6:])] = string(value)
+			data := []string{}
+			json.Unmarshal(value, &data)
+			node.Spent[string(key[6:])] = data
 		}
+
+		//if string(key[:4]) == "pool" {
+		//	node.Pool[string(key[5:])] = true
+		//}
+		//if string(key[:5]) == "index" {
+		//	node.Index[string(key[6:])] = string(value)
+		//}
+
 	}
 	iter.Release()
 	err := iter.Error()
@@ -31,11 +50,11 @@ func loadData(node *Node) error {
 	return nil
 }
 
-func loadTxs(db *leveldb.DB, txIDs []string) []*Tx {
+func (d *Database) LoadTxs(txIDs []string) []*Tx {
 	txRes := []*Tx{}
 	c := make(chan Tx)
 	for _, txID := range txIDs {
-		go loadTx(db, "tx_"+txID, c)
+		go d.LoadTx(txID, c)
 	}
 	for i := 0; i < len(txIDs); i++ {
 		tx := <-c
@@ -43,10 +62,11 @@ func loadTxs(db *leveldb.DB, txIDs []string) []*Tx {
 	}
 	return txRes
 }
-func loadTx(db *leveldb.DB, key string, c chan Tx) {
+func (d *Database) LoadTx(txID string, c chan Tx) {
 	tx := Tx{}
-	value, err := db.Get([]byte(key), nil)
+	value, err := d.db.Get([]byte("tx_"+txID), nil)
 	if err != nil {
+		tx.Txid = txID
 		c <- tx
 		return
 	}
@@ -54,48 +74,66 @@ func loadTx(db *leveldb.DB, key string, c chan Tx) {
 	c <- tx
 }
 
-func storeIndex(db *leveldb.DB, addr string, data string) error {
-	err := db.Put([]byte("index_"+addr), []byte(data), nil)
+func (d *Database) LoadIndex(addr string) (*Index, error) {
+	index := Index{}
+	value, err := d.db.Get([]byte("index_"+addr), nil)
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(value, &index)
+	return &index, nil
+}
+
+func (d *Database) storeIndex(addr string, index *Index) error {
+	bytes, err := json.Marshal(index)
+	if err != nil {
+		return err
+	}
+	err = d.db.Put([]byte("index_"+addr), bytes, nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func storePool(db *leveldb.DB, key string) error {
-	s, err := json.Marshal(true)
+func (d *Database) storePool(key string) error {
+	bytes, err := json.Marshal(true)
 	if err != nil {
 		return err
 	}
-	err = db.Put([]byte("pool_"+key), []byte(s), nil)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func storeSpent(db *leveldb.DB, key string, data string) error {
-	err := db.Put([]byte("spent_"+key), []byte(data), nil)
+	err = d.db.Put([]byte("pool_"+key), bytes, nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func storeTx(db *leveldb.DB, key string, tx *Tx) error {
+func (d *Database) storeSpent(key string, data []string) error {
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	err = d.db.Put([]byte("spent_"+key), bytes, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *Database) storeTx(key string, tx *Tx) error {
 	t, err := json.Marshal(tx)
 	if err != nil {
 		return err
 	}
-	err = db.Put([]byte("tx_"+key), []byte(t), nil)
+	err = d.db.Put([]byte("tx_"+key), []byte(t), nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func removePool(db *leveldb.DB, txID string) error {
-	err := db.Delete([]byte("pool_"+txID), nil)
+func (d *Database) removePool(txID string) error {
+	err := d.db.Delete([]byte("pool_"+txID), nil)
 	if err != nil {
 		return err
 	}

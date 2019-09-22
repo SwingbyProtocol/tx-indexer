@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -49,13 +50,13 @@ func (r *Resolver) GetRequest(uri string, query string, res interface{}) error {
 	reqWithDeadline := req.WithContext(ctx)
 	resp, err := r.Client.Do(reqWithDeadline)
 	if err != nil {
-		log.Println("get err:", err.Error()[:33])
 		return err
 	}
 	if resp.StatusCode != 200 {
-		log.Info(uri + query)
 		resp.Body.Close()
-		return errors.New("get err: res code is not 200")
+		code := strconv.Itoa(resp.StatusCode)
+		log.Info(" -> ", code, " ", query)
+		return errors.New(code)
 	}
 	decoder := json.NewDecoder(resp.Body)
 	decoder.Decode(res)
