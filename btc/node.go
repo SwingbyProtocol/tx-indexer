@@ -111,6 +111,7 @@ func (node *Node) SubscribeBlock() {
 				tx.AddBlockData(&block)
 				tx.ReceivedTime = block.Time
 				node.BlockChain.Mempool.TxChan <- *tx
+				log.Info("new -> ", tx.Txid)
 			}
 		}
 	}
@@ -155,7 +156,8 @@ func sortUp(stamps []*Stamp) {
 
 func loadSend(index *Index) []string {
 	sendIDs := []string{}
-	for _, in := range index.In {
+	for i := len(index.In) - 1; i >= 0; i-- {
+		in := index.In[i]
 		for _, out := range in.Vout {
 			if out == nil {
 				continue
@@ -184,6 +186,45 @@ func (node *Node) GetTx(w rest.ResponseWriter, r *rest.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	w.WriteJson(tx)
+}
+
+func (node *Node) loadSend(index *Index) []*Tx {
+	resTxs := []*Tx{}
+	sendIDs := loadSend(index)
+	for _, sendID := range sendIDs {
+		tx := node.Txs[sendID]
+		for i, out := range tx.Vout {
+			key := tx.Txid + "_" + strconv.Itoa(i)
+			sendTxs := node.Spent[key]
+			if len(sendTxs) == 0 {
+				continue
+			}
+			out.Spent = true
+			out.Txs = sendTxs
+		}
+		resTxs = append(resTxs, tx)
+	}
+	sort.SliceStable(resTxs, func(i, j int) bool {
+		return resTxs[i].ReceivedTime > resTxs[j].ReceivedTime
+	})
+	return resTxs
+}
+
+func (node *Node) loadIn(index *Index) []*Tx {
+	resTxs := []*Tx{}
+	for i := len(index.In) - 1; i >= 0; i-- {
+		in := index.In[i]
+		tx := node.Txs[in.TxID]
+		for i, out := range tx.Vout {
+			if len(in.Vout[i]) == 0 {
+				continue
+			}
+			out.Txs = in.Vout[i]
+			out.Spent = true
+		}
+		resTxs = append(resTxs, tx)
+	}
+	return resTxs
 }
 
 func (node *Node) GetTxs(w rest.ResponseWriter, r *rest.Request) {
@@ -219,34 +260,14 @@ func (node *Node) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 
 	resTxs := []*Tx{}
 	if spentFlag == "send" {
-		sendIDs := loadSend(index)
-		for _, sendID := range sendIDs {
-			tx := node.Txs[sendID]
-			for i, out := range tx.Vout {
-				key := tx.Txid + "_" + strconv.Itoa(i)
-				sendTxs := node.Spent[key]
-				if len(sendTxs) == 0 {
-					continue
-				}
-				out.Spent = true
-				out.Txs = sendTxs
-			}
-			resTxs = append(resTxs, tx)
-		}
-		sort.Slice(resTxs, func(i, j int) bool { return resTxs[i].ReceivedTime > resTxs[j].ReceivedTime })
+		resTxs = node.loadSend(index)
 	} else {
-		for i := len(index.In) - 1; i >= 0; i-- {
-			in := index.In[i]
-			tx := node.Txs[in.TxID]
-			for i, out := range tx.Vout {
-				if len(in.Vout[i]) == 0 {
-					continue
-				}
-				out.Txs = in.Vout[i]
-				out.Spent = true
-			}
-			resTxs = append(resTxs, tx)
-		}
+		resTxs = node.loadIn(index)
+	}
+
+	if len(resTxs) == 0 {
+		res500(w, r)
+		return
 	}
 
 	pageNum, err := strconv.Atoi(pageFlag)
