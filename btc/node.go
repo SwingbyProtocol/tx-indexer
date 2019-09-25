@@ -201,6 +201,13 @@ func (node *Node) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 			if len(out) != 0 {
 				continue
 			}
+			addresses := node.Txs[in.TxID].Vout[i].ScriptPubkey.Addresses
+			if len(addresses) == 0 {
+				continue
+			}
+			if addresses[0] != address {
+				continue
+			}
 			key := in.TxID + "_" + strconv.Itoa(i)
 			sendTxs := node.Spent[key]
 			if len(sendTxs) == 0 {
