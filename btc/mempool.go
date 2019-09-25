@@ -8,15 +8,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type Mempool struct {
-	Pool     map[string]bool
-	URI      string
-	Tasks    []Tx
-	Resolver *resolver.Resolver
-	TxChan   chan Tx
-	isWork   bool
-}
-
 type PoolTx struct {
 	Height int64 `json:"height"`
 	Time   int64 `json:"time"`
@@ -25,11 +16,18 @@ type PoolTx struct {
 func NewMempool(uri string) *Mempool {
 	mem := &Mempool{
 		Pool:     make(map[string]bool),
-		Resolver: resolver.NewResolver(),
-		URI:      uri,
+		Resolver: resolver.NewResolver(uri),
 		TxChan:   make(chan Tx),
 	}
 	return mem
+}
+
+type Mempool struct {
+	Pool     map[string]bool
+	Tasks    []*Tx
+	Resolver *resolver.Resolver
+	TxChan   chan Tx
+	isWork   bool
 }
 
 func (mem *Mempool) StartSync(t time.Duration) {
@@ -37,7 +35,7 @@ func (mem *Mempool) StartSync(t time.Duration) {
 }
 
 func (mem *Mempool) doGetTxIDs(t time.Duration) {
-	err := mem.LoadTxsIDs()
+	err := mem.loadTxsIDs()
 	if err != nil {
 		log.Info(err)
 	}
@@ -45,9 +43,9 @@ func (mem *Mempool) doGetTxIDs(t time.Duration) {
 	mem.doGetTxIDs(t)
 }
 
-func (mem *Mempool) LoadTxsIDs() error {
+func (mem *Mempool) loadTxsIDs() error {
 	res := make(map[string]PoolTx)
-	err := mem.Resolver.GetRequest(mem.URI, "/rest/mempool/contents.json", &res)
+	err := mem.Resolver.GetRequest("/rest/mempool/contents.json", &res)
 	if err != nil {
 		return err
 	}
@@ -71,7 +69,7 @@ func (mem *Mempool) LoadTxsIDs() error {
 			continue
 		}
 		mem.Pool[id] = true
-		mem.Tasks = append(mem.Tasks, newTx)
+		mem.Tasks = append(mem.Tasks, &newTx)
 	}
 	log.Infof("mempool task -> %7d", len(mem.Tasks))
 	if mem.isWork == false {
@@ -95,7 +93,6 @@ func (mem *Mempool) removePool(txs []string) {
 		}
 		if isMatch == false {
 			delete(mem.Pool, tx)
-			//go removePool(node.db, key)
 		}
 	}
 }
@@ -103,31 +100,36 @@ func (mem *Mempool) removePool(txs []string) {
 func (mem *Mempool) doGetTx() {
 	err := mem.getTx()
 	if err != nil {
-		if err.Error() == "task zero" {
-			mem.isWork = false
-			return
-		}
+		mem.isWork = false
+		return
 	}
-	time.Sleep(10 * time.Microsecond)
+	time.Sleep(1 * time.Microsecond)
 	mem.doGetTx()
 }
 
 func (mem *Mempool) getTx() error {
+	lock := GetMu()
+	lock.Lock()
 	if len(mem.Tasks) == 0 {
+		lock.Unlock()
 		return errors.New("task zero")
 	}
 	tx := mem.Tasks[0]
 	mem.Tasks = mem.Tasks[1:]
+	resolver := mem.Resolver
+	lock.Unlock()
 	go func() {
-		GetMu().Lock()
-		err := tx.getTxData(mem.Resolver, mem.URI)
+		err := tx.AddTxData(resolver)
 		if err != nil {
+			if err.Error() == "404" {
+				return
+			}
+			lock.Lock()
 			mem.Tasks = append(mem.Tasks, tx)
-			GetMu().Unlock()
+			lock.Unlock()
 			return
 		}
-		GetMu().Unlock()
-		mem.TxChan <- tx
+		mem.TxChan <- *tx
 	}()
 	return nil
 }

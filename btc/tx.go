@@ -2,6 +2,7 @@ package btc
 
 import (
 	"github.com/SwingbyProtocol/sc-indexer/resolver"
+	log "github.com/sirupsen/logrus"
 )
 
 type Tx struct {
@@ -41,9 +42,9 @@ type ScriptPubkey struct {
 	Addresses []string `json:"addresses"`
 }
 
-func (tx *Tx) getTxData(r *resolver.Resolver, uri string) error {
+func (tx *Tx) AddTxData(r *resolver.Resolver) error {
 	newTx := Tx{}
-	err := r.GetRequest(uri, "/rest/tx/"+tx.Txid+".json", &newTx)
+	err := r.GetRequest("/rest/tx/"+tx.Txid+".json", &newTx)
 	if err != nil {
 		return err
 	}
@@ -54,4 +55,27 @@ func (tx *Tx) getTxData(r *resolver.Resolver, uri string) error {
 	tx.Vin = newTx.Vin
 	tx.Vout = newTx.Vout
 	return nil
+}
+
+func (tx *Tx) AddBlockData(block *Block) *Tx {
+	tx.Confirms = block.Height
+	tx.MinedTime = block.Time
+	tx.Mediantime = block.Mediantime
+	return tx
+}
+
+func (tx *Tx) getOutputsAddresses() []string {
+	addresses := []string{}
+	for _, vout := range tx.Vout {
+		if len(vout.ScriptPubkey.Addresses) == 0 {
+			log.Debug("debug : len(vout.ScriptPubkey.Addresses) == 0")
+			continue
+		}
+		if len(vout.ScriptPubkey.Addresses) != 1 {
+			log.Info("error : len(vout.ScriptPubkey.Addresses) != 1")
+			continue
+		}
+		addresses = append(addresses, vout.ScriptPubkey.Addresses[0])
+	}
+	return addresses
 }

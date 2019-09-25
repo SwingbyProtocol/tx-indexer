@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/SwingbyProtocol/sc-indexer/resolver"
@@ -14,39 +12,38 @@ import (
 )
 
 var (
-	lock      = sync.RWMutex{}
 	blockList = []string{}
 )
 
 type Node struct {
 	BlockChain  *BlockChain
-	Spent       map[string][]string
-	Stored      map[string]bool
+	Index       map[string]*Index
+	Txs         map[string]*Tx
+	Missed      map[string]int
 	PruneBlocks int64
 	LocalBlocks int64
 	BestBlocks  int64
 	Resolver    *resolver.Resolver
-	URI         string
 	db          *Database
 	Status      string
 }
 
 type Index struct {
-	Txs []*Meta
+	In  []*Stamp
+	Out []*Stamp
 }
 
-type Meta struct {
+type Stamp struct {
 	TxID string
 	Time int64
-	Vout map[string]string
 }
 
 func NewNode(uri string, pruneBlocks int64) *Node {
 	node := &Node{
 		BlockChain:  NewBlockchain(uri),
-		Spent:       make(map[string][]string),
-		Stored:      make(map[string]bool),
-		URI:         uri,
+		Index:       make(map[string]*Index),
+		Txs:         make(map[string]*Tx),
+		Missed:      make(map[string]int),
 		PruneBlocks: pruneBlocks,
 		db:          NewDB("./db"),
 	}
@@ -54,127 +51,126 @@ func NewNode(uri string, pruneBlocks int64) *Node {
 }
 
 func (node *Node) Start() {
-	err := node.db.loadData(node)
-	if err != nil {
-		log.Info(err)
-	}
 	node.BlockChain.StartSync(3 * time.Second)
 	node.BlockChain.StartMemSync(10 * time.Second)
-	node.SubscribeSpent()
-	node.SubscribeBlock()
+	go node.SubscribeTx()
+	go node.SubscribeBlock()
 
 	loop(func() error {
 		GetMu().RLock()
 		mem := node.BlockChain.Mempool
-		log.Infof(" Pool -> %7d Spent -> %7d Stored -> %d", len(mem.Pool), len(node.Spent), len(node.Stored))
+		log.Infof(" Pool -> %7d Index -> %7d Tx -> %d", len(mem.Pool), len(node.Index), len(node.Txs))
 		GetMu().RUnlock()
 		return nil
 	}, 11*time.Second)
 }
 
-func (node *Node) SubscribeSpent() {
-	go func() {
-		for {
-			tx := <-node.BlockChain.Mempool.TxChan
-			for _, vin := range tx.Vin {
-				vinKey := vin.Txid + "_" + strconv.Itoa(vin.Vout)
-				GetMu().RLock()
-				spents := node.Spent[vinKey]
-				GetMu().RUnlock()
-				if checkExist(tx.Txid, spents) == true {
+func (node *Node) SubscribeTx() {
+	for {
+		tx := <-node.BlockChain.Mempool.TxChan
+		for _, vin := range tx.Vin {
+			txIn := node.getTx(vin.Txid)
+			if txIn == nil {
+				node.registUnderTx(vin.Txid)
+				continue
+			}
+			for i, vout := range txIn.Vout {
+				if i != vin.Vout {
 					continue
 				}
-				GetMu().Lock()
-				node.Spent[vinKey] = append(node.Spent[vinKey], tx.Txid)
-				GetMu().Unlock()
-				node.db.storeSpent(vinKey, node.Spent[vinKey])
+				vout.Spent = true
+				vout.Txs = append(vout.Txs, tx.Txid)
 			}
-			totalKeys := make(map[string]string)
-			for i, vout := range tx.Vout {
-				outKey := tx.Txid + "_" + strconv.Itoa(i)
-				vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
-				vout.Txs = []string{}
-				if len(vout.ScriptPubkey.Addresses) == 0 {
-					log.Debug("debug : len(vout.ScriptPubkey.Addresses) == 0")
-					continue
-				}
-				if len(vout.ScriptPubkey.Addresses) != 1 {
-					log.Info("error : len(vout.ScriptPubkey.Addresses) != 1")
-					continue
-				}
-				totalKeys[outKey] = vout.ScriptPubkey.Addresses[0]
-			}
-			for _, vout := range tx.Vout {
-				for _, addr := range vout.ScriptPubkey.Addresses {
-					node.updateIndex(tx.Txid, addr, tx.ReceivedTime, totalKeys)
-				}
-			}
+			node.updateIndex(txIn, true)
 			GetMu().Lock()
-			node.Stored[tx.Txid] = true
+			node.Txs[txIn.Txid] = txIn
 			GetMu().Unlock()
-			//log.Info("stored -> ", tx.Txid)
-			node.db.storeTx(tx.Txid, &tx)
 		}
-	}()
+		for _, vout := range tx.Vout {
+			vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+			vout.Txs = []string{}
+		}
+		node.updateIndex(&tx, false)
+		GetMu().Lock()
+		node.Txs[tx.Txid] = &tx
+		GetMu().Unlock()
+	}
 }
 
 func (node *Node) SubscribeBlock() {
-	go func() {
-		for {
-			block := <-node.BlockChain.BlockChan
-			for _, tx := range block.Txs {
-				GetMu().RLock()
-				if node.Stored[tx.Txid] == true {
-					GetMu().RUnlock()
-					node.updateTx(tx.Txid, &block)
-					log.Info("updated -> ", tx.Txid)
-					continue
-				}
-				GetMu().RUnlock()
-				log.Info("new -> ", tx.Txid)
-				tx.Confirms = block.Height
+	for {
+		block := <-node.BlockChain.BlockChan
+		for _, tx := range block.Txs {
+			loadTx := node.getTx(tx.Txid)
+			if loadTx != nil {
+				loadTx.AddBlockData(&block)
+				GetMu().Lock()
+				node.Txs[tx.Txid] = loadTx
+				GetMu().Unlock()
+			} else {
+				tx.AddBlockData(&block)
 				tx.ReceivedTime = block.Time
-				tx.MinedTime = block.Time
-				tx.Mediantime = block.Mediantime
 				node.BlockChain.Mempool.TxChan <- *tx
 			}
 		}
-	}()
+	}
 }
 
-func (node *Node) updateTx(txID string, block *Block) {
-	t := make(chan Tx)
-	go node.db.LoadTx(txID, t)
-	loadTx := <-t
-	loadTx.Confirms = block.Height
-	loadTx.MinedTime = block.Time
-	loadTx.Mediantime = block.Mediantime
-	node.db.storeTx(txID, &loadTx)
-}
-
-func (node *Node) updateIndex(txID string, addr string, receiveTime int64, totalKeys map[string]string) {
-	index, err := node.db.LoadIndex(addr)
-	if index == nil || err != nil {
-		index = &Index{}
-	}
-	txs := []string{}
-	GetMu().Lock()
-	for _, tx := range index.Txs {
-		txs = append(txs, tx.TxID)
-	}
-	if checkExist(txID, txs) == false {
-		meta := Meta{
-			TxID: txID,
-			Time: receiveTime,
-			Vout: totalKeys,
+func (node *Node) updateIndex(tx *Tx, isOut bool) {
+	outs := tx.getOutputsAddresses()
+	for _, addr := range outs {
+		if node.Index[addr] == nil {
+			node.Index[addr] = &Index{}
 		}
-		index.Txs = append(index.Txs, &meta)
-		sort.SliceStable(index.Txs, func(i, j int) bool {
-			return index.Txs[i].Time > index.Txs[j].Time
-		})
+		if isOut == true {
+			outTxs := node.getIndexOuts(addr)
+			if outTxs[tx.Txid] == 1 {
+				continue
+			}
+			meta := &Stamp{tx.Txid, tx.ReceivedTime}
+			node.Index[addr].Out = append(node.Index[addr].Out, meta)
+			sortUp(node.Index[addr].Out)
+		} else {
+			inTxs := node.getIndexIns(addr)
+			if inTxs[tx.Txid] == 1 {
+				continue
+			}
+			meta := &Stamp{tx.Txid, tx.ReceivedTime}
+			node.Index[addr].In = append(node.Index[addr].In, meta)
+			sortUp(node.Index[addr].In)
+		}
 	}
-	node.db.storeIndex(addr, index)
-	GetMu().Unlock()
+}
+
+func (node *Node) getIndexOuts(addr string) map[string]int {
+	added := make(map[string]int)
+	for _, stamp := range node.Index[addr].Out {
+		added[stamp.TxID] = 1
+	}
+	return added
+}
+
+func (node *Node) getIndexIns(addr string) map[string]int {
+	added := make(map[string]int)
+	for _, stamp := range node.Index[addr].In {
+		added[stamp.TxID] = 1
+	}
+	return added
+}
+
+func (node *Node) getTx(txID string) *Tx {
+	GetMu().RLock()
+	tx := node.Txs[txID]
+	GetMu().RUnlock()
+	return tx
+}
+
+func (node *Node) registUnderTx(txID string) error {
+	if node.Missed[txID] != 1 {
+		node.Missed[txID] = 1
+		log.Info("missed -> ", txID)
+	}
+	return nil
 }
 
 func (node *Node) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
@@ -182,44 +178,21 @@ func (node *Node) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	//sortFlag := r.FormValue("sort")
 	pageFlag := r.FormValue("page")
 	spentFlag := r.FormValue("type")
-	GetMu().RLock()
-	index, err := node.db.LoadIndex(address)
-	if err != nil {
-		GetMu().RUnlock()
-		res500(w, r)
-		return
-	}
-	GetMu().RUnlock()
+	resTxs := []*Tx{}
+	index := node.Index[address]
 	if index == nil {
 		res500(w, r)
 		return
 	}
-	resTxs := []*Tx{}
 	if spentFlag == "send" {
-		spents := node.getSpents(index, address)
-		resTxs = node.db.LoadTxs(spents)
-	} else {
-		txs := []string{}
-		for _, meta := range index.Txs {
-			txs = append(txs, meta.TxID)
+		outs := index.Out
+		for i := len(outs) - 1; i >= 0; i-- {
+			resTxs = append(resTxs, node.Txs[outs[i].TxID])
 		}
-		resTxs = node.db.LoadTxs(txs)
-	}
-
-	for _, res := range resTxs {
-		for _, vout := range res.Vout {
-			if checkExist(address, vout.ScriptPubkey.Addresses) == false {
-				continue
-			}
-			outKey := res.Txid + "_" + strconv.Itoa(vout.N)
-			GetMu().RLock()
-			txs := node.Spent[outKey]
-			GetMu().RUnlock()
-			if len(txs) == 0 {
-				continue
-			}
-			vout.Spent = true
-			vout.Txs = txs
+	} else {
+		ins := index.In
+		for i := len(ins) - 1; i >= 0; i-- {
+			resTxs = append(resTxs, node.Txs[ins[i].TxID])
 		}
 	}
 
@@ -241,92 +214,26 @@ func (node *Node) GetBTCTxs(w rest.ResponseWriter, r *rest.Request) {
 	w.WriteJson(resTxs)
 }
 
-func (node *Node) getSpents(index *Index, address string) []string {
-	spents := []string{}
-	for _, meta := range index.Txs {
-		for key, addr := range meta.Vout {
-			if addr != address {
-				continue
-			}
-			GetMu().RLock()
-			txs := node.Spent[key]
-			GetMu().RUnlock()
-			if len(txs) != 0 {
-				for _, id := range txs {
-					if checkExist(id, spents) == false {
-						spents = append(spents, id)
-					}
-				}
-			}
-		}
-	}
-	return spents
-}
-
 func (node *Node) GetBTCIndex(w rest.ResponseWriter, r *rest.Request) {
 	address := r.PathParam("address")
-	index, err := node.db.LoadIndex(address)
-	if err != nil {
-		res500(w, r)
-		return
-	}
+	index := node.Index[address]
 	w.WriteHeader(http.StatusOK)
 	w.WriteJson(index)
 }
 
 func (node *Node) GetBTCTx(w rest.ResponseWriter, r *rest.Request) {
 	txid := r.PathParam("txid")
-	c := make(chan Tx)
-	go node.db.LoadTx(txid, c)
-	tx := <-c
-	if tx.Hash == "" {
+	tx := node.getTx(txid)
+	if tx == nil {
 		res500(w, r)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 	w.WriteJson(tx)
 }
-func (node *Node) getSpending(from string, txs []*Tx) []string {
-	spents := []string{}
-	for _, tx := range txs {
-		for _, vout := range tx.Vout {
-			isMatchAddr := false
-			for _, addr := range vout.ScriptPubkey.Addresses {
-				if addr == from {
-					isMatchAddr = true
-				}
-			}
-			if isMatchAddr == false {
-				continue
-			}
 
-		}
-	}
-	return spents
-}
-
-func Loop(f func(), t time.Duration) {
-	inv := time.NewTicker(t * time.Millisecond)
-	go func() {
-		f()
-		for {
-			select {
-			case <-inv.C:
-				go f()
-			}
-		}
-	}()
-}
-
-func splitCheck(str string, txID string) bool {
-	txIDs := strings.Split(str, "_")
-	isMatch := false
-	for _, tx := range txIDs {
-		if tx == txID {
-			isMatch = true
-		}
-	}
-	return isMatch
+func sortUp(stamps []*Stamp) {
+	sort.SliceStable(stamps, func(i, j int) bool { return stamps[i].Time < stamps[j].Time })
 }
 
 func res500(w rest.ResponseWriter, r *rest.Request) {

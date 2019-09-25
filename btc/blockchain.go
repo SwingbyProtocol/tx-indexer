@@ -8,10 +8,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type ChainInfo struct {
+	Chain         string `json:"chain"`
+	Blocks        int64  `json:"blocks"`
+	Headers       int64  `json:"headers"`
+	BestBlockHash string `json:"bestblockhash"`
+}
+
 type BlockChain struct {
-	Blocks         []*Block
 	Mempool        *Mempool
-	URI            string
 	Resolver       *resolver.Resolver
 	LatestBlock    int64
 	NextBlockCount int64
@@ -20,18 +25,10 @@ type BlockChain struct {
 	isSync         bool
 }
 
-type ChainInfo struct {
-	Chain         string `json:"chain"`
-	Blocks        int64  `json:"blocks"`
-	Headers       int64  `json:"headers"`
-	BestBlockHash string `json:"bestblockhash"`
-}
-
 func NewBlockchain(uri string) *BlockChain {
 	bc := &BlockChain{
-		Resolver:  resolver.NewResolver(),
+		Resolver:  resolver.NewResolver(uri),
 		Mempool:   NewMempool(uri),
-		URI:       uri,
 		BlockChan: make(chan Block),
 	}
 	return bc
@@ -47,7 +44,7 @@ func (b *BlockChain) StartMemSync(t time.Duration) {
 }
 
 func (b *BlockChain) doLoadNewBlocks(t time.Duration) {
-	err := b.LoadNewBlocks()
+	err := b.loadNewBlocks()
 	if err != nil {
 		log.Info(err)
 	}
@@ -56,7 +53,7 @@ func (b *BlockChain) doLoadNewBlocks(t time.Duration) {
 }
 
 func (b *BlockChain) doLoadBlock(t time.Duration) {
-	err := b.GetBlock()
+	err := b.getBlock()
 	if err != nil {
 		log.Info(err)
 	}
@@ -64,9 +61,9 @@ func (b *BlockChain) doLoadBlock(t time.Duration) {
 	b.doLoadBlock(t)
 }
 
-func (b *BlockChain) LoadNewBlocks() error {
+func (b *BlockChain) loadNewBlocks() error {
 	info := ChainInfo{}
-	err := b.Resolver.GetRequest(b.URI, "/rest/chaininfo.json", &info)
+	err := b.Resolver.GetRequest("/rest/chaininfo.json", &info)
 	if err != nil {
 		return err
 	}
@@ -85,14 +82,14 @@ func (b *BlockChain) LoadNewBlocks() error {
 	return nil
 }
 
-func (b *BlockChain) GetBlock() error {
+func (b *BlockChain) getBlock() error {
 	if len(b.Tasks) == 0 {
 		return nil
 	}
 	task := b.Tasks[0]
 	b.Tasks = b.Tasks[1:]
 	block := Block{}
-	err := b.Resolver.GetRequest(b.URI, "/rest/block/"+task+".json", &block)
+	err := b.Resolver.GetRequest("/rest/block/"+task+".json", &block)
 	if err != nil {
 		b.Tasks = append(b.Tasks, task)
 		return err
@@ -101,8 +98,8 @@ func (b *BlockChain) GetBlock() error {
 		b.Tasks = append(b.Tasks, task)
 		return errors.New("block height is zero")
 	}
-	b.BlockChan <- block
 	log.Info("get txs from block -> ", block.Height)
+	b.BlockChan <- block
 	if b.NextBlockCount <= 0 {
 		return nil
 	}
@@ -110,6 +107,5 @@ func (b *BlockChain) GetBlock() error {
 	if b.NextBlockCount > 0 {
 		b.Tasks = append(b.Tasks, block.Previousblockhash)
 	}
-	b.Blocks = append(b.Blocks, &block)
 	return nil
 }

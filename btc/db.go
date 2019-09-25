@@ -22,34 +22,6 @@ func NewDB(path string) *Database {
 	return newDB
 }
 
-func (d *Database) loadData(node *Node) error {
-	iter := d.db.NewIterator(nil, nil)
-	log.Info("loading leveldb....")
-	for iter.Next() {
-		key := iter.Key()
-		value := iter.Value()
-		if string(key[:5]) == "spent" {
-			data := []string{}
-			json.Unmarshal(value, &data)
-			node.Spent[string(key[6:])] = data
-		}
-
-		//if string(key[:4]) == "pool" {
-		//	node.Pool[string(key[5:])] = true
-		//}
-		//if string(key[:5]) == "index" {
-		//	node.Index[string(key[6:])] = string(value)
-		//}
-
-	}
-	iter.Release()
-	err := iter.Error()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (d *Database) LoadTxs(txIDs []string) []*Tx {
 	txRes := []*Tx{}
 	c := make(chan Tx)
@@ -106,6 +78,16 @@ func (d *Database) storePool(key string) error {
 		return err
 	}
 	return nil
+}
+
+func (d *Database) loadSpent(key string) ([]string, error) {
+	txs := []string{}
+	value, err := d.db.Get([]byte("spent_"+key), nil)
+	if err != nil {
+		return nil, err
+	}
+	json.Unmarshal(value, &txs)
+	return txs, nil
 }
 
 func (d *Database) storeSpent(key string, data []string) error {

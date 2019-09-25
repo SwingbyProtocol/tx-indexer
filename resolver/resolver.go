@@ -13,16 +13,18 @@ import (
 )
 
 type Resolver struct {
+	URI            string
 	Client         *http.Client
 	ContextTimeout time.Duration
 }
 
-func NewResolver() *Resolver {
+func NewResolver(uri string) *Resolver {
 	client := &http.Client{Transport: &http.Transport{
 		MaxIdleConnsPerHost: 100,
 	}}
 	client.Timeout = 2 * time.Second
 	resolver := &Resolver{
+		URI:            uri,
 		Client:         client,
 		ContextTimeout: 2 * time.Second,
 	}
@@ -34,10 +36,10 @@ func (r *Resolver) SetTimeout(time time.Duration) {
 	r.ContextTimeout = time
 }
 
-func (r *Resolver) GetRequest(uri string, query string, res interface{}) error {
+func (r *Resolver) GetRequest(query string, res interface{}) error {
 	req, err := http.NewRequest(
 		"GET",
-		uri+query,
+		r.URI+query,
 		nil,
 	)
 	if err != nil {

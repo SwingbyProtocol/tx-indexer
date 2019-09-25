@@ -27,11 +27,11 @@ var (
 
 func main() {
 	txList := getBlockCypher()
-	resolver := resolver.NewResolver()
 	uri := "http://34.80.154.122:9096"
+	resolver := resolver.NewResolver(uri)
 	query := "/txs/btc/" + addr + "?" + "type=sensd"
 	txs := []*btc.Tx{}
-	err := resolver.GetRequest(uri, query, &txs)
+	err := resolver.GetRequest(query, &txs)
 	if err != nil {
 		log.Info(err)
 	}
@@ -75,12 +75,12 @@ type Base struct {
 }
 
 func getBlockCypher() []Tx {
-	resolver := resolver.NewResolver()
 	uri := "https://api.blockcypher.com/v1/btc/main/addrs/"
+	resolver := resolver.NewResolver(uri)
 	query := addr + "/full?limit=50?token=a6abe80853fd40da8f9ff05211df8806"
 	base := Base{}
 	resolver.SetTimeout(12 * time.Second)
-	err := resolver.GetRequest(uri, query, &base)
+	err := resolver.GetRequest(query, &base)
 	if err != nil {
 		log.Info(err)
 	}
