@@ -22,7 +22,7 @@ func init() {
 func main() {
 	bitcoind := flag.String("bitcoind", "http://localhost:8332", "bitcoind endpoint")
 	bind := flag.String("bind", "0.0.0.0:9096", "")
-	prune := flag.Int64("prune", 4, "prune blocks")
+	prune := flag.Int("prune", 4, "prune blocks")
 	flag.Parse()
 	log.Println("bitcoind ->", *bitcoind, "bind ->", *bind, "prune ->", *prune)
 	api := rest.NewApi()

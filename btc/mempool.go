@@ -13,21 +13,21 @@ type PoolTx struct {
 	Time   int64 `json:"time"`
 }
 
-func NewMempool(uri string) *Mempool {
-	mem := &Mempool{
-		Pool:     make(map[string]bool),
-		Resolver: resolver.NewResolver(uri),
-		TxChan:   make(chan Tx),
-	}
-	return mem
+type Mempool struct {
+	pool     map[string]bool
+	tasks    []*Tx
+	resolver *resolver.Resolver
+	waitchan chan Tx
+	iswork   bool
 }
 
-type Mempool struct {
-	Pool     map[string]bool
-	Tasks    []*Tx
-	Resolver *resolver.Resolver
-	TxChan   chan Tx
-	isWork   bool
+func NewMempool(uri string) *Mempool {
+	mem := &Mempool{
+		pool:     make(map[string]bool),
+		resolver: resolver.NewResolver(uri),
+		waitchan: make(chan Tx),
+	}
+	return mem
 }
 
 func (mem *Mempool) StartSync(t time.Duration) {
@@ -45,7 +45,7 @@ func (mem *Mempool) doGetTxIDs(t time.Duration) {
 
 func (mem *Mempool) loadTxsIDs() error {
 	res := make(map[string]PoolTx)
-	err := mem.Resolver.GetRequest("/rest/mempool/contents.json", &res)
+	err := mem.resolver.GetRequest("/rest/mempool/contents.json", &res)
 	if err != nil {
 		return err
 	}
@@ -62,18 +62,18 @@ func (mem *Mempool) loadTxsIDs() error {
 		}
 		newTx := Tx{
 			Txid:         id,
-			ReceivedTime: tx.Time,
+			Receivedtime: tx.Time,
 		}
 		txs = append(txs, id)
-		if mem.Pool[id] == true {
+		if mem.pool[id] == true {
 			continue
 		}
-		mem.Pool[id] = true
-		mem.Tasks = append(mem.Tasks, &newTx)
+		mem.pool[id] = true
+		mem.tasks = append(mem.tasks, &newTx)
 	}
-	log.Infof("mempool task -> %7d", len(mem.Tasks))
-	if mem.isWork == false {
-		mem.isWork = true
+	log.Infof(" --- task_count -> %d --- ", len(mem.tasks))
+	if mem.iswork == false {
+		mem.iswork = true
 		go mem.doGetTx()
 	}
 	mem.removePool(txs)
@@ -81,10 +81,10 @@ func (mem *Mempool) loadTxsIDs() error {
 }
 
 func (mem *Mempool) removePool(txs []string) {
-	if len(mem.Pool) <= 1000 {
+	if len(mem.pool) <= 1000 {
 		return
 	}
-	for tx := range mem.Pool {
+	for tx := range mem.pool {
 		isMatch := false
 		for _, txID := range txs {
 			if tx == txID {
@@ -92,7 +92,7 @@ func (mem *Mempool) removePool(txs []string) {
 			}
 		}
 		if isMatch == false {
-			delete(mem.Pool, tx)
+			delete(mem.pool, tx)
 		}
 	}
 }
@@ -100,7 +100,7 @@ func (mem *Mempool) removePool(txs []string) {
 func (mem *Mempool) doGetTx() {
 	err := mem.getTx()
 	if err != nil {
-		mem.isWork = false
+		mem.iswork = false
 		return
 	}
 	time.Sleep(1 * time.Microsecond)
@@ -110,13 +110,13 @@ func (mem *Mempool) doGetTx() {
 func (mem *Mempool) getTx() error {
 	lock := GetMu()
 	lock.Lock()
-	if len(mem.Tasks) == 0 {
+	if len(mem.tasks) == 0 {
 		lock.Unlock()
 		return errors.New("task zero")
 	}
-	tx := mem.Tasks[0]
-	mem.Tasks = mem.Tasks[1:]
-	resolver := mem.Resolver
+	tx := mem.tasks[0]
+	mem.tasks = mem.tasks[1:]
+	resolver := mem.resolver
 	lock.Unlock()
 	go func() {
 		err := tx.AddTxData(resolver)
@@ -125,11 +125,15 @@ func (mem *Mempool) getTx() error {
 				return
 			}
 			lock.Lock()
-			mem.Tasks = append(mem.Tasks, tx)
+			mem.tasks = append(mem.tasks, tx)
 			lock.Unlock()
 			return
 		}
-		mem.TxChan <- *tx
+		mem.waitchan <- *tx
 	}()
 	return nil
+}
+
+func (mem *Mempool) GetTaskCount() int {
+	return len(mem.tasks)
 }

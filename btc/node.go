@@ -2,65 +2,54 @@ package btc
 
 import (
 	"net/http"
-	"sort"
 	"strconv"
 	"time"
 
-	"github.com/SwingbyProtocol/sc-indexer/resolver"
 	"github.com/ant0ine/go-json-rest/rest"
 	log "github.com/sirupsen/logrus"
 )
 
-type Index struct {
-	In []*Stamp
-}
-
-type Stamp struct {
-	TxID string
-	Time int64
-	Vout [][]string
-}
-
-type Out struct {
-	TxID string
-	Time int64
-}
-
 type Node struct {
-	BlockChain  *BlockChain
-	Index       map[string]*Index
-	Txs         map[string]*Tx
-	Spent       map[string][]string
-	PruneBlocks int64
-	LocalBlocks int64
-	BestBlocks  int64
-	Resolver    *resolver.Resolver
-	db          *Database
-	Status      string
+	blockchain *BlockChain
+	index      *Index
+	storage    *Storage
 }
 
-func NewNode(uri string, pruneBlocks int64) *Node {
+func NewNode(uri string, purneblocks int) *Node {
 	node := &Node{
-		BlockChain:  NewBlockchain(uri),
-		Index:       make(map[string]*Index),
-		Txs:         make(map[string]*Tx),
-		Spent:       make(map[string][]string),
-		PruneBlocks: pruneBlocks,
-		db:          NewDB("./db"),
+		blockchain: NewBlockchain(uri, purneblocks),
+		index:      NewIndex(),
+		storage:    NewStorage(),
 	}
 	return node
 }
 
 func (node *Node) Start() {
-	node.BlockChain.StartSync(3 * time.Second)
-	node.BlockChain.StartMemSync(10 * time.Second)
+	node.blockchain.StartSync(3 * time.Second)
+	node.blockchain.StartMemSync(10 * time.Second)
 	go node.SubscribeTx()
 	go node.SubscribeBlock()
 
 	loop(func() error {
 		GetMu().RLock()
-		mem := node.BlockChain.Mempool
-		log.Infof(" Pool -> %7d Spent -> %7d Index -> %7d Tx -> %d", len(mem.Pool), len(node.Spent), len(node.Index), len(node.Txs))
+		mem := node.blockchain.mempool
+		latestBlock := node.blockchain.GetLatestBlock()
+		log.Infof(" Block# -> %d", latestBlock)
+		log.Infof(
+			" Pool  -> %7d Spent -> %7d Index -> %7d Tx   -> %7d",
+			len(mem.pool),
+			len(node.storage.spent),
+			len(node.index.stamps),
+			len(node.storage.txs),
+		)
+		log.Info(node.blockchain.blocktimes)
+		if len(node.index.lists) >= 6 {
+			for _, m := range node.index.lists[:6] {
+				count := node.index.counter[m.Address]
+				log.Infof("  c: %7d %7d addr: %40s", m.Time, count, m.Address)
+			}
+		}
+
 		GetMu().RUnlock()
 		return nil
 	}, 11*time.Second)
@@ -68,119 +57,37 @@ func (node *Node) Start() {
 
 func (node *Node) SubscribeTx() {
 	for {
-		tx := <-node.BlockChain.Mempool.TxChan
-		node.UpdateTx(&tx)
+		tx := <-node.blockchain.mempool.waitchan
+		node.storage.AddTx(&tx)
+		node.index.AddIn(&tx)
 	}
-}
-
-func (node *Node) UpdateTx(tx *Tx) {
-	for _, vin := range tx.Vin {
-		key := vin.Txid + "_" + strconv.Itoa(vin.Vout)
-		if checkExist(key, node.Spent[key]) == true {
-			continue
-		}
-		node.Spent[key] = append(node.Spent[key], tx.Txid)
-	}
-	stamp := &Stamp{tx.Txid, tx.ReceivedTime, nil}
-	for _, vout := range tx.Vout {
-		vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
-		vout.Txs = []string{}
-		stamp.Vout = append(stamp.Vout, nil)
-	}
-	for _, vout := range tx.Vout {
-		if len(vout.ScriptPubkey.Addresses) == 0 {
-			continue
-		}
-		addr := vout.ScriptPubkey.Addresses[0]
-		node.updateIndexIn(addr, stamp)
-	}
-	node.addTx(tx)
 }
 
 func (node *Node) SubscribeBlock() {
 	for {
-		block := <-node.BlockChain.BlockChan
-		for _, tx := range block.Txs {
-			loadTx := node.getTx(tx.Txid)
-			if loadTx != nil {
-				loadTx.AddBlockData(&block)
-				GetMu().Lock()
-				node.Txs[tx.Txid] = loadTx
-				GetMu().Unlock()
-			} else {
-				tx.AddBlockData(&block)
-				tx.ReceivedTime = block.Time
-				node.BlockChain.Mempool.TxChan <- *tx
-				log.Info("new -> ", tx.Txid)
-			}
+		block := <-node.blockchain.waitchan
+		node.index.RemoveIndexWithTxBefore(node.blockchain, node.storage)
+		newTxs := block.UpdateTxs(node.storage)
+		for _, tx := range newTxs {
+			tx.AddBlockData(&block)
+			tx.Receivedtime = block.Time
+			node.blockchain.mempool.waitchan <- *tx
+			//log.Info("new -> ", tx.Txid)
 		}
 	}
-}
-
-func (node *Node) updateIndexIn(addr string, stamp *Stamp) {
-	if node.Index[addr] == nil {
-		node.Index[addr] = &Index{}
-	}
-	inTxs := node.getIndexStamps(addr, node.Index[addr].In)
-	if inTxs[stamp.TxID] == 1 {
-		return
-	}
-	node.Index[addr].In = append(node.Index[addr].In, stamp)
-	sortUp(node.Index[addr].In)
-}
-
-func (node *Node) getIndexStamps(addr string, stamps []*Stamp) map[string]int {
-	added := make(map[string]int)
-	for _, stamp := range stamps {
-		added[stamp.TxID] = 1
-	}
-	return added
-}
-
-func (node *Node) addTx(tx *Tx) {
-	GetMu().Lock()
-	node.Txs[tx.Txid] = tx
-	GetMu().Unlock()
-}
-
-func (node *Node) getTx(txID string) *Tx {
-	GetMu().RLock()
-	tx := node.Txs[txID]
-	GetMu().RUnlock()
-	return tx
-}
-
-func sortUp(stamps []*Stamp) {
-	sort.SliceStable(stamps, func(i, j int) bool { return stamps[i].Time < stamps[j].Time })
-}
-
-func loadSend(index *Index) []string {
-	sendIDs := []string{}
-	for i := len(index.In) - 1; i >= 0; i-- {
-		in := index.In[i]
-		for _, out := range in.Vout {
-			if out == nil {
-				continue
-			}
-			for _, send := range out {
-				sendIDs = append(sendIDs, send)
-			}
-		}
-	}
-	return sendIDs
 }
 
 func (node *Node) GetIndex(w rest.ResponseWriter, r *rest.Request) {
 	address := r.PathParam("address")
-	index := node.Index[address]
+	stamps := node.index.GetStamps(address)
 	w.WriteHeader(http.StatusOK)
-	w.WriteJson(index)
+	w.WriteJson(stamps)
 }
 
 func (node *Node) GetTx(w rest.ResponseWriter, r *rest.Request) {
 	txid := r.PathParam("txid")
-	tx := node.getTx(txid)
-	if tx == nil {
+	tx, err := node.storage.GetTx(txid)
+	if err != nil {
 		res500(w, r)
 		return
 	}
@@ -188,81 +95,37 @@ func (node *Node) GetTx(w rest.ResponseWriter, r *rest.Request) {
 	w.WriteJson(tx)
 }
 
-func (node *Node) loadSend(index *Index) []*Tx {
-	resTxs := []*Tx{}
-	sendIDs := loadSend(index)
-	for _, sendID := range sendIDs {
-		tx := node.Txs[sendID]
-		for i, out := range tx.Vout {
-			key := tx.Txid + "_" + strconv.Itoa(i)
-			sendTxs := node.Spent[key]
-			if len(sendTxs) == 0 {
-				continue
-			}
-			out.Spent = true
-			out.Txs = sendTxs
-		}
-		resTxs = append(resTxs, tx)
-	}
-	sort.SliceStable(resTxs, func(i, j int) bool {
-		return resTxs[i].ReceivedTime > resTxs[j].ReceivedTime
-	})
-	return resTxs
-}
-
-func (node *Node) loadIn(index *Index) []*Tx {
-	resTxs := []*Tx{}
-	for i := len(index.In) - 1; i >= 0; i-- {
-		in := index.In[i]
-		tx := node.Txs[in.TxID]
-		for i, out := range tx.Vout {
-			if len(in.Vout[i]) == 0 {
-				continue
-			}
-			out.Txs = in.Vout[i]
-			out.Spent = true
-		}
-		resTxs = append(resTxs, tx)
-	}
-	return resTxs
-}
-
 func (node *Node) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	address := r.PathParam("address")
 	//sortFlag := r.FormValue("sort")
 	pageFlag := r.FormValue("page")
 	spentFlag := r.FormValue("type")
-	index := node.Index[address]
-	if index == nil {
+	err := node.index.AddVouts(address, node.storage)
+	if err != nil {
 		res500(w, r)
 		return
 	}
-	for _, in := range index.In {
-		for i, out := range in.Vout {
-			if len(out) != 0 {
-				continue
-			}
-			addresses := node.Txs[in.TxID].Vout[i].ScriptPubkey.Addresses
-			if len(addresses) == 0 {
-				continue
-			}
-			if addresses[0] != address {
-				continue
-			}
-			key := in.TxID + "_" + strconv.Itoa(i)
-			sendTxs := node.Spent[key]
-			if len(sendTxs) == 0 {
-				continue
-			}
-			in.Vout[i] = sendTxs
-		}
-	}
-
 	resTxs := []*Tx{}
 	if spentFlag == "send" {
-		resTxs = node.loadSend(index)
+		spents, err := node.index.GetSpents(address, node.storage)
+		if err != nil {
+			res500(w, r)
+			return
+		}
+		for i := len(spents) - 1; i >= 0; i-- {
+			spents[i].EnableTxSpent(address, node.storage)
+			resTxs = append(resTxs, spents[i])
+		}
 	} else {
-		resTxs = node.loadIn(index)
+		txs, err := node.index.GetIns(address, node.storage)
+		if err != nil {
+			res500(w, r)
+			return
+		}
+		for i := len(txs) - 1; i >= 0; i-- {
+			txs[i].EnableTxSpent(address, node.storage)
+			resTxs = append(resTxs, txs[i])
+		}
 	}
 
 	if len(resTxs) == 0 {

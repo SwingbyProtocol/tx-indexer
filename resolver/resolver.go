@@ -57,8 +57,7 @@ func (r *Resolver) GetRequest(query string, res interface{}) error {
 	if resp.StatusCode != 200 {
 		resp.Body.Close()
 		code := strconv.Itoa(resp.StatusCode)
-		log.Info(" -> ", code, " ", query)
-		return errors.New(code)
+		return errors.New(" -> " + code + " " + query)
 	}
 	decoder := json.NewDecoder(resp.Body)
 	decoder.Decode(res)

@@ -12,24 +12,26 @@ type ChainInfo struct {
 	Chain         string `json:"chain"`
 	Blocks        int64  `json:"blocks"`
 	Headers       int64  `json:"headers"`
-	BestBlockHash string `json:"bestblockhash"`
+	Bestblockhash string `json:"bestblockhash"`
 }
 
 type BlockChain struct {
-	Mempool        *Mempool
-	Resolver       *resolver.Resolver
-	LatestBlock    int64
-	NextBlockCount int64
-	BlockChan      chan Block
-	Tasks          []string
-	isSync         bool
+	mempool        *Mempool
+	resolver       *resolver.Resolver
+	latestblock    int64
+	pruneblocks    int
+	blocktimes     []int64
+	nextblockcount int64
+	waitchan       chan Block
+	tasks          []string
 }
 
-func NewBlockchain(uri string) *BlockChain {
+func NewBlockchain(uri string, pruneblocks int) *BlockChain {
 	bc := &BlockChain{
-		Resolver:  resolver.NewResolver(uri),
-		Mempool:   NewMempool(uri),
-		BlockChan: make(chan Block),
+		resolver:    resolver.NewResolver(uri),
+		mempool:     NewMempool(uri),
+		pruneblocks: pruneblocks,
+		waitchan:    make(chan Block),
 	}
 	return bc
 }
@@ -40,7 +42,7 @@ func (b *BlockChain) StartSync(t time.Duration) {
 }
 
 func (b *BlockChain) StartMemSync(t time.Duration) {
-	b.Mempool.StartSync(t)
+	b.mempool.StartSync(t)
 }
 
 func (b *BlockChain) doLoadNewBlocks(t time.Duration) {
@@ -63,49 +65,65 @@ func (b *BlockChain) doLoadBlock(t time.Duration) {
 
 func (b *BlockChain) loadNewBlocks() error {
 	info := ChainInfo{}
-	err := b.Resolver.GetRequest("/rest/chaininfo.json", &info)
+	err := b.resolver.GetRequest("/rest/chaininfo.json", &info)
 	if err != nil {
 		return err
 	}
-	if b.LatestBlock == 0 {
-		b.LatestBlock = info.Blocks - 1
+
+	if b.latestblock == 0 {
+		b.latestblock = info.Blocks - 1
 	}
-	if b.LatestBlock == info.Blocks {
+	if b.latestblock >= info.Blocks {
 		return nil
 	}
-	if b.LatestBlock < info.Blocks {
-		b.NextBlockCount = info.Blocks - b.LatestBlock
-		b.LatestBlock = info.Blocks
+	if b.latestblock < info.Blocks {
+		b.nextblockcount = info.Blocks - b.latestblock
+		b.latestblock = info.Blocks
 	}
-	log.Info("push block task -> ", b.LatestBlock)
-	b.Tasks = append(b.Tasks, info.BestBlockHash)
+	log.Infof("Task Block# %d Push", b.latestblock)
+	b.tasks = append(b.tasks, info.Bestblockhash)
 	return nil
 }
 
 func (b *BlockChain) getBlock() error {
-	if len(b.Tasks) == 0 {
+	if len(b.tasks) == 0 {
 		return nil
 	}
-	task := b.Tasks[0]
-	b.Tasks = b.Tasks[1:]
+	task := b.tasks[0]
+	b.tasks = b.tasks[1:]
 	block := Block{}
-	err := b.Resolver.GetRequest("/rest/block/"+task+".json", &block)
+	err := b.resolver.GetRequest("/rest/block/"+task+".json", &block)
 	if err != nil {
-		b.Tasks = append(b.Tasks, task)
+		b.tasks = append(b.tasks, task)
 		return err
 	}
 	if block.Height == 0 {
-		b.Tasks = append(b.Tasks, task)
+		b.tasks = append(b.tasks, task)
 		return errors.New("block height is zero")
 	}
-	log.Info("get txs from block -> ", block.Height)
-	b.BlockChan <- block
-	if b.NextBlockCount <= 0 {
+	b.blocktimes = append(b.blocktimes, block.Time)
+	if len(b.blocktimes) > b.pruneblocks+1 {
+		b.blocktimes = b.blocktimes[1:]
+	}
+	log.Infof("Task Block# %d Get", block.Height)
+	b.waitchan <- block
+	if b.nextblockcount <= 0 {
 		return nil
 	}
-	b.NextBlockCount--
-	if b.NextBlockCount > 0 {
-		b.Tasks = append(b.Tasks, block.Previousblockhash)
+	b.nextblockcount--
+	if b.nextblockcount > 0 {
+		b.tasks = append(b.tasks, block.Previousblockhash)
 	}
 	return nil
+}
+
+func (b *BlockChain) GetLatestBlock() int64 {
+	return b.latestblock
+}
+
+func (b *BlockChain) GetPruneBlockTime() (int64, error) {
+	if len(b.blocktimes) == b.pruneblocks+1 {
+		return b.blocktimes[0], nil
+	}
+	return 0, errors.New("prune block is not reached")
 }

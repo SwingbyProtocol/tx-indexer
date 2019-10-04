@@ -1,15 +1,21 @@
 package btc
 
 import (
+	"strconv"
+
 	"github.com/SwingbyProtocol/sc-indexer/resolver"
 	log "github.com/sirupsen/logrus"
 )
+
+type Txs struct {
+	txs map[string]*Tx
+}
 
 type Tx struct {
 	Txid         string  `json:"txid"`
 	Hash         string  `json:"hash"`
 	Confirms     int64   `json:"confirms"`
-	ReceivedTime int64   `json:"receivedtime"`
+	Receivedtime int64   `json:"receivedtime"`
 	MinedTime    int64   `json:"minedtime"`
 	Mediantime   int64   `json:"mediantime"`
 	Version      int     `json:"version"`
@@ -31,29 +37,22 @@ type Vout struct {
 	Spent        bool          `json:"spent"`
 	Txs          []string      `json:"txs"`
 	N            int           `json:"n"`
-	ScriptPubkey *ScriptPubkey `json:"scriptPubkey"`
+	Scriptpubkey *ScriptPubkey `json:"scriptPubkey"`
 }
 
 type ScriptPubkey struct {
 	Asm       string   `json:"asm"`
 	Hex       string   `json:"hex"`
-	ReqSigs   int      `json:"reqSigs"`
-	Type      string   `json:"type"`
+	Reqsigs   int      `json:"reqSigs"`
+	Keytype   string   `json:"type"`
 	Addresses []string `json:"addresses"`
 }
 
 func (tx *Tx) AddTxData(r *resolver.Resolver) error {
-	newTx := Tx{}
-	err := r.GetRequest("/rest/tx/"+tx.Txid+".json", &newTx)
+	err := r.GetRequest("/rest/tx/"+tx.Txid+".json", tx)
 	if err != nil {
 		return err
 	}
-	tx.Hash = newTx.Hash
-	tx.Version = newTx.Version
-	tx.Weight = newTx.Weight
-	tx.Locktime = newTx.Locktime
-	tx.Vin = newTx.Vin
-	tx.Vout = newTx.Vout
 	return nil
 }
 
@@ -64,18 +63,53 @@ func (tx *Tx) AddBlockData(block *Block) *Tx {
 	return tx
 }
 
-func (tx *Tx) getOutputsAddresses() []string {
+func (tx *Tx) EnableTxSpent(addr string, storage *Storage) {
+	for i, vout := range tx.Vout {
+		key := tx.Txid + "_" + strconv.Itoa(i)
+		spents, err := storage.GetSpents(key)
+		if err != nil {
+			continue
+		}
+		if len(vout.Scriptpubkey.Addresses) != 1 {
+			continue
+		}
+		address := vout.Scriptpubkey.Addresses[0]
+		if addr != address {
+			continue
+		}
+		vout.Spent = true
+		vout.Txs = spents
+	}
+}
+
+func (tx *Tx) CheckAllSpent(storage *Storage) bool {
+	isAllSpent := true
+	for i, vout := range tx.Vout {
+		if len(vout.Scriptpubkey.Addresses) != 1 {
+			continue
+		}
+		key := tx.Txid + "_" + strconv.Itoa(i)
+		_, err := storage.GetSpents(key)
+		if err != nil {
+			isAllSpent = false
+			continue
+		}
+	}
+	return isAllSpent
+}
+
+func (tx *Tx) GetOutputsAddresses() []string {
 	addresses := []string{}
 	for _, vout := range tx.Vout {
-		if len(vout.ScriptPubkey.Addresses) == 0 {
-			log.Debug("debug : len(vout.ScriptPubkey.Addresses) == 0")
+		if len(vout.Scriptpubkey.Addresses) != 1 {
+			log.Debug("debug : len(vout.ScriptPubkey.Addresses) != 1")
 			continue
 		}
-		if len(vout.ScriptPubkey.Addresses) != 1 {
-			log.Info("error : len(vout.ScriptPubkey.Addresses) != 1")
+		addr := vout.Scriptpubkey.Addresses[0]
+		if checkExist(addr, addresses) == true {
 			continue
 		}
-		addresses = append(addresses, vout.ScriptPubkey.Addresses[0])
+		addresses = append(addresses, addr)
 	}
 	return addresses
 }

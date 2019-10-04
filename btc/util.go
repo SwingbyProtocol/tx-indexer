@@ -34,11 +34,11 @@ func call(f func() error) {
 }
 
 func checkExist(key string, array []string) bool {
-	isExist := false
+	isexist := false
 	for _, id := range array {
 		if id == key {
-			isExist = true
+			isexist = true
 		}
 	}
-	return isExist
+	return isexist
 }
