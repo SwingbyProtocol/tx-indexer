@@ -11,8 +11,6 @@ import (
 )
 
 func init() {
-	// Log as JSON instead of the default ASCII formatter.
-	//log.SetFormatter(&log.JSONFormatter{})
 	log.SetFormatter(&log.TextFormatter{
 		DisableColors: true,
 		FullTimestamp: true,
@@ -23,16 +21,18 @@ func init() {
 
 func main() {
 	bitcoind := flag.String("bitcoind", "http://localhost:8332", "bitcoind endpoint")
-	bind := flag.String("bind", "0.0.0.0:9092", "")
-	prune := flag.Int64("prune", 4, "prune blocks")
+	bind := flag.String("bind", "0.0.0.0:9096", "")
+	prune := flag.Int("prune", 4, "prune blocks")
 	flag.Parse()
 	log.Println("bitcoind ->", *bitcoind, "bind ->", *bind, "prune ->", *prune)
 	api := rest.NewApi()
 	api.Use(rest.DefaultDevStack...)
-	btcNode := btc.NewBTCNode(*bitcoind, *prune)
+	btcNode := btc.NewNode(*bitcoind, *prune)
 	btcNode.Start()
 	router, err := rest.MakeRouter(
-		rest.Get("/txs/btc/:address", btcNode.GetBTCTxs),
+		rest.Get("/txs/btc/:address", btcNode.GetTxs),
+		rest.Get("/txs/btc/tx/:txid", btcNode.GetTx),
+		rest.Get("/txs/btc/index/:address", btcNode.GetIndex),
 	)
 	if err != nil {
 		log.Fatal(err)
