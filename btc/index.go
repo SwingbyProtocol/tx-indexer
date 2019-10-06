@@ -174,12 +174,13 @@ func (i *Index) removeIndexWIthAllSpentTxBefore(prunetime int64, storage *Storag
 }
 
 func (i *Index) removeCountWithBeforeNum(addr string) int {
-	now := i.counter[addr]
-	if now == 0 {
-		return 0
-	}
 	lock := GetMu()
 	lock.Lock()
+	now := i.counter[addr]
+	if now == 0 {
+		lock.Unlock()
+		return 0
+	}
 	i.counter[addr]--
 	lock.Unlock()
 	return now
