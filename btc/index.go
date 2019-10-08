@@ -48,13 +48,16 @@ func (i *Index) AddIn(tx *Tx) {
 		stamp.Vout = append(stamp.Vout, &Link{Address: addr})
 	}
 	addresses := tx.GetOutputsAddresses()
+	lock := GetMu()
 	for _, addr := range addresses {
+		lock.Lock()
 		i.stamps[addr] = append(i.stamps[addr], stamp)
 		// Insertion Sort
 		sortStamp(i.stamps[addr])
 		i.UpdateScore(addr, tx.Receivedtime)
 		// Insertion Sort
 		sortScores(i.lists)
+		lock.Unlock()
 	}
 }
 

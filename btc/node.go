@@ -49,7 +49,6 @@ func (node *Node) Start() {
 				log.Infof("  c: %7d %7d addr: %40s", m.Time, count, m.Address)
 			}
 		}
-
 		GetMu().RUnlock()
 		return nil
 	}, 11*time.Second)
