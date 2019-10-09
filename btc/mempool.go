@@ -40,7 +40,8 @@ func (mem *Mempool) doGetTxIDs(t time.Duration) {
 		log.Info(err)
 	}
 	time.Sleep(t)
-	mem.doGetTxIDs(t)
+	go mem.doGetTxIDs(t)
+	return
 }
 
 func (mem *Mempool) loadTxsIDs() error {
@@ -80,6 +81,17 @@ func (mem *Mempool) loadTxsIDs() error {
 	return nil
 }
 
+func (mem *Mempool) doGetTx() {
+	err := mem.getTx()
+	if err != nil {
+		mem.iswork = false
+		return
+	}
+	time.Sleep(1 * time.Nanosecond)
+	go mem.doGetTx()
+	return
+}
+
 func (mem *Mempool) removePool(txs []string) {
 	if len(mem.pool) <= 1000 {
 		return
@@ -95,16 +107,6 @@ func (mem *Mempool) removePool(txs []string) {
 			delete(mem.pool, tx)
 		}
 	}
-}
-
-func (mem *Mempool) doGetTx() {
-	err := mem.getTx()
-	if err != nil {
-		mem.iswork = false
-		return
-	}
-	time.Sleep(1 * time.Microsecond)
-	mem.doGetTx()
 }
 
 func (mem *Mempool) getTx() error {

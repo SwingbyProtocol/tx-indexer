@@ -51,7 +51,8 @@ func (b *BlockChain) doLoadNewBlocks(t time.Duration) {
 		log.Info(err)
 	}
 	time.Sleep(t)
-	b.doLoadNewBlocks(t)
+	go b.doLoadNewBlocks(t)
+	return
 }
 
 func (b *BlockChain) doLoadBlock(t time.Duration) {
@@ -60,7 +61,8 @@ func (b *BlockChain) doLoadBlock(t time.Duration) {
 		log.Info(err)
 	}
 	time.Sleep(t)
-	b.doLoadBlock(t)
+	go b.doLoadBlock(t)
+	return
 }
 
 func (b *BlockChain) loadNewBlocks() error {
@@ -99,7 +101,7 @@ func (b *BlockChain) getBlock() error {
 	}
 	if block.Height == 0 {
 		b.tasks = append(b.tasks, task)
-		return errors.New("block height is zero")
+		return errors.New("block height is zero " + task)
 	}
 	b.blocktimes = append(b.blocktimes, block.Time)
 	if len(b.blocktimes) > b.pruneblocks+1 {

@@ -25,7 +25,7 @@ var (
 	addr = "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"
 )
 
-func main() {
+func Run() {
 	txList := getBlockCypher()
 	uri := "http://34.80.154.122:9096"
 	resolver := resolver.NewResolver(uri)
@@ -62,7 +62,7 @@ func main() {
 	}
 	log.Info(" ---------------> ")
 	time.Sleep(10 * time.Second)
-	main()
+	Run()
 }
 
 type Tx struct {
