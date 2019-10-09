@@ -87,7 +87,7 @@ func (mem *Mempool) doGetTx() {
 		mem.iswork = false
 		return
 	}
-	time.Sleep(1 * time.Nanosecond)
+	time.Sleep(1 * time.Microsecond)
 	go mem.doGetTx()
 	return
 }

@@ -36,7 +36,7 @@ func (node *Node) Start() {
 		latestBlock := node.blockchain.GetLatestBlock()
 		log.Infof(" Block# -> %d", latestBlock)
 		log.Infof(
-			" Pool  -> %7d Spent -> %7d Index -> %7d Tx   -> %7d",
+			" Pool -> %7d Spent -> %7d Index -> %7d Tx -> %7d",
 			len(mem.pool),
 			len(node.storage.spent),
 			len(node.index.stamps),
@@ -71,7 +71,7 @@ func (node *Node) SubscribeBlock() {
 			tx.AddBlockData(&block)
 			tx.Receivedtime = block.Time
 			node.blockchain.mempool.waitchan <- *tx
-			//log.Info("new -> ", tx.Txid)
+			log.Info("new -> ", tx.Txid)
 		}
 	}
 }
