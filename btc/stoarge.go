@@ -47,7 +47,7 @@ func (s *Storage) AddSpent(key string, txid string) error {
 	lock.RLock()
 	spents, _ := s.spent[key]
 	lock.RUnlock()
-	if checkExist(key, spents) == true {
+	if checkExist(txid, spents) == true {
 		return errors.New("already exist")
 	}
 	lock.Lock()
