@@ -23,7 +23,12 @@ type BlockChain struct {
 	blocktimes     []int64
 	nextblockcount int64
 	waitchan       chan Block
-	tasks          []string
+	tasks          []*Task
+}
+
+type Task struct {
+	BlockHash string
+	Errors    int
 }
 
 func NewBlockchain(uri string, pruneblocks int) *BlockChain {
@@ -83,7 +88,8 @@ func (b *BlockChain) loadNewBlocks() error {
 		b.latestblock = info.Blocks
 	}
 	log.Infof("Task Block# %d Push", b.latestblock)
-	b.tasks = append(b.tasks, info.Bestblockhash)
+	task := Task{info.Bestblockhash, 0}
+	b.tasks = append(b.tasks, &task)
 	return nil
 }
 
@@ -94,14 +100,14 @@ func (b *BlockChain) getBlock() error {
 	task := b.tasks[0]
 	b.tasks = b.tasks[1:]
 	block := Block{}
-	err := b.resolver.GetRequest("/rest/block/"+task+".json", &block)
+	err := b.resolver.GetRequest("/rest/block/"+task.BlockHash+".json", &block)
 	if err != nil {
-		b.tasks = append(b.tasks, task)
+		b.AddTaskWithError(task)
 		return err
 	}
 	if block.Height == 0 {
-		b.tasks = append(b.tasks, task)
-		return errors.New("block height is zero " + task)
+		b.AddTaskWithError(task)
+		return errors.New("Block height is zero " + task.BlockHash)
 	}
 	b.blocktimes = append(b.blocktimes, block.Time)
 	if len(b.blocktimes) > b.pruneblocks+1 {
@@ -114,7 +120,8 @@ func (b *BlockChain) getBlock() error {
 	}
 	b.nextblockcount--
 	if b.nextblockcount > 0 {
-		b.tasks = append(b.tasks, block.Previousblockhash)
+		task := Task{block.Previousblockhash, 0}
+		b.tasks = append(b.tasks, &task)
 	}
 	return nil
 }
@@ -128,4 +135,12 @@ func (b *BlockChain) GetPruneBlockTime() (int64, error) {
 		return b.blocktimes[0], nil
 	}
 	return 0, errors.New("prune block is not reached")
+}
+
+func (b *BlockChain) AddTaskWithError(task *Task) {
+	task.Errors++
+	log.Info("task errors: ", task.Errors)
+	if task.Errors <= 8 {
+		b.tasks = append(b.tasks, task)
+	}
 }

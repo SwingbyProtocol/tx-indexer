@@ -23,6 +23,7 @@ type Stamp struct {
 type Score struct {
 	Address string
 	Time    int64
+	Txid    string
 }
 
 type Link struct {
@@ -54,7 +55,7 @@ func (i *Index) AddIn(tx *Tx) {
 		i.stamps[addr] = append(i.stamps[addr], stamp)
 		// Insertion Sort
 		sortStamp(i.stamps[addr])
-		i.UpdateScore(addr, tx.Receivedtime)
+		i.UpdateScore(addr, tx.Receivedtime, tx.Txid)
 		// Insertion Sort
 		sortScores(i.lists)
 		lock.Unlock()
@@ -135,8 +136,8 @@ func (i *Index) GetStamps(addr string) []*Stamp {
 	return stamps
 }
 
-func (i *Index) UpdateScore(addr string, time int64) {
-	newScore := &Score{Address: addr, Time: time}
+func (i *Index) UpdateScore(addr string, time int64, txid string) {
+	newScore := &Score{Address: addr, Time: time, Txid: txid}
 	i.lists = append(i.lists, newScore)
 	i.counter[addr]++
 }

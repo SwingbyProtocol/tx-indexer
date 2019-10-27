@@ -5,7 +5,7 @@ docker run -v /var/bitcoind:/bitcoin -d \
     -p 0.0.0.0:18333:18333 \
     -p 0.0.0.0:18332:18332 \
     kylemanna/bitcoind \
-    --prune=1812 \
+    --prune=812 \
     -rest \
     -rpcbind=0.0.0.0 \
     -rpcallowip=0.0.0.0/0 \

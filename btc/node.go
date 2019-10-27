@@ -46,7 +46,7 @@ func (node *Node) Start() {
 		if len(node.index.lists) >= 6 {
 			for _, m := range node.index.lists[:6] {
 				count := node.index.counter[m.Address]
-				log.Infof("  c: %7d %7d addr: %40s", m.Time, count, m.Address)
+				log.Infof("  c: %7d %7d addr: %60s txid: %s", m.Time, count, m.Address, m.Txid)
 			}
 		}
 		GetMu().RUnlock()
@@ -67,12 +67,14 @@ func (node *Node) SubscribeBlock() {
 		block := <-node.blockchain.waitchan
 		node.index.RemoveIndexWithTxBefore(node.blockchain, node.storage)
 		newTxs := block.UpdateTxs(node.storage)
+		count := 0
 		for _, tx := range newTxs {
 			tx.AddBlockData(&block)
 			tx.Receivedtime = block.Time
 			node.blockchain.mempool.waitchan <- *tx
-			log.Info("new -> ", tx.Txid)
+			count++
 		}
+		log.Info("news -> ", count)
 	}
 }
 

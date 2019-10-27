@@ -23,6 +23,8 @@ func main() {
 	bitcoind := flag.String("bitcoind", "http://localhost:8332", "bitcoind endpoint")
 	bind := flag.String("bind", "0.0.0.0:9096", "")
 	prune := flag.Int("prune", 4, "prune blocks")
+	wsBind := flag.String("ws", "localhost:8080", "websocket bind")
+
 	flag.Parse()
 	log.Println("bitcoind ->", *bitcoind, "bind ->", *bind, "prune ->", *prune)
 	api := rest.NewApi()
@@ -39,4 +41,8 @@ func main() {
 	}
 	api.SetApp(router)
 	log.Fatal(http.ListenAndServe(*bind, api.MakeHandler()))
+
+	// ws
+	//http.HandleFunc("/")
+	log.Fatal(http.ListenAndServe(*wsBind, nil))
 }
