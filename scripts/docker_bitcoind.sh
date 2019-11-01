@@ -1,6 +1,7 @@
 #!/bin/bash
 
 docker run -v /var/bitcoind:/bitcoin -d \
+    --restart=always
     --name=bitcoind-node \
     -p 0.0.0.0:8333:8333 \
     -p 0.0.0.0:8332:8332 \
