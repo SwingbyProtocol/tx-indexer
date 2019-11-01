@@ -32,6 +32,10 @@ func main() {
 	btcNode := btc.NewNode(*bitcoind, *prune)
 	btcNode.Start()
 	router, err := rest.MakeRouter(
+		rest.Get("/keep", func(w rest.ResponseWriter, r *rest.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.WriteJson([]string{})
+		}),
 		rest.Get("/txs/btc/:address", btcNode.GetTxs),
 		rest.Get("/txs/btc/tx/:txid", btcNode.GetTx),
 		rest.Get("/txs/btc/index/:address", btcNode.GetIndex),
