@@ -1,6 +1,7 @@
 package btc
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,6 +13,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	WATCHTXS   = "watchTxs"
+	UNWATCHTXS = "unwatchTxs"
+	GETTXS     = "getTxs"
+)
+
 type Node struct {
 	blockchain *BlockChain
 	index      *Index
@@ -21,7 +28,6 @@ type Node struct {
 }
 
 func NewNode(uri string, purneblocks int) *Node {
-	ps := pubsub.PubSub{}
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
@@ -30,7 +36,7 @@ func NewNode(uri string, purneblocks int) *Node {
 		blockchain: NewBlockchain(uri, purneblocks),
 		index:      NewIndex(),
 		storage:    NewStorage(),
-		ps:         &ps,
+		ps:         &pubsub.PubSub{},
 		upgrader:   &upgrader,
 	}
 	return node
@@ -71,6 +77,10 @@ func (node *Node) SubscribeTx() {
 		tx := <-node.blockchain.mempool.waitchan
 		node.storage.AddTx(&tx)
 		node.index.AddIn(&tx)
+		addresses := tx.GetOutputsAddresses()
+		for _, addr := range addresses {
+			node.WsPublishMsg(addr, &tx)
+		}
 	}
 }
 
@@ -177,26 +187,93 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 
 	c, err := node.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Print("upgrade:", err)
+		log.Info("upgrade:", err)
 		return
 	}
 	defer c.Close()
-	log.Println("WS:Client Connected")
+	log.Info("WS:Client Connected")
 
 	client := pubsub.Client{
-		Id:         uuid.Must(uuid.NewV4(), nil).String(),
+		ID:         uuid.Must(uuid.NewV4(), nil).String(),
 		Connection: c,
 	}
+
 	node.ps.AddClient(client)
-	log.Println("New Client is connected, total: ", len(node.ps.Clients))
+	log.Info("New Client is connected, total: ", len(node.ps.Clients))
 
 	for {
-		mt, message, err := c.ReadMessage()
+		_, message, err := c.ReadMessage()
 		if err != nil {
-			log.Println("WS:error:", err)
+			log.Info("WS:error:", err)
 			node.ps.RemoveClient(client)
 			break
 		}
-		node.ps.HandleReceiveMessage(client, mt, message)
+		msg := pubsub.Message{}
+		err = json.Unmarshal(message, &msg)
+		if err != nil {
+			log.Info("This is not correct message payload")
+			continue
+		}
+		switch msg.Action {
+		case WATCHTXS:
+			node.ps.Subscribe(&client, msg.Address)
+			log.Infof("new subscriber to Address: -> %s %d %s", msg.Address, len(node.ps.Subscriptions), client.ID)
+			break
+		case UNWATCHTXS:
+			log.Infof("Client want to unsubscribe the Address: -> %s %s", msg.Address, client.ID)
+			node.ps.Unsubscribe(&client, msg.Address)
+			break
+		case GETTXS:
+			log.Infof("Client want to get txs of index Address: -> %s %s", msg.Address, client.ID)
+			resTxs := []*Tx{}
+
+			spentFlag := ""
+			if spentFlag == "send" {
+				spents, err := node.index.GetSpents(msg.Address, node.storage)
+				if err != nil {
+					break
+				}
+				for i := len(spents) - 1; i >= 0; i-- {
+					spents[i].EnableTxSpent(msg.Address, node.storage)
+					resTxs = append(resTxs, spents[i])
+				}
+			} else {
+				txs, err := node.index.GetIns(msg.Address, node.storage)
+				if err != nil {
+					break
+				}
+				for i := len(txs) - 1; i >= 0; i-- {
+					txs[i].EnableTxSpent(msg.Address, node.storage)
+					resTxs = append(resTxs, txs[i])
+				}
+			}
+			type Payload struct {
+				Action  string
+				Address string
+				Txs     []*Tx
+			}
+			payload := Payload{"getTxs", msg.Address, resTxs}
+			bytes, err := json.Marshal(payload)
+			if err != nil {
+				log.Info(err)
+			}
+			client.Send(bytes)
+		default:
+			break
+		}
 	}
+}
+
+func (node *Node) WsPublishMsg(addr string, tx *Tx) {
+	type Payload struct {
+		Action  string
+		Address string
+		Tx      *Tx
+	}
+	payload := Payload{"watchTxs", addr, tx}
+	bytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Info(err)
+	}
+	node.ps.Publish(addr, bytes, nil)
 }
