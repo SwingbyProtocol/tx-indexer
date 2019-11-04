@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/SwingbyProtocol/sc-indexer/pubsub"
+	"github.com/SwingbyProtocol/tx-indexer/pubsub"
 	"github.com/ant0ine/go-json-rest/rest"
 	"github.com/gorilla/websocket"
 	uuid "github.com/satori/go.uuid"
@@ -33,7 +33,7 @@ func NewNode(uri string, purneblocks int) *Node {
 		index:      NewIndex(),
 		storage:    NewStorage(),
 		ps:         &ps,
-		upgrader: &upgrader,
+		upgrader:   &upgrader,
 	}
 	return node
 }

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/SwingbyProtocol/sc-indexer/btc"
+	"github.com/SwingbyProtocol/tx-indexer/btc"
 	"github.com/ant0ine/go-json-rest/rest"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"

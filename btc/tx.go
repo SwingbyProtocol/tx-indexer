@@ -3,7 +3,7 @@ package btc
 import (
 	"strconv"
 
-	"github.com/SwingbyProtocol/sc-indexer/resolver"
+	"github.com/SwingbyProtocol/tx-indexer/resolver"
 	log "github.com/sirupsen/logrus"
 )
 
