@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/SwingbyProtocol/tx-indexer/btc"
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 )
@@ -18,7 +17,6 @@ const (
 type PubSub struct {
 	Clients       []Client
 	Subscriptions []Subscription
-	waitchan      chan btc.Tx
 }
 
 type Client struct {
@@ -100,7 +98,7 @@ func (ps *PubSub) Publish(topic string, message []byte, excludeClient *Client) {
 
 	for _, sub := range subscriptions {
 
-		fmt.Printf("Sending to client id %s message is %s \n", sub.Client.Id, message)
+		fmt.Printf("Sending to client id %s message is %s \n", sub.Client.ID, message)
 		//sub.Client.Connection.WriteMessage(1, message)
 
 		sub.Client.Send(message)
@@ -118,7 +116,6 @@ func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {
 	//clientSubscriptions := ps.GetSubscriptions(topic, client)
 	for index, sub := range ps.Subscriptions {
 		if sub.Client.ID == client.ID && sub.Topic == topic {
-
 			ps.Subscriptions = append(ps.Subscriptions[:index], ps.Subscriptions[index+1:]...)
 		}
 	}
@@ -157,7 +154,7 @@ func (ps *PubSub) HandleReceiveMessage(client Client, messageType int, payload [
 
 	case UNSUBSCRIBE:
 
-		fmt.Println("Client want to unsubscribe the topic", m.Topic, client.Id)
+		fmt.Println("Client want to unsubscribe the topic", m.Topic, client.ID)
 
 		ps.Unsubscribe(&client, m.Topic)
 

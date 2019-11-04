@@ -21,9 +21,7 @@ type Node struct {
 }
 
 func NewNode(uri string, purneblocks int) *Node {
-	ps := pubsub.PubSub{
-		waitchan: make(chan Tx),
-	}
+	ps := pubsub.PubSub{}
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
