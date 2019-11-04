@@ -5,7 +5,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/SwingbyProtocol/sc-indexer/pubsub"
 	"github.com/ant0ine/go-json-rest/rest"
+	"github.com/gorilla/websocket"
+	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -13,13 +16,24 @@ type Node struct {
 	blockchain *BlockChain
 	index      *Index
 	storage    *Storage
+	upgrader   *websocket.Upgrader
+	ps         *pubsub.PubSub
 }
 
 func NewNode(uri string, purneblocks int) *Node {
+	ps := pubsub.PubSub{
+		waitchan: make(chan Tx),
+	}
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+	}
 	node := &Node{
 		blockchain: NewBlockchain(uri, purneblocks),
 		index:      NewIndex(),
 		storage:    NewStorage(),
+		ps:         &ps,
+		upgrader: &upgrader,
 	}
 	return node
 }
@@ -156,4 +170,35 @@ func res500(w rest.ResponseWriter, r *rest.Request) {
 	w.WriteHeader(http.StatusInternalServerError)
 	res := []string{}
 	w.WriteJson(res)
+}
+
+func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
+	node.upgrader.CheckOrigin = func(r *http.Request) bool {
+		return true
+	}
+
+	c, err := node.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Print("upgrade:", err)
+		return
+	}
+	defer c.Close()
+	log.Println("WS:Client Connected")
+
+	client := pubsub.Client{
+		Id:         uuid.Must(uuid.NewV4(), nil).String(),
+		Connection: c,
+	}
+	node.ps.AddClient(client)
+	log.Println("New Client is connected, total: ", len(node.ps.Clients))
+
+	for {
+		mt, message, err := c.ReadMessage()
+		if err != nil {
+			log.Println("WS:error:", err)
+			node.ps.RemoveClient(client)
+			break
+		}
+		node.ps.HandleReceiveMessage(client, mt, message)
+	}
 }
