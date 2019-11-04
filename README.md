@@ -12,7 +12,7 @@ go run index.go -bitcoind=http://<bitcoind endpoint>:8332 -prune=12
     	bitcoind endpoint (default "http://localhost:8332")
   -prune int
     	prune blocks (default 4)
-  -ws string
+  -wsbind string
     	websocket bind (default "0.0.0.0:9099")
 ```
 ## WS endpoint
