@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
@@ -94,13 +95,30 @@ func (ps *PubSub) Subscribe(client *Client, topic string) *PubSub {
 func (ps *PubSub) Publish(topic string, msg []byte, excludeClient *Client) {
 	subscriptions := ps.GetSubscriptions(topic, nil)
 	for _, sub := range subscriptions {
-		log.Infof("Sending to client id %s message is %s \n", sub.Client.ID, msg)
+		log.Infof("Sending to client id %s msg is %s \n", sub.Client.ID, msg[:30])
 		//sub.Client.Connection.WriteMessage(1, message)
 		sub.Client.Send(msg)
 	}
 }
+
+func (ps *PubSub) PublishPing() {
+	for _, sub := range ps.Subscriptions {
+		log.Infof("Sending PING to client id: %s", sub.Client.ID)
+		//sub.Client.Connection.WriteMessage(1, message)
+		sub.Client.Ping(20 * time.Second)
+	}
+}
 func (client *Client) Send(message []byte) error {
 	return client.Connection.WriteMessage(1, message)
+}
+
+func (client *Client) Ping(writeWait time.Duration) error {
+	client.Connection.SetWriteDeadline(time.Now().Add(writeWait))
+	err := client.Connection.WriteMessage(websocket.PingMessage, []byte("Ping"))
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {

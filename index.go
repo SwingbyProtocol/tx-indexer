@@ -45,7 +45,6 @@ func main() {
 		log.Fatal(err)
 	}
 	api.SetApp(router)
-
 	go func() {
 		err = http.ListenAndServe(*bind, api.MakeHandler())
 		if err != nil {

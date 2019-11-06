@@ -19,6 +19,17 @@ const (
 	GETTXS     = "getTxs"
 )
 
+type WsPayloadTx struct {
+	Action  string `json:"action"`
+	Address string `json:"address"`
+	Tx      *Tx    `json:"tx"`
+}
+
+type WsPayloadTxs struct {
+	Action  string `json:"action"`
+	Address string `json:"address"`
+	Tx      []*Tx  `json:"txs"`
+}
 type Node struct {
 	blockchain *BlockChain
 	index      *Index
@@ -185,24 +196,44 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 
-	c, err := node.upgrader.Upgrade(w, r, nil)
+	// Time allowed to read the next pong message from the peer.
+	pongWait := 60 * time.Second
+	// Send pings to peer with this period. Must be less than pongWait.
+	pingPeriod := (pongWait * 9) / 10
+
+	conn, err := node.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Info("upgrade:", err)
 		return
 	}
-	defer c.Close()
+	defer conn.Close()
 	log.Info("WS:Client Connected")
-
 	client := pubsub.Client{
 		ID:         uuid.Must(uuid.NewV4(), nil).String(),
-		Connection: c,
+		Connection: conn,
 	}
-
+	client.Connection.SetPongHandler(func(msg string) error {
+		client.Connection.SetReadDeadline(time.Now().Add(pongWait))
+		log.Info("Received PON from client id: ", client.ID)
+		return nil
+	})
 	node.ps.AddClient(client)
 	log.Info("New Client is connected, total: ", len(node.ps.Clients))
 
+	ticker := time.NewTicker(pingPeriod)
+	defer ticker.Stop()
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				node.ps.PublishPing()
+			}
+		}
+	}()
+
 	for {
-		_, message, err := c.ReadMessage()
+		_, message, err := conn.ReadMessage()
 		if err != nil {
 			log.Info("WS:error:", err)
 			node.ps.RemoveClient(client)
@@ -212,7 +243,7 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 		err = json.Unmarshal(message, &msg)
 		if err != nil {
 			log.Info("This is not correct message payload")
-			continue
+			break
 		}
 		switch msg.Action {
 		case WATCHTXS:
@@ -247,17 +278,14 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 					resTxs = append(resTxs, txs[i])
 				}
 			}
-			type Payload struct {
-				Action  string
-				Address string
-				Txs     []*Tx
-			}
-			payload := Payload{"getTxs", msg.Address, resTxs}
+
+			payload := WsPayloadTxs{"getTxs", msg.Address, resTxs}
 			bytes, err := json.Marshal(payload)
 			if err != nil {
 				log.Info(err)
 			}
 			client.Send(bytes)
+			break
 		default:
 			break
 		}
@@ -265,15 +293,10 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (node *Node) WsPublishMsg(addr string, tx *Tx) {
-	type Payload struct {
-		Action  string
-		Address string
-		Tx      *Tx
-	}
-	payload := Payload{"watchTxs", addr, tx}
+	payload := WsPayloadTx{"watchTxs", addr, tx}
 	bytes, err := json.Marshal(payload)
 	if err != nil {
 		log.Info(err)
 	}
-	node.ps.Publish(addr, bytes, nil)
+	go node.ps.Publish(addr, bytes, nil)
 }
