@@ -197,6 +197,22 @@ func (i *Index) removeIndex(addr string) {
 	lock.Unlock()
 }
 
+func (i *Index) removeStamp(addr string, txid string) {
+	stamps := i.GetStamps(addr)
+	if len(stamps) == 0 {
+		return
+	}
+	for index, stamp := range stamps {
+		if stamp.Txid == txid {
+			lock := GetMu()
+			lock.Lock()
+			i.stamps[addr] = append(i.stamps[addr][:index], i.stamps[addr][index+1:]...)
+			lock.Unlock()
+			log.Info("remove tx from ", addr, " ", txid)
+		}
+	}
+}
+
 func (i *Index) checkTimeWithPop(prunetime int64) (*IndexScore, error) {
 	if len(i.lists) == 0 {
 		return nil, errors.New("list is zero")

@@ -81,9 +81,9 @@ func (node *Node) SubscribeBlock() {
 		//node.index.RemoveIndexWithTxBefore(node.blockchain, node.storage)
 		prunetime, err := node.blockchain.GetPruneBlockTime()
 		if err != nil {
-			log.Info(err)
+			continue
 		}
-		node.storage.RemoveTxsWIthPruneTime(prunetime)
+		node.storage.RemoveTxsWIthPruneTime(prunetime, node.index)
 
 		newTxs := block.UpdateTxs(node.storage)
 		count := 0

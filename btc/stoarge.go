@@ -26,52 +26,6 @@ func NewStorage() *Storage {
 	}
 }
 
-func (s *Storage) GetTx(txid string) (*Tx, error) {
-	lock := GetMu()
-	lock.RLock()
-	tx, ok := s.txs[txid]
-	lock.RUnlock()
-	if ok == false {
-		return nil, errors.New("tx is not exist")
-	}
-	return tx, nil
-}
-
-func (s *Storage) GetSpents(key string) ([]string, error) {
-	lock := GetMu()
-	lock.RLock()
-	spents, ok := s.spent[key]
-	lock.RUnlock()
-	if ok == false {
-		return nil, errors.New("spent is not exist")
-	}
-	if len(spents) == 0 {
-		return nil, errors.New("spent tx count is zero")
-	}
-	return spents, nil
-}
-
-func (s *Storage) AddSpent(key string, txid string) error {
-	lock := GetMu()
-	lock.RLock()
-	spents, _ := s.spent[key]
-	lock.RUnlock()
-	if checkExist(txid, spents) == true {
-		return errors.New("already exist")
-	}
-	lock.Lock()
-	s.spent[key] = append(s.spent[key], txid)
-	lock.Unlock()
-	return nil
-}
-
-func (s *Storage) DeleteSpent(key string) {
-	lock := GetMu()
-	lock.Lock()
-	delete(s.spent, key)
-	lock.Unlock()
-}
-
 func (s *Storage) AddTx(tx *Tx) error {
 	for _, vin := range tx.Vin {
 		key := vin.Txid + "_" + strconv.Itoa(vin.Vout)
@@ -93,11 +47,15 @@ func (s *Storage) AddTx(tx *Tx) error {
 	return nil
 }
 
-func (s *Storage) DeleteTx(txid string) {
+func (s *Storage) GetTx(txid string) (*Tx, error) {
 	lock := GetMu()
-	lock.Lock()
-	delete(s.txs, txid)
-	lock.Unlock()
+	lock.RLock()
+	tx, ok := s.txs[txid]
+	lock.RUnlock()
+	if ok == false {
+		return nil, errors.New("tx is not exist")
+	}
+	return tx, nil
 }
 
 func (s *Storage) UpdateTx(tx *Tx) {
@@ -107,14 +65,69 @@ func (s *Storage) UpdateTx(tx *Tx) {
 	lock.Unlock()
 }
 
-func (s *Storage) RemoveTxsWIthPruneTime(prunetime int64) {
+func (s *Storage) DeleteTx(txid string) {
+	lock := GetMu()
+	lock.Lock()
+	delete(s.txs, txid)
+	lock.Unlock()
+}
+
+func (s *Storage) AddSpent(key string, txid string) error {
+	lock := GetMu()
+	lock.RLock()
+	spents, _ := s.spent[key]
+	lock.RUnlock()
+	if checkExist(txid, spents) == true {
+		return errors.New("already exist")
+	}
+	lock.Lock()
+	s.spent[key] = append(s.spent[key], txid)
+	lock.Unlock()
+	return nil
+}
+
+func (s *Storage) GetSpents(key string) ([]string, error) {
+	lock := GetMu()
+	lock.RLock()
+	spents, ok := s.spent[key]
+	lock.RUnlock()
+	if ok == false {
+		return nil, errors.New("spent is not exist")
+	}
+	if len(spents) == 0 {
+		return nil, errors.New("spent tx count is zero")
+	}
+	return spents, nil
+}
+
+func (s *Storage) DeleteSpent(key string) {
+	lock := GetMu()
+	lock.Lock()
+	delete(s.spent, key)
+	lock.Unlock()
+}
+
+func (s *Storage) RemoveTxsWIthPruneTime(prunetime int64, index *Index) {
 	txTotal := 0
 	for {
-		_, err := s.checkTimeWithPop(prunetime)
+		txscore, err := s.checkTimeWithPop(prunetime)
 		if err != nil {
 			log.Infof(" Removed txs -> %7d", txTotal)
 			return
 		}
+		tx, err := s.GetTx(txscore.Txid)
+		if err != nil {
+			log.Info(err)
+			continue
+		}
+		addresses := tx.GetOutputsAddresses()
+		log.Info(addresses)
+
+		for _, addr := range addresses {
+			index.removeStamp(addr, tx.Txid)
+		}
+		delete(s.txs, txscore.Txid)
+		txTotal++
 	}
 }
 
