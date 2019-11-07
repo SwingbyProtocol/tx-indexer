@@ -9,7 +9,7 @@ import (
 )
 
 type Index struct {
-	lists   []*Score
+	lists   []*IndexScore
 	counter map[string]int
 	stamps  map[string][]*Stamp
 }
@@ -20,7 +20,7 @@ type Stamp struct {
 	Vout []*Link
 }
 
-type Score struct {
+type IndexScore struct {
 	Address string
 	Time    int64
 	Txid    string
@@ -137,7 +137,7 @@ func (i *Index) GetStamps(addr string) []*Stamp {
 }
 
 func (i *Index) UpdateScore(addr string, time int64, txid string) {
-	newScore := &Score{Address: addr, Time: time, Txid: txid}
+	newScore := &IndexScore{Address: addr, Time: time, Txid: txid}
 	i.lists = append(i.lists, newScore)
 	i.counter[addr]++
 }
@@ -197,7 +197,7 @@ func (i *Index) removeIndex(addr string) {
 	lock.Unlock()
 }
 
-func (i *Index) checkTimeWithPop(prunetime int64) (*Score, error) {
+func (i *Index) checkTimeWithPop(prunetime int64) (*IndexScore, error) {
 	if len(i.lists) == 0 {
 		return nil, errors.New("list is zero")
 	}
@@ -213,6 +213,6 @@ func sortStamp(stamps []*Stamp) {
 	sort.SliceStable(stamps, func(i, j int) bool { return stamps[i].Time < stamps[j].Time })
 }
 
-func sortScores(scores []*Score) {
+func sortScores(scores []*IndexScore) {
 	sort.SliceStable(scores, func(i, j int) bool { return scores[i].Time < scores[j].Time })
 }

@@ -2,12 +2,21 @@ package btc
 
 import (
 	"errors"
+	"sort"
 	"strconv"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Storage struct {
-	txs   map[string]*Tx
-	spent map[string][]string
+	txs      map[string]*Tx
+	txscores []*TxScore
+	spent    map[string][]string
+}
+
+type TxScore struct {
+	Txid string
+	Time int64
 }
 
 func NewStorage() *Storage {
@@ -78,6 +87,8 @@ func (s *Storage) AddTx(tx *Tx) error {
 		}
 		vout.Txs = []string{}
 	}
+	s.addNewScore(tx.Txid, tx.Receivedtime)
+	s.sortScores()
 	s.UpdateTx(tx)
 	return nil
 }
@@ -94,4 +105,36 @@ func (s *Storage) UpdateTx(tx *Tx) {
 	lock.Lock()
 	s.txs[tx.Txid] = tx
 	lock.Unlock()
+}
+
+func (s *Storage) RemoveTxsWIthPruneTime(prunetime int64) {
+	txTotal := 0
+	for {
+		_, err := s.checkTimeWithPop(prunetime)
+		if err != nil {
+			log.Infof(" Removed txs -> %7d", txTotal)
+			return
+		}
+	}
+}
+
+func (s *Storage) checkTimeWithPop(prunetime int64) (*TxScore, error) {
+	if len(s.txscores) == 0 {
+		return nil, errors.New("list is zero")
+	}
+	data := s.txscores[0]
+	if data.Time > prunetime {
+		return nil, errors.New("time is wrong")
+	}
+	s.txscores = s.txscores[1:]
+	return data, nil
+}
+
+func (s *Storage) addNewScore(txid string, time int64) {
+	newScore := &TxScore{Txid: txid, Time: time}
+	s.txscores = append(s.txscores, newScore)
+}
+
+func (s *Storage) sortScores() {
+	sort.SliceStable(s.txscores, func(i, j int) bool { return s.txscores[i].Time < s.txscores[j].Time })
 }
