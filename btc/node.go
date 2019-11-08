@@ -120,11 +120,11 @@ func (node *Node) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	//sortFlag := r.FormValue("sort")
 	pageFlag := r.FormValue("page")
 	spentFlag := r.FormValue("type")
-	err := node.index.AddVouts(address, node.storage)
-	if err != nil {
-		res500(w, r)
-		return
-	}
+	//err := node.index.AddVouts(address, node.storage)
+	//if err != nil {
+	//	res500(w, r)
+	//	return
+	//}
 	resTxs := []*Tx{}
 	if spentFlag == "send" {
 		spents, err := node.index.GetSpents(address, node.storage)

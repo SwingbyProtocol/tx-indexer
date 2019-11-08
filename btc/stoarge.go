@@ -28,11 +28,15 @@ func NewStorage() *Storage {
 
 func (s *Storage) AddTx(tx *Tx) error {
 	for _, vin := range tx.Vin {
-		key := vin.Txid + "_" + strconv.Itoa(vin.Vout)
-		err := s.AddSpent(key, tx.Txid)
+		vinTx, err := s.GetTx(vin.Txid)
 		if err != nil {
-			return err
+			log.Info(err)
+			continue
 		}
+		vout := vinTx.Vout[vin.Vout]
+		vout.Txs = append(vout.Txs, tx.Txid)
+		vout.Spent = true
+		log.Info(vout.Scriptpubkey.Addresses[0])
 	}
 	for _, vout := range tx.Vout {
 		_, ok := vout.Value.(float64)
@@ -40,6 +44,7 @@ func (s *Storage) AddTx(tx *Tx) error {
 			vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
 		}
 		vout.Txs = []string{}
+		vout.Spent = false
 	}
 	s.addNewScore(tx.Txid, tx.Receivedtime)
 	s.sortScores()
