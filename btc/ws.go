@@ -106,6 +106,7 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			client.Send(bytes)
 			break
+
 		case UNWATCHTXS:
 			log.Infof("Client want to unsubscribe the Address: -> %s %s", msg.Address, client.ID)
 			node.ps.Unsubscribe(&client, msg.Address)
@@ -117,6 +118,7 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			client.Send(bytes)
 			break
+
 		case GETTXS:
 			log.Infof("Client want to get txs of index Address: -> %s %s", msg.Address, client.ID)
 			resTxs := []*Tx{}
@@ -127,7 +129,7 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 				for i := len(spents) - 1; i >= 0; i-- {
-					spents[i].EnableTxSpent(msg.Address, node.storage)
+					//spents[i].EnableTxSpent(msg.Address, node.storage)
 					resTxs = append(resTxs, spents[i])
 				}
 			} else {
@@ -136,10 +138,19 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 					break
 				}
 				for i := len(txs) - 1; i >= 0; i-- {
-					txs[i].EnableTxSpent(msg.Address, node.storage)
+					//txs[i].EnableTxSpent(msg.Address, node.storage)
 					resTxs = append(resTxs, txs[i])
 				}
 			}
+			txs := []*Tx{}
+			if msg.TimestampFrom > 0 {
+				for _, tx := range resTxs {
+					if tx.Receivedtime >= msg.TimestampFrom {
+						txs = append(txs, tx)
+					}
+				}
+			}
+			resTxs = txs
 
 			payload := WsPayloadTxs{"getTxs", msg.Address, resTxs}
 			bytes, err := json.Marshal(payload)
@@ -148,6 +159,7 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			client.Send(bytes)
 			break
+
 		default:
 			break
 		}

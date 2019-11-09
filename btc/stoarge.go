@@ -58,7 +58,7 @@ func (s *Storage) AddTx(tx *Tx) error {
 			// match and delete tx from storage.
 			vout.Txs = txs
 			vout.Spent = true
-			log.Info("delete spent " + key)
+			log.Info("delete spent tx: " + key)
 			s.DeleteSpent(key)
 		}
 	}

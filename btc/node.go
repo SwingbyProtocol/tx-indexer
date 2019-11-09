@@ -133,7 +133,7 @@ func (node *Node) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 			return
 		}
 		for i := len(spents) - 1; i >= 0; i-- {
-			spents[i].EnableTxSpent(address, node.storage)
+			//spents[i].EnableTxSpent(address, node.storage)
 			resTxs = append(resTxs, spents[i])
 		}
 	} else {

@@ -24,9 +24,11 @@ type Client struct {
 }
 
 type Message struct {
-	Action  string `json:"action"`
-	Address string `json:"address"`
-	Type    string `json:"type"`
+	Action        string `json:"action"`
+	Address       string `json:"address"`
+	Type          string `json:"type"`
+	TimestampFrom int64  `json:"timestamp_from"`
+	TimestampTo   int64  `json:"timestamp_to"`
 }
 
 type Subscription struct {
