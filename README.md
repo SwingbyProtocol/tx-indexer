@@ -19,21 +19,24 @@ go run index.go -bitcoind=http://<bitcoind endpoint>:8332 -prune=12
 ```
 ws://localhost:9099/ws
 ```
-- watch/unwatch new txs of index address
+### watch new txs of index address
 ```
 {"action":"watchTxs","address":"2N1EY7J5P8YQF2QyUet7RtoDiKvUmAcRs2h"}
+
 response:
 {"action":"watchTxs","message":"Success"}
 ```
+### unwatch of index address
 ```
 {"action":"unwatchTxs","address":"2N1EY7J5P8YQF2QyUet7RtoDiKvUmAcRs2h"}
 ```
-- get txs of index address
+### get txs of index address
 - params
   - type `string`
-example
+
 ```
 {"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","type":"send"}
+
 response:
 {"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","txs":<[]*Tx>}
 ```

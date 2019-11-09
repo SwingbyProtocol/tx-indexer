@@ -109,6 +109,13 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 		case UNWATCHTXS:
 			log.Infof("Client want to unsubscribe the Address: -> %s %s", msg.Address, client.ID)
 			node.ps.Unsubscribe(&client, msg.Address)
+			Msg := "Success"
+			payload := WsPayloadMessage{UNWATCHTXS, Msg}
+			bytes, err := json.Marshal(payload)
+			if err != nil {
+				log.Info(err)
+			}
+			client.Send(bytes)
 			break
 		case GETTXS:
 			log.Infof("Client want to get txs of index Address: -> %s %s", msg.Address, client.ID)
