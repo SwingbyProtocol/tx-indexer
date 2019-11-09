@@ -55,9 +55,10 @@ func (s *Storage) AddTx(tx *Tx) error {
 			vout.Txs = []string{}
 			vout.Spent = false
 		} else {
-			// match and delete tx from store.
+			// match and delete tx from storage.
 			vout.Txs = txs
 			vout.Spent = true
+			log.Info("delete spent")
 			s.DeleteSpent(key)
 		}
 	}
