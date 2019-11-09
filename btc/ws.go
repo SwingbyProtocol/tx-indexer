@@ -28,6 +28,11 @@ type WsPayloadTxs struct {
 	Tx      []*Tx  `json:"txs"`
 }
 
+type WsPayloadMessage struct {
+	Action  string `json:"action"`
+	Message string `json:"message"`
+}
+
 func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 	node.upgrader.CheckOrigin = func(r *http.Request) bool {
 		return true
@@ -79,13 +84,27 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 		msg := pubsub.Message{}
 		err = json.Unmarshal(message, &msg)
 		if err != nil {
-			log.Info("This is not correct message payload")
+			errMsg := "Error: This is not correct message payload"
+			log.Info(errMsg)
+			payload := WsPayloadMessage{"getTxs", errMsg}
+			bytes, err := json.Marshal(payload)
+			if err != nil {
+				log.Info(err)
+			}
+			client.Send(bytes)
 			break
 		}
 		switch msg.Action {
 		case WATCHTXS:
 			node.ps.Subscribe(&client, msg.Address)
 			log.Infof("new subscriber to Address: -> %s %d %s", msg.Address, len(node.ps.Subscriptions), client.ID)
+			Msg := "Success"
+			payload := WsPayloadMessage{WATCHTXS, Msg}
+			bytes, err := json.Marshal(payload)
+			if err != nil {
+				log.Info(err)
+			}
+			client.Send(bytes)
 			break
 		case UNWATCHTXS:
 			log.Infof("Client want to unsubscribe the Address: -> %s %s", msg.Address, client.ID)
@@ -95,8 +114,7 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 			log.Infof("Client want to get txs of index Address: -> %s %s", msg.Address, client.ID)
 			resTxs := []*Tx{}
 
-			spentFlag := ""
-			if spentFlag == "send" {
+			if msg.Type == "send" {
 				spents, err := node.index.GetSpents(msg.Address, node.storage)
 				if err != nil {
 					break

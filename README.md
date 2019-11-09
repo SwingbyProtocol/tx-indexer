@@ -21,7 +21,9 @@ ws://localhost:9099/ws
 ```
 - watch/unwatch txs of index address
 ```
-{"action":"watchTxs","address":"1Fi9J5TeaWPHdU5cTJ4e9jr3V58SrWtUuT"}
+{"action":"watchTxs","address":"2N1EY7J5P8YQF2QyUet7RtoDiKvUmAcRs2h"}
+reponse:
+{"action":"watchTxs","message":"Success"}
 ```
 ```
 {"action":"unwatchTxs","address":"1Fi9J5TeaWPHdU5cTJ4e9jr3V58SrWtUuT"}

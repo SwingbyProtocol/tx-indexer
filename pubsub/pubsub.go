@@ -1,7 +1,6 @@
 package pubsub
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -25,9 +24,9 @@ type Client struct {
 }
 
 type Message struct {
-	Action  string          `json:"action"`
-	Address string          `json:"address"`
-	Params  json.RawMessage `json:"params"`
+	Action  string `json:"action"`
+	Address string `json:"address"`
+	Type    string `json:"type"`
 }
 
 type Subscription struct {
