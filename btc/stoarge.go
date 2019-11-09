@@ -30,21 +30,36 @@ func (s *Storage) AddTx(tx *Tx) error {
 	for _, vin := range tx.Vin {
 		vinTx, err := s.GetTx(vin.Txid)
 		if err != nil {
-			log.Info(err)
+			// store spent tx which not exist.
+			key := vin.Txid + "_" + strconv.Itoa(vin.Vout)
+			s.AddSpent(key, tx.Txid)
+			log.Info("tx is not exit " + key)
+			continue
+		}
+		if len(vinTx.Vout) == 0 {
 			continue
 		}
 		vout := vinTx.Vout[vin.Vout]
 		vout.Txs = append(vout.Txs, tx.Txid)
 		vout.Spent = true
-		log.Info(vout.Scriptpubkey.Addresses[0])
 	}
-	for _, vout := range tx.Vout {
+	for i, vout := range tx.Vout {
 		_, ok := vout.Value.(float64)
 		if ok == true {
 			vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
 		}
-		vout.Txs = []string{}
-		vout.Spent = false
+		// seek spent tx
+		key := tx.Txid + "_" + strconv.Itoa(i)
+		txs, err := s.GetSpents(key)
+		if err != nil {
+			vout.Txs = []string{}
+			vout.Spent = false
+		} else {
+			// match and delete tx from store.
+			vout.Txs = txs
+			vout.Spent = true
+			s.DeleteSpent(key)
+		}
 	}
 	s.addNewScore(tx.Txid, tx.Receivedtime)
 	s.sortScores()
