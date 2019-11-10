@@ -168,6 +168,9 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 			break
 
 		default:
+			errMsg := "Error: something wrong"
+			log.Info(errMsg)
+			sendMsg(&client, msg.Action, errMsg)
 			break
 		}
 	}
