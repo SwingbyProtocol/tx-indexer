@@ -36,7 +36,9 @@ response:
 ```
 ### get txs of index address
 - params
-  - type `string` only support type `send`
+  - action `string` *required
+  - address `string` *required
+  - type `string` only support type text `send`
   - timestamp_from `int64` time window start with `linux timestamp`
   - timestamp_to   `int64` time window end with `linux timestamp`
 

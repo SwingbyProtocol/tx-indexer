@@ -151,8 +151,8 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 						txsFrom = append(txsFrom, tx)
 					}
 				}
+				resTxs = txsFrom
 			}
-			resTxs = txsFrom
 
 			txsTo := []*Tx{}
 			if msg.TimestampTo > 0 {
@@ -161,8 +161,8 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 						txsTo = append(txsTo, tx)
 					}
 				}
+				resTxs = txsTo
 			}
-			resTxs = txsTo
 
 			sendData(&client, GETTXS, msg.Address, resTxs)
 			break
