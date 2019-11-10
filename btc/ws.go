@@ -142,15 +142,26 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 					resTxs = append(resTxs, txs[i])
 				}
 			}
-			txs := []*Tx{}
+			txsFrom := []*Tx{}
 			if msg.TimestampFrom > 0 {
 				for _, tx := range resTxs {
 					if tx.Receivedtime >= msg.TimestampFrom {
-						txs = append(txs, tx)
+						txsFrom = append(txsFrom, tx)
 					}
 				}
 			}
-			resTxs = txs
+			resTxs = txsFrom
+
+			txsTo := []*Tx{}
+			log.Info(msg.TimestampFrom, " ", msg.TimestampTo)
+			if msg.TimestampTo > 0 {
+				for _, tx := range resTxs {
+					if tx.Receivedtime <= msg.TimestampTo {
+						txsTo = append(txsTo, tx)
+					}
+				}
+			}
+			resTxs = txsTo
 
 			payload := WsPayloadTxs{"getTxs", msg.Address, resTxs}
 			bytes, err := json.Marshal(payload)
