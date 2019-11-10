@@ -39,8 +39,8 @@ response:
   - action `string` *required
   - address `string` *required
   - type `string` only support type text `send`
-  - timestamp_from `int64` time window start with `linux timestamp`
-  - timestamp_to   `int64` time window end with `linux timestamp`
+  - timestamp_from `int64` time window start with linux timestamp
+  - timestamp_to   `int64` time window end with linux timestamp
 
 ```
 {"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","type":"send","timestamp_from": 1573394833, "timestamp_to":1573394878}

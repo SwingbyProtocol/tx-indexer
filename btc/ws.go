@@ -118,7 +118,7 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 
 			if msg.Address == "" {
 				errMsg := "Error: Address is not set"
-				sendMsg(&client, UNWATCHTXS, errMsg)
+				sendMsg(&client, GETTXS, errMsg)
 				break
 			}
 
