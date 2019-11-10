@@ -115,6 +115,13 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 			break
 
 		case GETTXS:
+
+			if msg.Address == "" {
+				errMsg := "Error: Address is not set"
+				sendMsg(&client, UNWATCHTXS, errMsg)
+				break
+			}
+
 			log.Infof("Client want to get txs of index Address: -> %s %s", msg.Address, client.ID)
 			resTxs := []*Tx{}
 
