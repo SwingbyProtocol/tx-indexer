@@ -36,12 +36,15 @@ response:
 ```
 ### get txs of index address
 - params
-  - type `string`
-  - timeFrom `int`
-  - timeTo   `int`
+  - type `string` only support type `send`
+  - timestamp_from `int64` time window start with `linux timestamp`
+  - timestamp_to   `int64` time window end with `linux timestamp`
 
 ```
-{"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","type":"send"}
+{"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","type":"send","timestamp_from": 1573394833, "timestamp_to":1573394878}
+
+// if you want to get txs which timestamp between 1573394833 and latest
+{"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","type":"send","timestamp_from": 1573394833}
 
 response:
 {"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","txs":<[]*Tx>}

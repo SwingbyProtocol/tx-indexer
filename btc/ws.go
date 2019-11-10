@@ -86,37 +86,32 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			errMsg := "Error: This is not correct message payload"
 			log.Info(errMsg)
-			payload := WsPayloadMessage{"getTxs", errMsg}
-			bytes, err := json.Marshal(payload)
-			if err != nil {
-				log.Info(err)
-			}
-			client.Send(bytes)
-			break
+			sendMsg(&client, msg.Action, errMsg)
+			continue
 		}
 		switch msg.Action {
 		case WATCHTXS:
+			if msg.Address == "" {
+				errMsg := "Error: Address is not set"
+				sendMsg(&client, WATCHTXS, errMsg)
+				break
+			}
 			node.ps.Subscribe(&client, msg.Address)
 			log.Infof("new subscriber to Address: -> %s %d %s", msg.Address, len(node.ps.Subscriptions), client.ID)
-			Msg := "Success"
-			payload := WsPayloadMessage{WATCHTXS, Msg}
-			bytes, err := json.Marshal(payload)
-			if err != nil {
-				log.Info(err)
-			}
-			client.Send(bytes)
+			successMsg := "Success"
+			sendMsg(&client, WATCHTXS, successMsg)
 			break
 
 		case UNWATCHTXS:
+			if msg.Address == "" {
+				errMsg := "Error: Address is not set"
+				sendMsg(&client, UNWATCHTXS, errMsg)
+				break
+			}
 			log.Infof("Client want to unsubscribe the Address: -> %s %s", msg.Address, client.ID)
 			node.ps.Unsubscribe(&client, msg.Address)
-			Msg := "Success"
-			payload := WsPayloadMessage{UNWATCHTXS, Msg}
-			bytes, err := json.Marshal(payload)
-			if err != nil {
-				log.Info(err)
-			}
-			client.Send(bytes)
+			successMsg := "Success"
+			sendMsg(&client, UNWATCHTXS, successMsg)
 			break
 
 		case GETTXS:
@@ -153,7 +148,6 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 			resTxs = txsFrom
 
 			txsTo := []*Tx{}
-			log.Info(msg.TimestampFrom, " ", msg.TimestampTo)
 			if msg.TimestampTo > 0 {
 				for _, tx := range resTxs {
 					if tx.Receivedtime <= msg.TimestampTo {
@@ -163,18 +157,35 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 			resTxs = txsTo
 
-			payload := WsPayloadTxs{"getTxs", msg.Address, resTxs}
-			bytes, err := json.Marshal(payload)
-			if err != nil {
-				log.Info(err)
-			}
-			client.Send(bytes)
+			sendData(&client, GETTXS, msg.Address, resTxs)
 			break
 
 		default:
 			break
 		}
 	}
+}
+
+func sendMsg(client *pubsub.Client, action string, msg string) error {
+	payload := WsPayloadMessage{action, msg}
+	bytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Info(err)
+		return err
+	}
+	client.Send(bytes)
+	return nil
+}
+
+func sendData(client *pubsub.Client, action string, address string, data []*Tx) error {
+	payload := WsPayloadTxs{action, address, data}
+	bytes, err := json.Marshal(payload)
+	if err != nil {
+		log.Info(err)
+		return err
+	}
+	client.Send(bytes)
+	return nil
 }
 
 func (node *Node) WsPublishMsg(addr string, tx *Tx) {
