@@ -21,9 +21,9 @@ func init() {
 
 func main() {
 	bitcoind := flag.String("bitcoind", "http://localhost:8332", "bitcoind endpoint")
-	bind := flag.String("bind", "0.0.0.0:9096", "")
+	bind := flag.String("restbind", "0.0.0.0:9096", "rest api bind address")
 	prune := flag.Int("prune", 4, "prune blocks")
-	wsBind := flag.String("wsbind", "0.0.0.0:9099", "websocket bind")
+	wsBind := flag.String("wsbind", "0.0.0.0:9099", "websocket bind address")
 	flag.Parse()
 
 	log.Println("bitcoind ->", *bitcoind, "bind ->", *bind, "prune ->", *prune, "websocket bind ->", *wsBind+"/ws")
@@ -38,7 +38,7 @@ func main() {
 			w.WriteJson([]string{})
 		}),
 		rest.Get("/txs/btc/:address", btcNode.GetTxs),
-		//rest.Get("/txs/btc/tx/:txid", btcNode.GetTx),
+		rest.Get("/txs/btc/tx/:txid", btcNode.GetTx),
 		//rest.Get("/txs/btc/index/:address", btcNode.GetIndex),
 	)
 	if err != nil {
