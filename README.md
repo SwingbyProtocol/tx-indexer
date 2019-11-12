@@ -10,8 +10,8 @@ go run index.go -bitcoind=http://<bitcoind endpoint>:8332 -prune=12
     	bitcoind endpoint (default "http://localhost:8332")
   -prune int
     	prune blocks (default 4)
-  -rest api bind address string
-    	 (default "0.0.0.0:9096")
+  -restbind string
+    	rest api bind address (default "0.0.0.0:9096")
   -wsbind string
     	websocket bind address (default "0.0.0.0:9099")
 ```
@@ -26,6 +26,8 @@ ws://localhost:9099/ws
 
 response:
 {"action":"watchTxs","message":"Success"}
+>>>
+{"action":"watchTxs","address":"1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ","tx":<*Tx>}
 ```
 ### unwatch of index address
 ```
@@ -36,8 +38,8 @@ response:
 ```
 ### get txs of index address
 - params
-  - action `string` *required
-  - address `string` *required
+  - action `string` (*required)
+  - address `string` (*required)
   - type `string` only support type text `send`
   - timestamp_from `int64` time window start with linux timestamp
   - timestamp_to   `int64` time window end with linux timestamp
@@ -61,11 +63,12 @@ $ docker run -d \
     --restart=always \
     --name index \
     -p 9096:9096 \
+    -p 9099:9099 \
     index \
     -prune=12 \
     -bitcoind http://172.17.0.1:8332
 ```
-## bitcoind-node
+## bitcoind-node with prune mode
 mainnet
 ```
 $ chmod +x scripts/docker_bitcoind.sh && scripts/docker_bitcoind.sh
