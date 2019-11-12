@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -21,6 +22,7 @@ type PubSub struct {
 type Client struct {
 	ID         string
 	Connection *websocket.Conn
+	mu         sync.Mutex
 }
 
 type Message struct {
@@ -110,6 +112,9 @@ func (ps *PubSub) PublishPing() {
 	}
 }
 func (client *Client) Send(message []byte) error {
+	// protect concurrent write
+	client.mu.Lock()
+	defer client.mu.Unlock()
 	return client.Connection.WriteMessage(1, message)
 }
 
