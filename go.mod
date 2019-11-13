@@ -3,6 +3,7 @@ module github.com/SwingbyProtocol/tx-indexer
 go 1.13
 
 require (
+	cloud.google.com/go/pubsub v1.0.1
 	github.com/ant0ine/go-json-rest v3.3.2+incompatible
 	github.com/gorilla/websocket v1.4.1
 	github.com/kr/pretty v0.1.0 // indirect

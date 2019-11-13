@@ -26,7 +26,7 @@ func main() {
 	wsBind := flag.String("wsbind", "0.0.0.0:9099", "websocket bind address")
 	flag.Parse()
 
-	log.Println("bitcoind ->", *bitcoind, "bind ->", *bind, "prune ->", *prune, "websocket bind ->", *wsBind+"/ws")
+	log.Println("bitcoind ->", *bitcoind, "rest api bind ->", *bind, "prune ->", *prune, "websocket api bind ->", *wsBind+"/ws")
 
 	api := rest.NewApi()
 	api.Use(rest.DefaultDevStack...)

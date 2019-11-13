@@ -22,7 +22,7 @@ ws://localhost:9099/ws
 ## WS requests
 ### watch new txs of index address
 ```
-{"action":"watchTxs","address":"2N1EY7J5P8YQF2QyUet7RtoDiKvUmAcRs2h"}
+{"action":"watchTxs","address":"1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"}
 
 response:
 {"action":"watchTxs","message":"Success"}
@@ -31,7 +31,7 @@ response:
 ```
 ### unwatch of index address
 ```
-{"action":"unwatchTxs","address":"2N1EY7J5P8YQF2QyUet7RtoDiKvUmAcRs2h"}
+{"action":"unwatchTxs","address":"1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"}
 
 response:
 {"action":"unwatchTxs","message":"Success"}

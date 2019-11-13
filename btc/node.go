@@ -7,7 +7,6 @@ import (
 
 	"github.com/SwingbyProtocol/tx-indexer/pubsub"
 	"github.com/ant0ine/go-json-rest/rest"
-	"github.com/gorilla/websocket"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,21 +14,15 @@ type Node struct {
 	blockchain *BlockChain
 	index      *Index
 	storage    *Storage
-	upgrader   *websocket.Upgrader
 	ps         *pubsub.PubSub
 }
 
 func NewNode(uri string, purneblocks int) *Node {
-	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-	}
 	node := &Node{
 		blockchain: NewBlockchain(uri, purneblocks),
 		index:      NewIndex(),
 		storage:    NewStorage(),
-		ps:         &pubsub.PubSub{},
-		upgrader:   &upgrader,
+		ps:         pubsub.NewPubSub(),
 	}
 	return node
 }
