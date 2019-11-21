@@ -1,7 +1,7 @@
 #!/bin/bash
 
 docker run -v /var/bitcoind:/bitcoin -d \
-    --restart=always \
+    --restart=on-failure:10 \
     --name=bitcoind-node \
     -p 0.0.0.0:18333:18333 \
     -p 0.0.0.0:18332:18332 \

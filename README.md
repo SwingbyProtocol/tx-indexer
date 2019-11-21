@@ -60,7 +60,7 @@ $ docker build -t index .
 ## RUN
 ```
 $ docker run -d \
-    --restart=always \
+    --restart=on-failure:10 \
     --name index \
     -p 9096:9096 \
     -p 9099:9099 \
