@@ -91,7 +91,7 @@ func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			errMsg := "Error: This is not correct message payload"
 			log.Info(errMsg)
-			//sendMsg(&client, msg.Action, errMsg)
+			node.SendWsMsg(&client, msg.Action, errMsg)
 			continue
 		}
 		node.onAction(&client, msg)
