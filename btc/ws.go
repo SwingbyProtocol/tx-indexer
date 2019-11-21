@@ -139,7 +139,7 @@ func (node *Node) onAction(client *pubsub.Client, msg pubsub.Message) {
 		if msg.Type == "send" {
 			resTxs = node.GetTxsFromIndexWithSpent(msg.Address)
 		} else {
-			resTxs = node.GetTxsFromIndex((msg.Address))
+			resTxs = node.GetTxsFromIndex(msg.Address)
 		}
 		if msg.TimestampFrom > 0 {
 			txsFrom := []*Tx{}
@@ -159,14 +159,13 @@ func (node *Node) onAction(client *pubsub.Client, msg pubsub.Message) {
 			}
 			resTxs = txsTo
 		}
-
-		//sendData(&client, GETTXS, msg.Address, resTxs)
+		node.SendWsData(client, GETTXS, msg.Address, resTxs)
 		break
 
 	default:
 		errMsg := "Error: something wrong"
 		log.Info(errMsg)
-		//sendMsg(&client, msg.Action, errMsg)
+		node.SendWsMsg(client, msg.Action, errMsg)
 		break
 	}
 }
