@@ -1,4 +1,4 @@
-package btc
+package node
 
 import (
 	"net/http"

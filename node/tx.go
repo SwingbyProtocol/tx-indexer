@@ -1,11 +1,4 @@
-package btc
-
-import (
-	"strconv"
-
-	"github.com/SwingbyProtocol/tx-indexer/resolver"
-	log "github.com/sirupsen/logrus"
-)
+package node
 
 type Txs struct {
 	txs map[string]*Tx
@@ -48,20 +41,14 @@ type ScriptPubkey struct {
 	Addresses []string `json:"addresses"`
 }
 
-func (tx *Tx) AddTxData(r *resolver.Resolver) error {
-	err := r.GetRequest("/rest/tx/"+tx.Txid+".json", tx)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (tx *Tx) AddBlockData(block *Block) *Tx {
 	tx.Confirms = block.Height
 	tx.MinedTime = block.Time
 	tx.Mediantime = block.Mediantime
 	return tx
 }
+
+/*
 
 func (tx *Tx) EnableTxSpent(addr string, storage *Storage) {
 	for i, vout := range tx.Vout {
@@ -113,3 +100,5 @@ func (tx *Tx) GetOutputsAddresses() []string {
 	}
 	return addresses
 }
+
+*/

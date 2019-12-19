@@ -1,6 +1,7 @@
-package btc
+package common
 
 import (
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -9,6 +10,10 @@ var mu = sync.RWMutex{}
 
 func GetMu() *sync.RWMutex {
 	return &mu
+}
+
+func RandRange(min int, max int) int {
+	return rand.Intn(max-min) + min
 }
 
 func loop(f func() error, t time.Duration) {

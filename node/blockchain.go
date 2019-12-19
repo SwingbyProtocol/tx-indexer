@@ -1,11 +1,8 @@
-package btc
+package node
 
 import (
-	"errors"
+	"github.com/SwingbyProtocol/tx-indexer/common"
 	"time"
-
-	"github.com/SwingbyProtocol/tx-indexer/resolver"
-	log "github.com/sirupsen/logrus"
 )
 
 type ChainInfo struct {
@@ -16,90 +13,44 @@ type ChainInfo struct {
 }
 
 type BlockChain struct {
-	mempool        *Mempool
-	resolver       *resolver.Resolver
-	latestblock    int64
-	pruneblocks    int
-	blocktimes     []int64
-	nextblockcount int64
-	waitchan       chan Block
-	tasks          []*Task
+	resolver       common.Resolver
+	Latestblock    int64
+	Blocktimes     []int64
+	Blocks         []*Block
+	Nextblockcount int64
 }
 
-type Task struct {
-	BlockHash string
-	Errors    int
-}
-
-func NewBlockchain(uri string, pruneblocks int) *BlockChain {
-	bc := &BlockChain{
-		resolver:    resolver.NewResolver(uri),
-		mempool:     NewMempool(uri),
-		pruneblocks: pruneblocks,
-		waitchan:    make(chan Block),
-	}
+func NewBlockchain() *BlockChain {
+	bc := &BlockChain{}
 	return bc
 }
 
-func (b *BlockChain) StartSync(t time.Duration) {
-	go b.doLoadNewBlocks(t)
-	go b.doLoadBlock(3 * time.Second)
-}
+func (b *BlockChain) AddBlock(t time.Duration) {
 
-func (b *BlockChain) StartMemSync(t time.Duration) {
-	b.mempool.StartSync(t)
 }
 
 func (b *BlockChain) doLoadNewBlocks(t time.Duration) {
-	err := b.loadNewBlocks()
-	if err != nil {
-		log.Info(err)
-	}
-	time.Sleep(t)
-	go b.doLoadNewBlocks(t)
-	return
 }
 
-func (b *BlockChain) doLoadBlock(t time.Duration) {
-	err := b.getBlock()
-	if err != nil {
-		log.Info(err)
-	}
-	time.Sleep(t)
-	go b.doLoadBlock(t)
-	return
-}
-
-func (b *BlockChain) loadNewBlocks() error {
+func (b *BlockChain) LoadNewBlocks() error {
 	info := ChainInfo{}
 	err := b.resolver.GetRequest("/rest/chaininfo.json", &info)
 	if err != nil {
 		return err
 	}
-
-	if b.latestblock == 0 {
-		b.latestblock = info.Blocks - 1
+	block := Block{}
+	err = b.resolver.GetRequest("/rest/block/"+info.Bestblockhash+".json", &block)
+	if err != nil {
+		return err
 	}
-	if b.latestblock >= info.Blocks {
-		return nil
-	}
-	if b.latestblock < info.Blocks {
-		b.nextblockcount = info.Blocks - b.latestblock
-		b.latestblock = info.Blocks
-	}
-	log.Infof("Task Block# %d Push", b.latestblock)
-	task := Task{info.Bestblockhash, 0}
-	b.tasks = append(b.tasks, &task)
 	return nil
 }
 
+/*
+
+
 func (b *BlockChain) getBlock() error {
-	if len(b.tasks) == 0 {
-		return nil
-	}
-	task := b.tasks[0]
-	b.tasks = b.tasks[1:]
-	block := Block{}
+
 	err := b.resolver.GetRequest("/rest/block/"+task.BlockHash+".json", &block)
 	if err != nil {
 		b.AddTaskWithError(task)
@@ -144,3 +95,5 @@ func (b *BlockChain) AddTaskWithError(task *Task) {
 		b.tasks = append(b.tasks, task)
 	}
 }
+
+*/

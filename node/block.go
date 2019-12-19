@@ -1,4 +1,4 @@
-package btc
+package node
 
 type Block struct {
 	Hash              string `json:"hash"`
@@ -19,16 +19,3 @@ func (block *Block) GetTxIDs() []string {
 	return ids
 }
 
-func (block *Block) UpdateTxs(storage *Storage) []*Tx {
-	newTxs := []*Tx{}
-	for _, tx := range block.Txs {
-		loadTx, err := storage.GetTx(tx.Txid)
-		if err != nil {
-			newTxs = append(newTxs, tx)
-			continue
-		}
-		loadTx.AddBlockData(block)
-		storage.UpdateTx(loadTx)
-	}
-	return newTxs
-}

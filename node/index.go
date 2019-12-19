@@ -1,13 +1,6 @@
-package btc
+package node
 
-import (
-	"errors"
-	"sort"
-	"strconv"
-
-	log "github.com/sirupsen/logrus"
-)
-
+/*
 type Index struct {
 	lists   []*IndexScore
 	counter map[string]int
@@ -61,6 +54,7 @@ func (i *Index) AddIn(tx *Tx) {
 		lock.Unlock()
 	}
 }
+
 
 func (i *Index) AddVouts(addr string, storage *Storage) error {
 	index := i.GetStamps(addr)
@@ -232,3 +226,5 @@ func sortStamp(stamps []*Stamp) {
 func sortScores(scores []*IndexScore) {
 	sort.SliceStable(scores, func(i, j int) bool { return scores[i].Time < scores[j].Time })
 }
+
+*/
