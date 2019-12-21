@@ -38,7 +38,7 @@ type NodeConfig struct {
 	// form "major.minor.revision" e.g. "2.6.41".
 	UserAgentVersion string
 	// If this field is not nil the PeerManager will only connect to this address
-	TrustedPeer *net.TCPAddr
+	TrustedPeer string
 	// Chan for Tx
 	TxChan chan blockchain.Tx
 	// Chan for Block
@@ -51,7 +51,7 @@ type Node struct {
 	targetOutbound uint32
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
-	trustedPeer    *net.TCPAddr
+	trustedPeer    string
 	txChan         chan blockchain.Tx
 	BlockChan      chan blockchain.Block
 }
@@ -161,9 +161,9 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 	for _, txout := range tx.TxOut {
 		// Ignore the error here because the sender could have used and exotic script
 		// for his change and we don't want to fail in that case.
-		addr, _ := common.ScriptToAddress(txout.PkScript, &config.Set.P2PConfig.Params)
+		spi, _ := common.ScriptToPubkeyInfo(txout.PkScript, &config.Set.P2PConfig.Params)
 
-		log.Info(addr.String())
+		log.Info(spi)
 	}
 
 	go func() {
@@ -307,10 +307,10 @@ func (node *Node) resetConnectedRank() {
 }
 
 func (node *Node) Start() {
-	if node.trustedPeer != nil {
-		conn, err := net.Dial("tcp", node.trustedPeer.String())
+	if node.trustedPeer != "" {
+		conn, err := net.Dial("tcp", node.trustedPeer)
 		if err != nil {
-			log.Infof("net.Dial: error %v\n", err)
+			log.Fatal("net.Dial: error %v\n", err)
 			return
 		}
 		node.AddPeer(conn)

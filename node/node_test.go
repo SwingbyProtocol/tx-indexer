@@ -25,5 +25,7 @@ func TestNode(t *testing.T) {
 
 	node.Start()
 
+	// t.Fatalf("Expected config.ListenAddr to be '%s' but got '%s'", testData, conf.P2PConfig.ConnAddr)
+
 	select {}
 }

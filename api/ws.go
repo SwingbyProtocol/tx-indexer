@@ -2,7 +2,6 @@ package api
 
 import (
 	"log"
-	"net"
 	"net/http"
 
 	"github.com/SwingbyProtocol/tx-indexer/pubsub"
@@ -16,11 +15,11 @@ const (
 
 type Websocket struct {
 	pubsub    *pubsub.PubSub
-	listen    *net.TCPAddr
+	listen    string
 	listeners *Listeners
 }
 
-func NewWebsocket(conf *Config) *Websocket {
+func NewWebsocket(conf *APIConfig) *Websocket {
 	ws := &Websocket{
 		pubsub:    pubsub.NewPubSub(),
 		listen:    conf.WSListen,
@@ -32,7 +31,7 @@ func NewWebsocket(conf *Config) *Websocket {
 func (w *Websocket) Start() {
 	go func() {
 		http.HandleFunc("/ws", w.listeners.OnWebsocketMsg)
-		err := http.ListenAndServe(w.listen.String(), nil)
+		err := http.ListenAndServe(w.listen, nil)
 		if err != nil {
 			log.Fatal(err)
 		}

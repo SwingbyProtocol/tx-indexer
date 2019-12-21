@@ -1,20 +1,28 @@
 package common
 
 import (
+	"encoding/hex"
 	"errors"
 
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
-	"github.com/btcsuite/btcutil"
 )
 
-func ScriptToAddress(script []byte, params *chaincfg.Params) (btcutil.Address, error) {
-	_, addrs, _, err := txscript.ExtractPkScriptAddrs(script, params)
+func ScriptToPubkeyInfo(script []byte, params *chaincfg.Params) (ScriptPubkeyInfo, error) {
+	scriptClass, addrs, reqSig, err := txscript.ExtractPkScriptAddrs(script, params)
 	if err != nil {
-		return &btcutil.AddressPubKeyHash{}, err
+		return ScriptPubkeyInfo{}, err
 	}
 	if len(addrs) == 0 {
-		return &btcutil.AddressPubKeyHash{}, errors.New("unknown script")
+		return ScriptPubkeyInfo{}, errors.New("unknown script")
 	}
-	return addrs[0], nil
+	spi := ScriptPubkeyInfo{
+		// TODO: enable asm
+		Asm:         "",
+		Hex:         hex.EncodeToString(script),
+		Reqsigs:     reqSig,
+		ScriptClass: scriptClass.String(),
+		Addresses:   addrs,
+	}
+	return spi, nil
 }

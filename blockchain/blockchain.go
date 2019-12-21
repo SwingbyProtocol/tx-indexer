@@ -2,17 +2,12 @@ package blockchain
 
 import (
 	"time"
+
+	"github.com/SwingbyProtocol/tx-indexer/common"
 )
 
-type ChainInfo struct {
-	Chain         string `json:"chain"`
-	Blocks        int64  `json:"blocks"`
-	Headers       int64  `json:"headers"`
-	Bestblockhash string `json:"bestblockhash"`
-}
-
 type Blockchain struct {
-	resolver       Resolver
+	resolver       *Resolver
 	index          *Index
 	txStore        *TxStore
 	Latestblock    int64
@@ -23,8 +18,14 @@ type Blockchain struct {
 	txChan         chan Tx
 }
 
-func NewBlockchain() *Blockchain {
+type BlockchainConfig struct {
+	// TrustedREST is ip addr for connect to rest api
+	TrustedREST string
+}
+
+func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	bc := &Blockchain{
+		resolver:  NewResolver(conf.TrustedREST),
 		index:     NewIndex(),
 		txStore:   NewTxStore(),
 		txChan:    make(chan Tx),
@@ -60,7 +61,7 @@ func (b *Blockchain) doLoadNewBlocks(t time.Duration) {
 }
 
 func (b *Blockchain) LoadNewBlocks() error {
-	info := ChainInfo{}
+	info := common.ChainInfo{}
 	err := b.resolver.GetRequest("/rest/chaininfo.json", &info)
 	if err != nil {
 		return err

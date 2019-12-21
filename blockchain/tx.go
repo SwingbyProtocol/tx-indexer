@@ -1,5 +1,9 @@
 package blockchain
 
+import (
+	"github.com/SwingbyProtocol/tx-indexer/common"
+)
+
 type Tx struct {
 	Txid         string  `json:"txid"`
 	Hash         string  `json:"hash"`
@@ -22,19 +26,11 @@ type Vin struct {
 }
 
 type Vout struct {
-	Value        interface{}   `json:"value"`
-	Spent        bool          `json:"spent"`
-	Txs          []string      `json:"txs"`
-	N            int           `json:"n"`
-	Scriptpubkey *ScriptPubkey `json:"scriptPubkey"`
-}
-
-type ScriptPubkey struct {
-	Asm       string   `json:"asm"`
-	Hex       string   `json:"hex"`
-	Reqsigs   int      `json:"reqSigs"`
-	Keytype   string   `json:"type"`
-	Addresses []string `json:"addresses"`
+	Value        interface{}              `json:"value"`
+	Spent        bool                     `json:"spent"`
+	Txs          []string                 `json:"txs"`
+	N            int                      `json:"n"`
+	Scriptpubkey *common.ScriptPubkeyInfo `json:"scriptPubkey"`
 }
 
 func (tx *Tx) GetHash() string {

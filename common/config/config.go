@@ -2,10 +2,11 @@ package config
 
 import (
 	"flag"
-
 	"github.com/btcsuite/btcd/chaincfg"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"os"
 )
 
 const (
@@ -61,6 +62,21 @@ func init() {
 	pflag.StringP("ws.listen", "w", "0.0.0.0:9099", "The listen address for Websocket API")
 }
 
+func init() {
+	log.SetOutput(os.Stdout)
+	log.SetReportCaller(true)
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			s := strings.Split(f.Function, ".")
+			funcname := s[len(s)-1]
+			_, filename := path.Split(f.File)
+			padded := fmt.Sprintf("%-12v", funcname+"()")
+			return padded, filename
+		},
+	})
+}
+
 // NewDefaultConfig is default config
 func NewDefaultConfig() (*Config, error) {
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
@@ -75,6 +91,11 @@ func NewDefaultConfig() (*Config, error) {
 		Set.P2PConfig.Params = chaincfg.TestNet3Params
 	} else {
 		Set.P2PConfig.Params = chaincfg.MainNetParams
+	}
+
+	loglevel := config.NodeConfig.LogLevel
+	if loglevel == "debug" {
+		log.SetLevel(log.DebugLevel)
 	}
 	return Set, nil
 }

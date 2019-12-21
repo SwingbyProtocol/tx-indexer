@@ -1,48 +1,23 @@
 package main
 
 import (
-	"fmt"
-	"net"
-	"os"
-	"path"
-	"runtime"
-	"strings"
-
 	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/SwingbyProtocol/tx-indexer/common/config"
 	"github.com/SwingbyProtocol/tx-indexer/node"
 	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
-
-func init() {
-	log.SetOutput(os.Stdout)
-	log.SetReportCaller(true)
-	log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-			s := strings.Split(f.Function, ".")
-			funcname := s[len(s)-1]
-			_, filename := path.Split(f.File)
-			padded := fmt.Sprintf("%-12v", funcname+"()")
-			return padded, filename
-		},
-	})
-}
 
 func main() {
 	_, err := config.NewDefaultConfig()
 	if err != nil {
 		log.Info(err)
 	}
-	loglevel := config.Set.NodeConfig.LogLevel
-	if loglevel == "debug" {
-		log.SetLevel(log.DebugLevel)
-	}
+	// Create Config
+	blockchianConfig := &blockchain.BlockchainConfig{}
 	// Create blockchain instance
-	blockchain := blockchain.NewBlockchain()
+	blockchain := blockchain.NewBlockchain(blockchianConfig)
 	// Start blockchain service
 	blockchain.Start()
 
@@ -51,38 +26,22 @@ func main() {
 		TargetOutbound:   100,
 		UserAgentName:    "test",
 		UserAgentVersion: "0.1.0",
-		TxChan:           blockchain.TxChan(),
-		BlockChan:        blockchain.BlockChan(),
+		// Add trusted P2P Node
+		TrustedPeer: config.Set.P2PConfig.ConnAddr,
+		TxChan:      blockchain.TxChan(),
+		BlockChan:   blockchain.BlockChan(),
 	}
-	// Add trusted P2P Node
-	addr := config.Set.P2PConfig.ConnAddr
-	if addr != "" {
-		trustedPeer, err := net.ResolveTCPAddr("tcp", addr)
-		if err != nil {
-			log.Fatal(err)
-		}
-		nodeConfig.TrustedPeer = trustedPeer
-		log.Info("Default P2P Node", addr)
-	}
+
 	// Node initialize
 	node := node.NewNode(nodeConfig)
 	// Node Start
 	node.Start()
 
-	// Define REST api listener address
-	restListener, err := net.ResolveTCPAddr("tcp", config.Set.RESTConfig.ListenAddr)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	wsListener, err := net.ResolveTCPAddr("tcp", config.Set.WSConfig.ListenAddr)
-	if err != nil {
-		log.Fatal(err)
-	}
 	// Define API config
-	apiConfig := api.Config{
-		RESTListen: restListener,
-		WSListen:   wsListener,
+	// Define REST and WS api listener address
+	apiConfig := &api.APIConfig{
+		RESTListen: config.Set.RESTConfig.ListenAddr,
+		WSListen:   config.Set.WSConfig.ListenAddr,
 	}
 
 	log.Info(apiConfig)

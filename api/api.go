@@ -1,7 +1,6 @@
 package api
 
 import (
-	"net"
 	"net/http"
 
 	"github.com/ant0ine/go-json-rest/rest"
@@ -12,9 +11,9 @@ type API struct {
 	ws   *Websocket
 }
 
-type Config struct {
-	RESTListen *net.TCPAddr
-	WSListen   *net.TCPAddr
+type APIConfig struct {
+	RESTListen string
+	WSListen   string
 	Listeners  *Listeners
 }
 
@@ -29,7 +28,7 @@ type Listeners struct {
 	OnWebsocketMsg func(w http.ResponseWriter, r *http.Request)
 }
 
-func NewAPI(conf *Config) *API {
+func NewAPI(conf *APIConfig) *API {
 
 	api := &API{
 		rest: NewREST(conf),

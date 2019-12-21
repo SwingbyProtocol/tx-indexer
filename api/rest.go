@@ -2,7 +2,6 @@ package api
 
 import (
 	"log"
-	"net"
 	"net/http"
 
 	"github.com/ant0ine/go-json-rest/rest"
@@ -10,11 +9,11 @@ import (
 
 type REST struct {
 	api       *rest.Api
+	listen    string
 	listeners *Listeners
-	listen    *net.TCPAddr
 }
 
-func NewREST(conf *Config) *REST {
+func NewREST(conf *APIConfig) *REST {
 
 	r := &REST{
 		api:       rest.NewApi(),
@@ -41,7 +40,7 @@ func NewREST(conf *Config) *REST {
 
 func (r *REST) Start() {
 	go func() {
-		err := http.ListenAndServe(r.listen.String(), r.api.MakeHandler())
+		err := http.ListenAndServe(r.listen, r.api.MakeHandler())
 		if err != nil {
 			log.Fatal(err)
 		}
