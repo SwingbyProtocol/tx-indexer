@@ -1,4 +1,4 @@
-package node
+package blockchain
 
 type Block struct {
 	Hash              string `json:"hash"`
@@ -18,4 +18,3 @@ func (block *Block) GetTxIDs() []string {
 	}
 	return ids
 }
-

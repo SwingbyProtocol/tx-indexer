@@ -7,6 +7,7 @@ require (
 	github.com/OpenBazaar/spvwallet v0.0.0-20190417151124-49419d61fdff
 	github.com/OpenBazaar/wallet-interface v0.0.0-20190807004547-aa8e214acd9b
 	github.com/ant0ine/go-json-rest v3.3.2+incompatible
+	github.com/binance-chain/go-sdk v1.2.1 // indirect
 	github.com/boltdb/bolt v1.3.1
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d

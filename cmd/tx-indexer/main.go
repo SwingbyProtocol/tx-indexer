@@ -1,26 +1,35 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"os"
+	"path"
+	"runtime"
+	"strings"
 
+	"github.com/SwingbyProtocol/tx-indexer/api"
+	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/SwingbyProtocol/tx-indexer/common/config"
 	"github.com/SwingbyProtocol/tx-indexer/node"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
 func init() {
-	log.SetFormatter(&log.TextFormatter{
-		DisableColors: true,
-		FullTimestamp: true,
-	})
 	log.SetOutput(os.Stdout)
-	log.SetLevel(log.InfoLevel)
-}
-
-func handlerGetTxs() {
-
+	log.SetReportCaller(true)
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			s := strings.Split(f.Function, ".")
+			funcname := s[len(s)-1]
+			_, filename := path.Split(f.File)
+			padded := fmt.Sprintf("%-12v", funcname+"()")
+			return padded, filename
+		},
+	})
 }
 
 func main() {
@@ -28,11 +37,22 @@ func main() {
 	if err != nil {
 		log.Info(err)
 	}
+	loglevel := config.Set.NodeConfig.LogLevel
+	if loglevel == "debug" {
+		log.SetLevel(log.DebugLevel)
+	}
+	// Create blockchain instance
+	blockchain := blockchain.NewBlockchain()
+	// Start blockchain service
+	blockchain.Start()
+
 	nodeConfig := &node.NodeConfig{
 		Params:           &chaincfg.MainNetParams,
 		TargetOutbound:   100,
 		UserAgentName:    "test",
 		UserAgentVersion: "0.1.0",
+		TxChan:           blockchain.TxChan(),
+		BlockChan:        blockchain.BlockChan(),
 	}
 	// Add trusted P2P Node
 	addr := config.Set.P2PConfig.ConnAddr
@@ -44,14 +64,30 @@ func main() {
 		nodeConfig.TrustedPeer = trustedPeer
 		log.Info("Default P2P Node", addr)
 	}
-
-	log.Info("Default REST Node", config.Set.RESTConfig.ConnAddr)
-
+	// Node initialize
 	node := node.NewNode(nodeConfig)
-
+	// Node Start
 	node.Start()
 
-	//apiConfig := api.Config{}
+	// Define REST api listener address
+	restListener, err := net.ResolveTCPAddr("tcp", config.Set.RESTConfig.ListenAddr)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	wsListener, err := net.ResolveTCPAddr("tcp", config.Set.WSConfig.ListenAddr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Define API config
+	apiConfig := api.Config{
+		RESTListen: restListener,
+		WSListen:   wsListener,
+	}
+
+	log.Info(apiConfig)
+
+	select {}
 
 	/*
 		bitcoind := flag.String("bitcoind", "http://localhost:8332", "bitcoind endpoint")

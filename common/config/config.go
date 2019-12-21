@@ -22,11 +22,13 @@ type Config struct {
 	NodeConfig NodeConfig `mapstructure:"node" json:"node"`
 	P2PConfig  P2PConfig  `mapstructure:"p2p" json:"p2p"`
 	RESTConfig RESTConfig `mapstructure:"rest" json:"rest"`
+	WSConfig   WSConfig   `mapstructure:"ws" json:"ws"`
 }
 
 type NodeConfig struct {
-	Testnet   bool `mapstructure:"testnet" json:"testnet"`
-	PurneSize uint `mapstructure:"prune" json:"prune"`
+	Testnet   bool   `mapstructure:"testnet" json:"testnet"`
+	LogLevel  string `mapstructure:"loglevel" json:"loglevel"`
+	PurneSize uint   `mapstructure:"prune" json:"prune"`
 }
 
 type P2PConfig struct {
@@ -35,18 +37,28 @@ type P2PConfig struct {
 }
 
 type RESTConfig struct {
-	ConnAddr string `mapstructure:"connect" json:"connect"`
+	ConnAddr   string `mapstructure:"connect" json:"connect"`
+	ListenAddr string `mapstructure:"listen" json:"listen"`
+}
+
+type WSConfig struct {
+	ListenAddr string `mapstructure:"listen" json:"listen"`
 }
 
 func init() {
 	pflag.Bool("node.testnet", false, "Using testnet")
 	pflag.Int("node.prune", 12, "Proune block size of this app")
+	pflag.String("node.loglevel", "info", "The loglevel")
 }
 
 func init() {
-	// Bind p2p flags
+	// Bind rest flags
 	pflag.StringP("rest.connect", "r", DefaultConenctPeer, "The address to connect rest")
+	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
+	// Bind p2p flags
 	pflag.StringP("p2p.connect", "c", "", "The address to connect p2p")
+	// Bind ws flags
+	pflag.StringP("ws.listen", "w", "0.0.0.0:9099", "The listen address for Websocket API")
 }
 
 // NewDefaultConfig is default config

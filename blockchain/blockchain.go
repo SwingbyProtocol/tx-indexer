@@ -1,8 +1,9 @@
-package node
+package blockchain
 
 import (
-	"github.com/SwingbyProtocol/tx-indexer/common"
 	"time"
+
+	"github.com/SwingbyProtocol/tx-indexer/common"
 )
 
 type ChainInfo struct {
@@ -12,27 +13,55 @@ type ChainInfo struct {
 	Bestblockhash string `json:"bestblockhash"`
 }
 
-type BlockChain struct {
+type Blockchain struct {
 	resolver       common.Resolver
+	index          *Index
+	txStore        *TxStore
 	Latestblock    int64
 	Blocktimes     []int64
 	Blocks         []*Block
 	Nextblockcount int64
+	blockChan      chan Block
+	txChan         chan Tx
 }
 
-func NewBlockchain() *BlockChain {
-	bc := &BlockChain{}
+func NewBlockchain() *Blockchain {
+	bc := &Blockchain{
+		index:     NewIndex(),
+		txStore:   NewTxStore(),
+		txChan:    make(chan Tx),
+		blockChan: make(chan Block),
+	}
 	return bc
 }
 
-func (b *BlockChain) AddBlock(t time.Duration) {
+func (b *Blockchain) Start() {
+	go func() {
+		for {
+			tx := <-b.txChan
+			// add tx
+			b.txStore.AddTx(&tx)
+			b.index.AddTx(&tx)
+		}
+	}()
+}
+
+func (b *Blockchain) TxChan() chan Tx {
+	return b.txChan
+}
+
+func (b *Blockchain) BlockChan() chan Block {
+	return b.blockChan
+}
+
+func (b *Blockchain) AddBlock(t time.Duration) {
 
 }
 
-func (b *BlockChain) doLoadNewBlocks(t time.Duration) {
+func (b *Blockchain) doLoadNewBlocks(t time.Duration) {
 }
 
-func (b *BlockChain) LoadNewBlocks() error {
+func (b *Blockchain) LoadNewBlocks() error {
 	info := ChainInfo{}
 	err := b.resolver.GetRequest("/rest/chaininfo.json", &info)
 	if err != nil {

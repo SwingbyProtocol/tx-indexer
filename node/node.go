@@ -2,16 +2,16 @@ package node
 
 import (
 	"fmt"
-	"net"
-	"strconv"
-	"sync"
-	"time"
-
+	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
+	"net"
+	"strconv"
+	"sync"
+	"time"
 )
 
 var (
@@ -23,35 +23,34 @@ var (
 )
 
 type NodeConfig struct {
-
 	// The network parameters to use
 	Params *chaincfg.Params
-
 	// The target number of outbound peers. Defaults to 10.
 	TargetOutbound uint32
-
 	// UserAgentName specifies the user agent name to advertise.  It is
 	// highly recommended to specify this value.
 	UserAgentName string
-
 	// UserAgentVersion specifies the user agent version to advertise.  It
 	// is highly recommended to specify this value and that it follows the
 	// form "major.minor.revision" e.g. "2.6.41".
 	UserAgentVersion string
-
 	// If this field is not nil the PeerManager will only connect to this address
 	TrustedPeer *net.TCPAddr
+	// Chan for Tx
+	TxChan chan blockchain.Tx
+	// Chan for Block
+	BlockChan chan blockchain.Block
 }
 
 type Node struct {
-	chain          *BlockChain
 	peerConfig     *peer.Config
 	mu             *sync.RWMutex
 	targetOutbound uint32
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
 	trustedPeer    *net.TCPAddr
-	txChan         chan Tx
+	txChan         chan blockchain.Tx
+	BlockChan      chan blockchain.Block
 }
 
 func NewNode(config *NodeConfig) *Node {
@@ -62,7 +61,7 @@ func NewNode(config *NodeConfig) *Node {
 		connectedRanks: make(map[string]uint64),
 		connectedPeers: make(map[string]*peer.Peer),
 		trustedPeer:    config.TrustedPeer,
-		txChan:         make(chan Tx),
+		txChan:         config.TxChan,
 	}
 
 	listeners := &peer.MessageListeners{}
@@ -70,6 +69,7 @@ func NewNode(config *NodeConfig) *Node {
 	listeners.OnAddr = node.OnAddr
 	listeners.OnInv = node.OnInv
 	listeners.OnTx = node.OnTx
+	listeners.OnBlock = node.OnBlock
 	listeners.OnReject = node.OnReject
 
 	node.peerConfig = &peer.Config{
@@ -106,13 +106,18 @@ func (node *Node) OnVerack(p *peer.Peer, msg *wire.MsgVerAck) {
 	log.Infof("Connected to %s - %s\n", p.Addr(), p.UserAgent())
 }
 func (node *Node) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
-
+	// TODO check addr
 }
 func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	invVects := msg.InvList
 	for i := len(invVects) - 1; i >= 0; i-- {
 		if invVects[i].Type == wire.InvTypeBlock {
 			fmt.Println("inv_block", p.Addr())
+			iv := invVects[i]
+			//iv.Type = wire.InvTypeFilteredBlock
+			gdmsg := wire.NewMsgGetData()
+			gdmsg.AddInvVect(iv)
+			p.QueueMessage(gdmsg, nil)
 			continue
 		}
 		if invVects[i].Type == wire.InvTypeTx {
@@ -125,13 +130,20 @@ func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 		}
 	}
 }
+func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
+	block := msg
+	log.Info(block.BlockHash().String())
+	for i, tx := range block.Transactions {
+		log.Info(tx.TxHash(), " ", i)
+	}
+}
 
 func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 	tx := msg
 	txHash := tx.TxHash()
 
 	go func() {
-		node.txChan <- Tx{Hash: txHash.String()}
+		node.txChan <- blockchain.Tx{Hash: txHash.String()}
 	}()
 
 	// Update node rank
@@ -152,7 +164,7 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 		// Finding new peer
 		go node.queryDNSSeeds()
 	}
-	if len(olders) > 2 {
+	if len(olders) > 1112 {
 		log.Infof("top -> %5d %5d %50s end %50s end2 %50s", top, end, topAddr, olders[0], olders[1])
 	}
 }
@@ -188,14 +200,14 @@ func (node *Node) GetRank() (uint64, uint64, string, []string) {
 func (node *Node) AddPeer(conn net.Conn) {
 	conns := len(node.ConnectedPeers())
 	if uint32(conns) >= node.targetOutbound {
-		log.Infof("peer count is enough %d", conns)
+		log.Debugf("peer count is enough %d", conns)
 		conn.Close()
 		return
 	}
 	log.Info("------- node count ", conns)
 	addr := conn.RemoteAddr().String()
 	if node.GetConnectedPeer(addr) != nil {
-		log.Infof("peer is already joined %s", addr)
+		log.Debugf("peer is already joined %s", addr)
 		conn.Close()
 		return
 	}
@@ -218,7 +230,7 @@ func (node *Node) AddPeer(conn net.Conn) {
 		node.mu.Lock()
 		delete(node.connectedPeers, conn.RemoteAddr().String())
 		node.mu.Unlock()
-		log.Infof("Peer %s disconnected", p)
+		log.Debugf("Peer %s disconnected", p)
 	}()
 }
 
@@ -280,11 +292,6 @@ func (node *Node) Start() {
 		node.AddPeer(conn)
 	}
 	go node.queryDNSSeeds()
-
-	for {
-		tx := <-node.txChan
-		log.Info(tx.Hash)
-	}
 }
 
 func (node *Node) Stop() {

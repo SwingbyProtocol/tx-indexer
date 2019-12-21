@@ -1,4 +1,30 @@
-package node
+package blockchain
+
+type Index struct {
+	ranks   map[string]int
+	storage map[string][]*Meta
+}
+
+type Meta struct {
+	Txid string
+	Time int64
+	Vout []*Link
+}
+
+type Link struct {
+}
+
+func NewIndex() *Index {
+	index := &Index{
+		ranks:   make(map[string]int),
+		storage: make(map[string][]*Meta),
+	}
+	return index
+}
+
+func (i *Index) AddTx(tx *Tx) {
+
+}
 
 /*
 type Index struct {
@@ -24,13 +50,6 @@ type Link struct {
 	Address string
 }
 
-func NewIndex() *Index {
-	index := &Index{
-		counter: make(map[string]int),
-		stamps:  make(map[string][]*Stamp),
-	}
-	return index
-}
 
 func (i *Index) AddIn(tx *Tx) {
 	stamp := &Stamp{tx.Txid, tx.Receivedtime, nil}

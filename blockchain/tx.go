@@ -1,8 +1,4 @@
-package node
-
-type Txs struct {
-	txs map[string]*Tx
-}
+package blockchain
 
 type Tx struct {
 	Txid         string  `json:"txid"`
@@ -41,10 +37,14 @@ type ScriptPubkey struct {
 	Addresses []string `json:"addresses"`
 }
 
-func (tx *Tx) AddBlockData(block *Block) *Tx {
-	tx.Confirms = block.Height
-	tx.MinedTime = block.Time
-	tx.Mediantime = block.Mediantime
+func (tx *Tx) GetHash() string {
+	return tx.Hash
+}
+
+func (tx *Tx) AddBlockData(height int64, time int64, medianTime int64) *Tx {
+	tx.Confirms = height
+	tx.MinedTime = time
+	tx.Mediantime = medianTime
 	return tx
 }
 
