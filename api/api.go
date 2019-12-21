@@ -1,13 +1,12 @@
 package api
 
 import (
-	"net/http"
-
 	"github.com/ant0ine/go-json-rest/rest"
+	"net/http"
 )
 
 type API struct {
-	rest *REST
+	rest *RESTApi
 	ws   *Websocket
 }
 
@@ -21,9 +20,9 @@ type Listeners struct {
 	// OnKeep is invoked when a peer receives a getaddr bitcoin message.
 	OnKeep func(w rest.ResponseWriter, r *rest.Request)
 	// OnGetAddr is invoked when a peer receives a getaddr bitcoin message.
-	OnAddressIndex func(w rest.ResponseWriter, r *rest.Request)
+	OnGetAddressIndex func(w rest.ResponseWriter, r *rest.Request)
 	// OnAddr is invoked when a peer receives an addr bitcoin message.
-	OnTx func(w rest.ResponseWriter, r *rest.Request)
+	OnGetTxs func(w rest.ResponseWriter, r *rest.Request)
 
 	OnWebsocketMsg func(w http.ResponseWriter, r *http.Request)
 }
@@ -41,6 +40,13 @@ func NewAPI(conf *APIConfig) *API {
 func (api *API) Start() {
 
 	api.rest.Start()
-
 	api.ws.Start()
+}
+
+func (api *API) GetRest() *RESTApi {
+	return api.rest
+}
+
+func (api *API) GetWs() *Websocket {
+	return api.ws
 }

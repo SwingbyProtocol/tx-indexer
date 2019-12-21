@@ -6,14 +6,14 @@ import (
 
 type Tx struct {
 	Txid         string  `json:"txid"`
-	Hash         string  `json:"hash"`
+	WitnessID    string  `json:"hash"`
 	Confirms     int64   `json:"confirms"`
 	Receivedtime int64   `json:"receivedtime"`
 	MinedTime    int64   `json:"minedtime"`
 	Mediantime   int64   `json:"mediantime"`
-	Version      int     `json:"version"`
-	Weight       int     `json:"weight"`
-	Locktime     int     `json:"locktime"`
+	Version      int32   `json:"version"`
+	Weight       int64   `json:"weight"`
+	Locktime     uint32  `json:"locktime"`
 	Vin          []*Vin  `json:"vin"`
 	Vout         []*Vout `json:"vout"`
 	//Hex      string  `json:"hex"`
@@ -21,8 +21,8 @@ type Tx struct {
 
 type Vin struct {
 	Txid     string `json:"txid"`
-	Vout     int    `json:"vout"`
-	Sequence int64  `json:"sequence"`
+	Vout     uint32 `json:"vout"`
+	Sequence uint32 `json:"sequence"`
 }
 
 type Vout struct {
@@ -33,8 +33,12 @@ type Vout struct {
 	Scriptpubkey *common.ScriptPubkeyInfo `json:"scriptPubkey"`
 }
 
-func (tx *Tx) GetHash() string {
-	return tx.Hash
+func (tx *Tx) GetTxID() string {
+	return tx.Txid
+}
+
+func (tx *Tx) GetWitnessID() string {
+	return tx.WitnessID
 }
 
 func (tx *Tx) AddBlockData(height int64, time int64, medianTime int64) *Tx {

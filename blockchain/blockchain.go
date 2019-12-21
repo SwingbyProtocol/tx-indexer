@@ -1,9 +1,8 @@
 package blockchain
 
 import (
-	"time"
-
 	"github.com/SwingbyProtocol/tx-indexer/common"
+	"time"
 )
 
 type Blockchain struct {

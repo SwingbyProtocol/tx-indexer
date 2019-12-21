@@ -42,50 +42,16 @@ func main() {
 	apiConfig := &api.APIConfig{
 		RESTListen: config.Set.RESTConfig.ListenAddr,
 		WSListen:   config.Set.WSConfig.ListenAddr,
+		Listeners:  &api.Listeners{},
 	}
+	// Create api server
+	server := api.NewAPI(apiConfig)
 
-	log.Info(apiConfig)
+	li := apiConfig.Listeners
+	li.OnGetTxs = blockchain.OnGetTxs
+
+	server.Start()
 
 	select {}
 
-	/*
-		bitcoind := flag.String("bitcoind", "http://localhost:8332", "bitcoind endpoint")
-		bind := flag.String("restbind", "0.0.0.0:9096", "rest api bind address")
-		prune := flag.Int("prune", 4, "prune blocks")
-		wsBind := flag.String("wsbind", "0.0.0.0:9099", "websocket bind address")
-		flag.Parse()
-
-		log.Println("bitcoind ->", *bitcoind, "rest api bind ->", *bind, "prune ->", *prune, "websocket api bind ->", *wsBind+"/ws")
-
-		api := rest.NewApi()
-		api.Use(rest.DefaultDevStack...)
-		btcNode := btc.NewPeer(*bitcoind, *prune)
-		btcNode.Start()
-		router, err := rest.MakeRouter(
-			rest.Get("/keep", func(w rest.ResponseWriter, r *rest.Request) {
-				w.WriteHeader(http.StatusOK)
-				w.WriteJson([]string{})
-			}),
-			rest.Get("/txs/btc/:address", btcNode.GetTxs),
-			rest.Get("/txs/btc/tx/:txid", btcNode.GetTx),
-			//rest.Get("/txs/btc/index/:address", btcNode.GetIndex),
-		)
-		if err != nil {
-			log.Fatal(err)
-		}
-		api.SetApp(router)
-		go func() {
-			err = http.ListenAndServe(*bind, api.MakeHandler())
-			if err != nil {
-				log.Fatal(err)
-			}
-		}()
-
-		// ws
-		http.HandleFunc("/ws", btcNode.WsHandler)
-		err = http.ListenAndServe(*wsBind, nil)
-		if err != nil {
-			log.Fatal(err)
-		}
-	*/
 }

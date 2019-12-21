@@ -2,11 +2,16 @@ package config
 
 import (
 	"flag"
+	"fmt"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"os"
+	"path"
+	"runtime"
+	"strings"
 )
 
 const (
@@ -47,6 +52,21 @@ type WSConfig struct {
 }
 
 func init() {
+	log.SetOutput(os.Stdout)
+	log.SetReportCaller(true)
+	log.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: true,
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			s := strings.Split(f.Function, ".")
+			funcname := s[len(s)-1]
+			_, filename := path.Split(f.File)
+			padded := fmt.Sprintf("%-17v", funcname+"()")
+			return padded, filename
+		},
+	})
+}
+
+func init() {
 	pflag.Bool("node.testnet", false, "Using testnet")
 	pflag.Int("node.prune", 12, "Proune block size of this app")
 	pflag.String("node.loglevel", "info", "The loglevel")
@@ -60,21 +80,6 @@ func init() {
 	pflag.StringP("p2p.connect", "c", "", "The address to connect p2p")
 	// Bind ws flags
 	pflag.StringP("ws.listen", "w", "0.0.0.0:9099", "The listen address for Websocket API")
-}
-
-func init() {
-	log.SetOutput(os.Stdout)
-	log.SetReportCaller(true)
-	log.SetFormatter(&logrus.TextFormatter{
-		FullTimestamp: true,
-		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-			s := strings.Split(f.Function, ".")
-			funcname := s[len(s)-1]
-			_, filename := path.Split(f.File)
-			padded := fmt.Sprintf("%-12v", funcname+"()")
-			return padded, filename
-		},
-	})
 }
 
 // NewDefaultConfig is default config

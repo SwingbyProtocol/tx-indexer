@@ -19,18 +19,25 @@ func NewTxStore() *TxStore {
 }
 
 func (ts *TxStore) AddTx(tx *Tx) error {
-	if ts.GetTx(tx.GetHash()) != nil {
+	_, err := ts.GetTx(tx.GetTxID())
+	if err == nil {
 		return errors.New("tx is already joind")
 	}
 	ts.mu.Lock()
-	ts.txs[tx.GetHash()] = tx
+	ts.txs[tx.GetTxID()] = tx
 	ts.mu.Unlock()
 	return nil
 }
 
-func (ts *TxStore) GetTx(id string) *Tx {
+func (ts *TxStore) GetTx(txid string) (*Tx, error) {
+	if txid == "" {
+		return nil, errors.New("id is null")
+	}
 	ts.mu.RLock()
-	tx := ts.txs[id]
+	tx := ts.txs[txid]
 	ts.mu.RUnlock()
-	return tx
+	if tx == nil {
+		return nil, errors.New("tx is not exist")
+	}
+	return tx, nil
 }

@@ -41,7 +41,7 @@ func TestScriptToPubkeyInfo(t *testing.T) {
 		t.Fatalf("Expected it to be '%s' but got '%s'", testScriptClass, spi.ScriptClass)
 	}
 
-	if spi.Addresses[0].String() != testAddress {
-		t.Fatalf("Expected it to be '%s' but got '%s'", testAddress, spi.Addresses[0].String())
+	if spi.Addresses[0] != testAddress {
+		t.Fatalf("Expected it to be '%s' but got '%s'", testAddress, spi.Addresses[0])
 	}
 }

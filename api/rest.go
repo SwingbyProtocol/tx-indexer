@@ -1,50 +1,67 @@
 package api
 
 import (
-	"log"
-	"net/http"
-
 	"github.com/ant0ine/go-json-rest/rest"
+	log "github.com/sirupsen/logrus"
+	"net/http"
 )
 
-type REST struct {
+type RESTApi struct {
 	api       *rest.Api
 	listen    string
 	listeners *Listeners
 }
 
-func NewREST(conf *APIConfig) *REST {
+func NewREST(conf *APIConfig) *RESTApi {
 
-	r := &REST{
+	ra := &RESTApi{
 		api:       rest.NewApi(),
-		listeners: conf.Listeners,
 		listen:    conf.RESTListen,
+		listeners: conf.Listeners,
 	}
 
-	r.api.Use(&rest.CorsMiddleware{
+	ra.api.Use(&rest.CorsMiddleware{
 		OriginValidator: func(origin string, request *rest.Request) bool {
 			return true
 		},
 	})
+
+	return ra
+}
+
+func (ra *RESTApi) Start() {
+
+	if ra.listeners.OnKeep == nil {
+		ra.listeners.OnKeep = ra.OnKeep
+	}
+	if ra.listeners.OnGetAddressIndex == nil {
+		ra.listeners.OnGetAddressIndex = ra.OnKeep
+	}
+	if ra.listeners.OnGetTxs == nil {
+		ra.listeners.OnGetTxs = ra.OnKeep
+	}
 	restRouter, err := rest.MakeRouter(
-		rest.Get("/keep", r.listeners.OnKeep),
-		rest.Get("/txs/btc/:address", r.listeners.OnAddressIndex),
-		rest.Get("/txs/btc/tx/:txid", r.listeners.OnTx),
+		rest.Get("/keep", ra.listeners.OnKeep),
+		rest.Get("/txs/btc/:address", ra.listeners.OnGetAddressIndex),
+		rest.Get("/txs/btc/tx/:txid", ra.listeners.OnGetTxs),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-	r.api.SetApp(restRouter)
-	return r
-}
+	ra.api.SetApp(restRouter)
 
-func (r *REST) Start() {
 	go func() {
-		err := http.ListenAndServe(r.listen, r.api.MakeHandler())
+		err := http.ListenAndServe(ra.listen, ra.api.MakeHandler())
 		if err != nil {
 			log.Fatal(err)
 		}
 	}()
+}
+
+func (ra *RESTApi) OnKeep(w rest.ResponseWriter, r *rest.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.WriteJson("status OK")
+	return
 }
 
 /**

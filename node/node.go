@@ -86,6 +86,35 @@ func NewNode(config *NodeConfig) *Node {
 	return node
 }
 
+func (node *Node) Start() {
+	if node.trustedPeer != "" {
+		conn, err := net.Dial("tcp", node.trustedPeer)
+		if err != nil {
+			log.Fatal("net.Dial: error %v\n", err)
+			return
+		}
+		node.AddPeer(conn)
+	}
+	go node.queryDNSSeeds()
+}
+
+func (node *Node) Stop() {
+	node.mu.Lock()
+	defer node.mu.Unlock()
+	wg := new(sync.WaitGroup)
+	for _, peer := range node.connectedPeers {
+		wg.Add(1)
+		go func() {
+			// onDisconnection will be called.
+			peer.Disconnect()
+			peer.WaitForDisconnect()
+			wg.Done()
+		}()
+	}
+	node.connectedPeers = make(map[string]*peer.Peer)
+	wg.Wait()
+}
+
 func (node *Node) OnVerack(p *peer.Peer, msg *wire.MsgVerAck) {
 	// Check this peer offers bloom filtering services. If not dump them.
 	p.NA().Services = p.Services()
@@ -95,21 +124,25 @@ func (node *Node) OnVerack(p *peer.Peer, msg *wire.MsgVerAck) {
 	isSegwit := p.NA().HasService(wire.SFNodeWitness)
 
 	if isCash {
-		log.Infof("Peer %s does not support Bitcoin Cash", p)
+		log.Debugf("Peer %s does not support Bitcoin Cash", p)
 		p.Disconnect()
 		return
 	}
 	if !(isSupportBloom && isSegwit) { // Don't connect to bitcoin cash nodes
 		// onDisconnection will be called
 		// which will remove the peer from openPeers
-		log.Infof("Peer %s does not support bloom filtering, diconnecting", p)
+		log.Debug("Peer %s does not support bloom filtering, diconnecting", p)
 		p.Disconnect()
 		return
 	}
-	log.Infof("Connected to %s - %s\n", p.Addr(), p.UserAgent())
+	log.Debugf("Connected to %s - %s - [segwit: %t]", p.Addr(), p.UserAgent(), isSegwit)
 }
+
 func (node *Node) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 	// TODO check addr
+}
+func (node *Node) OnReject(p *peer.Peer, msg *wire.MsgReject) {
+	log.Warningf("Received reject message from peer %d: Code: %s, Hash %s, Reason: %s", int(p.ID()), msg.Code.String(), msg.Hash.String(), msg.Reason)
 }
 func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	invVects := msg.InvList
@@ -117,7 +150,7 @@ func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 		if invVects[i].Type == wire.InvTypeBlock {
 			fmt.Println("inv_block", p.Addr())
 			iv := invVects[i]
-			//iv.Type = wire.InvTypeFilteredBlock
+			iv.Type = wire.InvTypeWitnessBlock
 			gdmsg := wire.NewMsgGetData()
 			gdmsg.AddInvVect(iv)
 			p.QueueMessage(gdmsg, nil)
@@ -126,6 +159,7 @@ func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 		if invVects[i].Type == wire.InvTypeTx {
 			//fmt.Println("inv_tx", invVects[i].Hash, p.Addr())
 			iv := invVects[i]
+			iv.Type = wire.InvTypeWitnessTx
 			gdmsg := wire.NewMsgGetData()
 			gdmsg.AddInvVect(iv)
 			p.QueueMessage(gdmsg, nil)
@@ -137,43 +171,64 @@ func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	block := msg
 	txs := []*blockchain.Tx{}
 	for _, tx := range block.Transactions {
-		te, err := json.Marshal(tx)
+		_, err := json.Marshal(tx)
 		if err != nil {
 			log.Info(err)
 		}
-		log.Info(te)
 		t := blockchain.Tx{}
 		txs = append(txs, &t)
 	}
 	go func() {
 		node.BlockChan <- blockchain.Block{Hash: block.BlockHash().String()}
 	}()
+
 	log.Info(block.BlockHash().String())
-	for i, tx := range block.Transactions {
-		log.Info(tx.TxHash(), " ", i)
-	}
 }
 
 func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
-	tx := msg
-	txHash := tx.TxHash()
+	msgTx := msg
+	//isWitness := msgTx.HasWitness()
+	tx := blockchain.Tx{
+		Txid:      msgTx.TxHash().String(),
+		WitnessID: msgTx.WitnessHash().String(),
+		Version:   msgTx.Version,
+		Locktime:  msgTx.LockTime,
+		Weight:    common.GetTransactionWeight(msgTx),
+	}
 
-	for _, txout := range tx.TxOut {
+	for _, txin := range msgTx.TxIn {
+		newVin := &blockchain.Vin{
+			Txid:     txin.PreviousOutPoint.Hash.String(),
+			Vout:     txin.PreviousOutPoint.Index,
+			Sequence: txin.Sequence,
+		}
+		tx.Vin = append(tx.Vin, newVin)
+	}
+
+	for i, txout := range msgTx.TxOut {
 		// Ignore the error here because the sender could have used and exotic script
 		// for his change and we don't want to fail in that case.
 		spi, _ := common.ScriptToPubkeyInfo(txout.PkScript, &config.Set.P2PConfig.Params)
-
-		log.Info(spi)
+		newVout := &blockchain.Vout{
+			Value:        txout.Value,
+			Spent:        false,
+			Txs:          []string{},
+			N:            i,
+			Scriptpubkey: &spi,
+		}
+		tx.Vout = append(tx.Vout, newVout)
 	}
 
 	go func() {
-		node.txChan <- blockchain.Tx{Hash: txHash.String()}
+		node.txChan <- tx
 	}()
+
+	log.Debugf("%s  %s  ", tx.Txid, tx.WitnessID)
 
 	// Update node rank
 	node.updateRank(p)
 	// Get now ranks counts
-	top, end, topAddr, olders := node.GetRank()
+	top, _, _, olders := node.GetRank()
 	if top >= DefaultNodeRankSize {
 		node.resetConnectedRank()
 		// Remove end peers
@@ -188,9 +243,6 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 		// Finding new peer
 		go node.queryDNSSeeds()
 	}
-	if len(olders) > 1112 {
-		log.Infof("top -> %5d %5d %50s end %50s end2 %50s", top, end, topAddr, olders[0], olders[1])
-	}
 }
 
 func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
@@ -198,10 +250,6 @@ func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
 	peer := node.connectedPeers[addr]
 	node.mu.RUnlock()
 	return peer
-}
-
-func (node *Node) OnReject(p *peer.Peer, msg *wire.MsgReject) {
-	log.Warningf("Received reject message from peer %d: Code: %s, Hash %s, Reason: %s", int(p.ID()), msg.Code.String(), msg.Hash.String(), msg.Reason)
 }
 
 func (node *Node) ConnectedPeers() []*peer.Peer {
@@ -250,12 +298,16 @@ func (node *Node) AddPeer(conn net.Conn) {
 
 	go func() {
 		p.WaitForDisconnect()
-		// Remove peers if peer conn is closed.
-		node.mu.Lock()
-		delete(node.connectedPeers, conn.RemoteAddr().String())
-		node.mu.Unlock()
-		log.Debugf("Peer %s disconnected", p)
+		node.onDisconneted(p, conn)
 	}()
+}
+
+func (node *Node) onDisconneted(p *peer.Peer, conn net.Conn) {
+	// Remove peers if peer conn is closed.
+	node.mu.Lock()
+	delete(node.connectedPeers, conn.RemoteAddr().String())
+	node.mu.Unlock()
+	log.Debugf("Peer %s disconnected", p)
 }
 
 // Query the DNS seeds and pass the addresses into the address manager.
@@ -271,29 +323,35 @@ func (node *Node) queryDNSSeeds() {
 				wg.Done()
 				return
 			}
-			for i := 0; i < DefaultNodeAddTimes; i++ {
-				go func() {
-					key := common.RandRange(0, len(addrs)-1)
-					addr := addrs[key]
-					port, err := strconv.Atoi(node.peerConfig.ChainParams.DefaultPort)
-					if err != nil {
-						log.Info("port error")
-						return
-					}
-					target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
-					conn, err := net.Dial("tcp", target.String())
-					if err != nil {
-						log.Infof("net.Dial: error %v\n", err)
-						return
-					}
-					node.AddPeer(conn)
-				}()
-			}
-
+			node.addRandomNodes(0, addrs)
 			wg.Done()
 		}(seed.Host)
 	}
 	wg.Wait()
+}
+
+func (node *Node) addRandomNodes(count int, addrs []string) {
+	if count != 0 {
+		DefaultNodeAddTimes = count
+	}
+	for i := 0; i < DefaultNodeAddTimes; i++ {
+		go func() {
+			key := common.RandRange(0, len(addrs)-1)
+			addr := addrs[key]
+			port, err := strconv.Atoi(node.peerConfig.ChainParams.DefaultPort)
+			if err != nil {
+				log.Debug("port error")
+				return
+			}
+			target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
+			conn, err := net.Dial("tcp", target.String())
+			if err != nil {
+				log.Debugf("net.Dial: error %v\n", err)
+				return
+			}
+			node.AddPeer(conn)
+		}()
+	}
 }
 
 func (node *Node) updateRank(p *peer.Peer) {
@@ -304,33 +362,4 @@ func (node *Node) updateRank(p *peer.Peer) {
 
 func (node *Node) resetConnectedRank() {
 	node.connectedRanks = make(map[string]uint64)
-}
-
-func (node *Node) Start() {
-	if node.trustedPeer != "" {
-		conn, err := net.Dial("tcp", node.trustedPeer)
-		if err != nil {
-			log.Fatal("net.Dial: error %v\n", err)
-			return
-		}
-		node.AddPeer(conn)
-	}
-	go node.queryDNSSeeds()
-}
-
-func (node *Node) Stop() {
-	node.mu.Lock()
-	defer node.mu.Unlock()
-	wg := new(sync.WaitGroup)
-	for _, peer := range node.connectedPeers {
-		wg.Add(1)
-		go func() {
-			// onDisconnection will be called.
-			peer.Disconnect()
-			peer.WaitForDisconnect()
-			wg.Done()
-		}()
-	}
-	node.connectedPeers = make(map[string]*peer.Peer)
-	wg.Wait()
 }

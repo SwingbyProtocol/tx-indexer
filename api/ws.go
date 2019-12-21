@@ -1,10 +1,9 @@
 package api
 
 import (
+	"github.com/SwingbyProtocol/tx-indexer/pubsub"
 	"log"
 	"net/http"
-
-	"github.com/SwingbyProtocol/tx-indexer/pubsub"
 )
 
 const (
@@ -28,10 +27,16 @@ func NewWebsocket(conf *APIConfig) *Websocket {
 	return ws
 }
 
-func (w *Websocket) Start() {
+func (ws *Websocket) Start() {
+
+	if ws.listeners.OnWebsocketMsg == nil {
+		ws.listeners.OnWebsocketMsg = func(w http.ResponseWriter, r *http.Request) {
+			// Default handler
+		}
+	}
 	go func() {
-		http.HandleFunc("/ws", w.listeners.OnWebsocketMsg)
-		err := http.ListenAndServe(w.listen, nil)
+		http.HandleFunc("/ws", ws.listeners.OnWebsocketMsg)
+		err := http.ListenAndServe(ws.listen, nil)
 		if err != nil {
 			log.Fatal(err)
 		}
