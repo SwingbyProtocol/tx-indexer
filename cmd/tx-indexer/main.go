@@ -1,9 +1,12 @@
 package main
 
 import (
+	"net"
 	"os"
 
 	"github.com/SwingbyProtocol/tx-indexer/common/config"
+	"github.com/SwingbyProtocol/tx-indexer/node"
+	"github.com/btcsuite/btcd/chaincfg"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -16,12 +19,40 @@ func init() {
 	log.SetLevel(log.InfoLevel)
 }
 
+func handlerGetTxs() {
+
+}
+
 func main() {
 	_, err := config.NewDefaultConfig()
 	if err != nil {
 		log.Info(err)
 	}
-	log.Info(config.Set.P2PConfig.Params.Net.String())
+	nodeConfig := &node.NodeConfig{
+		Params:           &chaincfg.MainNetParams,
+		TargetOutbound:   100,
+		UserAgentName:    "test",
+		UserAgentVersion: "0.1.0",
+	}
+	// Add trusted P2P Node
+	addr := config.Set.P2PConfig.ConnAddr
+	if addr != "" {
+		trustedPeer, err := net.ResolveTCPAddr("tcp", addr)
+		if err != nil {
+			log.Fatal(err)
+		}
+		nodeConfig.TrustedPeer = trustedPeer
+		log.Info("Default P2P Node", addr)
+	}
+
+	log.Info("Default REST Node", config.Set.RESTConfig.ConnAddr)
+
+	node := node.NewNode(nodeConfig)
+
+	node.Start()
+
+	//apiConfig := api.Config{}
+
 	/*
 		bitcoind := flag.String("bitcoind", "http://localhost:8332", "bitcoind endpoint")
 		bind := flag.String("restbind", "0.0.0.0:9096", "rest api bind address")

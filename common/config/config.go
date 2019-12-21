@@ -30,12 +30,12 @@ type NodeConfig struct {
 }
 
 type P2PConfig struct {
-	Params      chaincfg.Params
-	ConnectAddr string `mapstructure:"connect" json:"connect"`
+	Params   chaincfg.Params
+	ConnAddr string `mapstructure:"connect" json:"connect"`
 }
 
 type RESTConfig struct {
-	ConnectAddr string `mapstructure:"connect" json:"connect"`
+	ConnAddr string `mapstructure:"connect" json:"connect"`
 }
 
 func init() {
@@ -45,8 +45,8 @@ func init() {
 
 func init() {
 	// Bind p2p flags
-	pflag.StringP("p2p.connect", "c", DefaultConenctPeer, "The address to connect p2p")
 	pflag.StringP("rest.connect", "r", DefaultConenctPeer, "The address to connect rest")
+	pflag.StringP("p2p.connect", "c", "", "The address to connect p2p")
 }
 
 // NewDefaultConfig is default config

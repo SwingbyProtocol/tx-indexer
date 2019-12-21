@@ -1,13 +1,11 @@
-package btc
+package api
 
 import (
-	"encoding/json"
+	"log"
+	"net"
 	"net/http"
-	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/pubsub"
-	uuid "github.com/satori/go.uuid"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -16,6 +14,32 @@ const (
 	GETTXS     = "getTxs"
 )
 
+type Websocket struct {
+	pubsub    *pubsub.PubSub
+	listen    *net.TCPAddr
+	listeners *Listeners
+}
+
+func NewWebsocket(conf *Config) *Websocket {
+	ws := &Websocket{
+		pubsub:    pubsub.NewPubSub(),
+		listen:    conf.WSListen,
+		listeners: conf.Listeners,
+	}
+	return ws
+}
+
+func (w *Websocket) Start() {
+	go func() {
+		http.HandleFunc("/ws", w.listeners.OnWebsocketMsg)
+		err := http.ListenAndServe(w.listen.String(), nil)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+}
+
+/*
 type WsPayloadTx struct {
 	Action  string `json:"action"`
 	Address string `json:"address"`
@@ -33,7 +57,8 @@ type WsPayloadMessage struct {
 	Message string `json:"message"`
 }
 
-func (node *Node) WsHandler(w http.ResponseWriter, r *http.Request) {
+
+func (w *Websock) WsHandler(w http.ResponseWriter, r *http.Request) {
 	node.ps.Upgrader.CheckOrigin = func(r *http.Request) bool {
 		return true
 	}
@@ -226,3 +251,5 @@ func (node *Node) SendWsData(client *pubsub.Client, action string, address strin
 	client.Send(bytes)
 	return nil
 }
+
+*/
