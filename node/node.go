@@ -1,17 +1,20 @@
 package node
 
 import (
+	"encoding/json"
 	"fmt"
-	"github.com/SwingbyProtocol/tx-indexer/blockchain"
-	"github.com/SwingbyProtocol/tx-indexer/common"
-	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/peer"
-	"github.com/btcsuite/btcd/wire"
-	log "github.com/sirupsen/logrus"
 	"net"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/SwingbyProtocol/tx-indexer/blockchain"
+	"github.com/SwingbyProtocol/tx-indexer/common"
+	"github.com/SwingbyProtocol/tx-indexer/common/config"
+	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/peer"
+	"github.com/btcsuite/btcd/wire"
+	log "github.com/sirupsen/logrus"
 )
 
 var (
@@ -132,6 +135,19 @@ func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 }
 func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	block := msg
+	txs := []*blockchain.Tx{}
+	for _, tx := range block.Transactions {
+		te, err := json.Marshal(tx)
+		if err != nil {
+			log.Info(err)
+		}
+		log.Info(te)
+		t := blockchain.Tx{}
+		txs = append(txs, &t)
+	}
+	go func() {
+		node.BlockChan <- blockchain.Block{Hash: block.BlockHash().String()}
+	}()
 	log.Info(block.BlockHash().String())
 	for i, tx := range block.Transactions {
 		log.Info(tx.TxHash(), " ", i)
@@ -141,6 +157,14 @@ func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 	tx := msg
 	txHash := tx.TxHash()
+
+	for _, txout := range tx.TxOut {
+		// Ignore the error here because the sender could have used and exotic script
+		// for his change and we don't want to fail in that case.
+		addr, _ := common.ScriptToAddress(txout.PkScript, &config.Set.P2PConfig.Params)
+
+		log.Info(addr.String())
+	}
 
 	go func() {
 		node.txChan <- blockchain.Tx{Hash: txHash.String()}

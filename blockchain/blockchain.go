@@ -2,8 +2,6 @@ package blockchain
 
 import (
 	"time"
-
-	"github.com/SwingbyProtocol/tx-indexer/common"
 )
 
 type ChainInfo struct {
@@ -14,7 +12,7 @@ type ChainInfo struct {
 }
 
 type Blockchain struct {
-	resolver       common.Resolver
+	resolver       Resolver
 	index          *Index
 	txStore        *TxStore
 	Latestblock    int64
