@@ -11,6 +11,7 @@ require (
 	github.com/boltdb/bolt v1.3.1
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/btcsuite/btcutil v0.0.0-20190425235716-9e5f4b9a998d
+	github.com/btcsuite/btcwallet/wallet/txauthor v1.0.0 // indirect
 	github.com/btcsuite/goleveldb v1.0.0
 	github.com/cevaris/ordered_map v0.0.0-20190319150403-3adeae072e73
 	github.com/google/martian v2.1.0+incompatible
@@ -18,6 +19,7 @@ require (
 	github.com/jessevdk/go-flags v1.4.0 // indirect
 	github.com/kkdai/bstream v1.0.0 // indirect
 	github.com/mattn/go-sqlite3 v2.0.2+incompatible // indirect
+	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
 	github.com/rs/zerolog v1.17.2
 	github.com/satori/go.uuid v1.2.0

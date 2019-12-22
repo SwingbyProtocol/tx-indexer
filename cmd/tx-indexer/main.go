@@ -49,6 +49,7 @@ func main() {
 
 	listeners := apiConfig.Listeners
 	listeners.OnGetTxs = blockchain.OnGetTxs
+	listeners.OnGetTxsWS = blockchain.OnGetTxsWS
 
 	apiServer.Start()
 

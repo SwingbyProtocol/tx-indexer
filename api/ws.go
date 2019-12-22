@@ -1,9 +1,14 @@
 package api
 
 import (
-	"github.com/SwingbyProtocol/tx-indexer/pubsub"
-	log "github.com/sirupsen/logrus"
+	"encoding/json"
 	"net/http"
+	"time"
+
+	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
+	"github.com/SwingbyProtocol/tx-indexer/blockchain"
+	uuid "github.com/satori/go.uuid"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -18,6 +23,22 @@ type Websocket struct {
 	listeners *Listeners
 }
 
+type MsgReqest struct {
+	Action        string `json:"action"`
+	Address       string `json:"address"`
+	Type          string `json:"type"`
+	TimestampFrom int64  `json:"timestamp_from"`
+	TimestampTo   int64  `json:"timestamp_to"`
+}
+
+type MsgResponse struct {
+	Action  string           `json:"action"`
+	Address string           `json:"address"`
+	Result  bool             `json:"result"`
+	Message string           `json:"message"`
+	Txs     []*blockchain.Tx `json:"txs"`
+}
+
 func NewWebsocket(conf *APIConfig) *Websocket {
 	ws := &Websocket{
 		pubsub:    pubsub.NewPubSub(),
@@ -29,13 +50,13 @@ func NewWebsocket(conf *APIConfig) *Websocket {
 
 func (ws *Websocket) Start() {
 
-	if ws.listeners.OnWebsocketMsg == nil {
-		ws.listeners.OnWebsocketMsg = func(w http.ResponseWriter, r *http.Request) {
+	if ws.listeners.OnGetTxsWS == nil {
+		ws.listeners.OnGetTxsWS = func(c *pubsub.Client) {
 			// Default handler
 		}
 	}
 	go func() {
-		http.HandleFunc("/ws", ws.listeners.OnWebsocketMsg)
+		http.HandleFunc("/ws", ws.onhandler)
 		err := http.ListenAndServe(ws.listen, nil)
 		if err != nil {
 			log.Fatal(err)
@@ -44,7 +65,171 @@ func (ws *Websocket) Start() {
 	log.Infof("WS api listen: %s", ws.listen)
 }
 
+func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
+	ws.pubsub.Upgrader.CheckOrigin = func(r *http.Request) bool {
+		return true
+	}
+	// Time allowed to read the next pong message from the peer.
+	pongWait := 30 * time.Second
+	//writeWait := 30 * time.Second
+	// Send pings to peer with this period. Must be less than pongWait.
+	pingPeriod := (pongWait * 9) / 10
+	// Connection
+	conn, err := ws.pubsub.Upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Info("upgrade:", err)
+		return
+	}
+	defer conn.Close()
+	// Create a pubsub client
+	client := pubsub.Client{
+		ID:         uuid.Must(uuid.NewV4(), nil).String(),
+		Connection: conn,
+		Mu:         &ws.pubsub.Mu,
+	}
+	// Add PONG handler
+	client.Connection.SetPongHandler(func(msg string) error {
+		//client.Connection.SetWriteDeadline(time.Now().Add(writeWait))
+		client.Connection.SetReadDeadline(time.Now().Add(pongWait))
+		log.Info("Received PON from client id: ", client.ID)
+		return nil
+	})
+	// Add message handler
+	client.SetMsgHandlers(func(c *pubsub.Client, msg []byte) error {
+		// Call onAction
+		ws.onAction(c, msg)
+		return nil
+	})
+	// Register pubsub client to pubsub manager
+	ws.pubsub.AddClient(client)
+
+	log.Info("New Client is connected, total: ", len(ws.pubsub.Clients))
+
+	ticker := time.NewTicker(24 * time.Second)
+	defer ticker.Stop()
+
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				ws.pubsub.PublishPing(pingPeriod)
+			}
+		}
+	}()
+
+}
+
+func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
+	req := MsgReqest{}
+	err := json.Unmarshal(msg, &req)
+	if err != nil {
+		errMsg := MsgResponse{
+			Action:  "",
+			Result:  false,
+			Message: err.Error(),
+			Txs:     []*blockchain.Tx{},
+		}
+		c.SendJSON(errMsg)
+	}
+
+	switch req.Action {
+	case WATCHTXS:
+		ws.pubsub.Subscribe(c, req.Address)
+		log.Infof("new subscriber to Address: -> %s %d %s", req.Action, len(ws.pubsub.Subscriptions[c.ID]), c.ID)
+
+	case UNWATCHTXS:
+		if req.Address == "" {
+			errMsg := MsgResponse{
+				Action:  "",
+				Result:  false,
+				Message: "success",
+				Txs:     []*blockchain.Tx{},
+			}
+			c.SendJSON(errMsg)
+			break
+		}
+		log.Infof("Client want to unsubscribe the Address: -> %s %s", req.Address, c.ID)
+		ws.pubsub.Unsubscribe(c, req.Address)
+		res := MsgResponse{
+			Action:  req.Action,
+			Result:  true,
+			Message: "Success",
+			Txs:     []*blockchain.Tx{},
+		}
+		c.SendJSON(res)
+
+	case GETTXS:
+		ws.listeners.OnGetTxsWS(c)
+	}
+}
+
 /*
+
+
+func (ws *Websocket) onAction(c *pubsub.Client, msg Message) {
+	switch msg.Action {
+	case WATCHTXS:
+		ws.pubsub.Subscribe(c, msg.Address)
+		//log.Infof("new subscriber to Address: -> %s %d %s", msg.Address, len(node.ps.Subscriptions[client.ID]), client.ID)
+		node.SendWsMsg(c, WATCHTXS, successMsg)
+		break
+
+	case UNWATCHTXS:
+		if msg.Address == "" {
+			errMsg := "Error: Address is not set"
+			node.SendWsMsg(client, UNWATCHTXS, errMsg)
+			break
+		}
+		log.Infof("Client want to unsubscribe the Address: -> %s %s", msg.Address, client.ID)
+		node.ps.Unsubscribe(client, msg.Address)
+		successMsg := "Success"
+		node.SendWsMsg(client, UNWATCHTXS, successMsg)
+		break
+
+	case GETTXS:
+
+		if msg.Address == "" {
+			errMsg := "Error: Address is not set"
+			node.SendWsMsg(client, GETTXS, errMsg)
+			break
+		}
+
+		log.Infof("Client want to get txs of index Address: -> %s %s", msg.Address, client.ID)
+		resTxs := []*Tx{}
+
+		if msg.Type == "send" {
+			resTxs = node.GetTxsFromIndexWithSpent(msg.Address)
+		} else {
+			resTxs = node.GetTxsFromIndex(msg.Address)
+		}
+		if msg.TimestampFrom > 0 {
+			txsFrom := []*Tx{}
+			for _, tx := range resTxs {
+				if tx.Receivedtime >= msg.TimestampFrom {
+					txsFrom = append(txsFrom, tx)
+				}
+			}
+			resTxs = txsFrom
+		}
+		if msg.TimestampTo > 0 {
+			txsTo := []*Tx{}
+			for _, tx := range resTxs {
+				if tx.Receivedtime <= msg.TimestampTo {
+					txsTo = append(txsTo, tx)
+				}
+			}
+			resTxs = txsTo
+		}
+		node.SendWsData(client, GETTXS, msg.Address, resTxs)
+		break
+
+	default:
+		errMsg := "Error: something wrong"
+		log.Info(errMsg)
+		node.SendWsMsg(client, msg.Action, errMsg)
+		break
+	}
+}
 type WsPayloadTx struct {
 	Action  string `json:"action"`
 	Address string `json:"address"`

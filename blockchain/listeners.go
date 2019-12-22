@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
 	"github.com/ant0ine/go-json-rest/rest"
 	log "github.com/sirupsen/logrus"
 	"net/http"
@@ -30,6 +31,11 @@ func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) 
 	log.Info(spentFlag, pageFlag)
 	w.WriteHeader(http.StatusOK)
 	w.WriteJson(txid)
+}
+
+func (bc *Blockchain) OnGetTxsWS(c *pubsub.Client) {
+	test := []string{"sss"}
+	c.SendJSON(test)
 }
 
 func res500(msg error, w rest.ResponseWriter) {

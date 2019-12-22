@@ -15,6 +15,15 @@ type Client struct {
 	Mu         *sync.Mutex
 }
 
+func (client *Client) SendJSON(message interface{}) error {
+	bytes, err := json.Marshal(message)
+	if err != nil {
+		log.Info(err)
+		return err
+	}
+	return client.Send(bytes)
+}
+
 func (client *Client) Send(message []byte) error {
 	// protect concurrent write
 	client.Mu.Lock()
@@ -29,6 +38,21 @@ func (client *Client) Ping(writeWait time.Duration) error {
 		return err
 	}
 	return nil
+}
+
+func (client *Client) SetMsgHandlers(handler func(c *Client, msg []byte) error) {
+	for {
+		_, message, err := client.Connection.ReadMessage()
+		if err != nil {
+			log.Info("WS:error:", err)
+			break
+		}
+		err = handler(client, message)
+		if err != nil {
+			log.Info("ws:error:", err)
+		}
+		//ws.onAction(&client, msg)
+	}
 }
 
 func (client *Client) ReadPump(ps *PubSub, onAction func(c *Client, msg Message), onStop func()) {

@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -84,18 +85,18 @@ func (ps *PubSub) GetClientSubs(topic string, client *Client) []Subscription {
 	return subscriptionList
 }
 
-func (ps *PubSub) Subscribe(client *Client, topic string) *PubSub {
+func (ps *PubSub) Subscribe(client *Client, topic string) error {
 	clientSubs := ps.GetClientSubs(topic, client)
 	if len(clientSubs) > 0 {
 		// client is subscribed this topic before
-		return ps
+		return errors.New("Error this subscribe is already exist")
 	}
 	newSubscription := Subscription{
 		Topic:  topic,
 		Client: client,
 	}
 	ps.Subscriptions[client.ID] = append(ps.Subscriptions[client.ID], newSubscription)
-	return ps
+	return nil
 }
 
 func (ps *PubSub) Publish(topic string, msg []byte, excludeClient *Client) {

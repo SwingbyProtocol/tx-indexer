@@ -1,8 +1,8 @@
 package api
 
 import (
+	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
 	"github.com/ant0ine/go-json-rest/rest"
-	"net/http"
 )
 
 type API struct {
@@ -24,7 +24,9 @@ type Listeners struct {
 	// OnAddr is invoked when a peer receives an addr bitcoin message.
 	OnGetTxs func(w rest.ResponseWriter, r *rest.Request)
 
-	OnWebsocketMsg func(w http.ResponseWriter, r *http.Request)
+	OnGetTxsWS func(c *pubsub.Client)
+
+	OnGetAddressWS func(c *pubsub.Client)
 }
 
 func NewAPI(conf *APIConfig) *API {
