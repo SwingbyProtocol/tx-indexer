@@ -1,130 +1,129 @@
 package blockchain
 
 import (
-	"time"
+	"errors"
 
+	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
 )
 
 type Blockchain struct {
-	resolver       *Resolver
-	index          *Index
-	txStore        *TxStore
-	Latestblock    int64
-	Blocktimes     []int64
-	Blocks         []*Block
-	Nextblockcount int64
-	blockChan      chan Block
-	txChan         chan Tx
+	resolver   *Resolver
+	index      map[int64]*Index
+	txStore    *TxStore
+	nowHeight  int64
+	txChan     chan *wire.MsgTx
+	blockChan  chan *wire.MsgBlock
+	pushTxChan chan *Tx
 }
 
 func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	bc := &Blockchain{
-		resolver:  NewResolver(conf.TrustedREST),
-		index:     NewIndex(),
-		txStore:   NewTxStore(),
-		txChan:    make(chan Tx),
-		blockChan: make(chan Block),
+		resolver:   NewResolver(conf.TrustedNode),
+		index:      make(map[int64]*Index),
+		txStore:    NewTxStore(),
+		txChan:     make(chan *wire.MsgTx),
+		blockChan:  make(chan *wire.MsgBlock),
+		pushTxChan: make(chan *Tx),
 	}
+	log.Info("Using trusted node ", conf.TrustedNode)
+	block, err := bc.GetRemoteBlock()
+	if err != nil {
+		log.Fatal("latest block is not get")
+	}
+	bc.AddBlock(block)
 	return bc
 }
 
 func (b *Blockchain) Start() {
 	go func() {
 		for {
-			tx := <-b.txChan
+			msg := <-b.txChan
+			tx := MsgTxToTx(msg)
+			// Check the input to remark spent tx
+			for _, in := range tx.Vin {
+				inTx, err := b.txStore.GetTx(in.Txid)
+				if err != nil {
+					//log.Debug(err)
+					continue
+				}
+				targetOutput := inTx.Vout[in.Vout]
+				targetOutput.Txs = append(targetOutput.Txs, tx.Txid)
+				// check the sender of tx
+				addrs := inTx.GetOutsAddrs()
+				for _, addr := range addrs {
+					b.index[b.nowHeight].UpdateTx(addr, inTx.Txid, true)
+				}
+			}
+			// Check the outputs to remark spent tx
+			addrs := tx.GetOutsAddrs()
+			for _, addr := range addrs {
+				b.index[b.nowHeight].UpdateTx(addr, tx.Txid, false)
+			}
+
 			// add tx
 			b.txStore.AddTx(&tx)
-			b.index.AddTx(&tx)
+			// push notification to ws handler
+			b.pushTxChan <- &tx
 		}
 	}()
 
 	go func() {
 		for {
-			block := <-b.blockChan
-			// add tx
-			log.Info(block)
+			msg := <-b.blockChan
+			// add block
+			block := MsgBlockToBlock(msg)
+			log.Info(block.Hash)
+			b.AddBlock(&block)
 		}
 	}()
 }
 
-func (b *Blockchain) TxChan() chan Tx {
-	return b.txChan
+func (b *Blockchain) GetIndexTxs(addr string, times int, spent bool) ([]*Tx, error) {
+	if len(b.index) < times {
+		return nil, errors.New("Getindextxs error")
+	}
+	for i := b.nowHeight; i > b.nowHeight-int64(times); i-- {
+		txids := b.index[i].GetTxIDs(addr, spent)
+		log.Info(txids)
+	}
+	return nil, nil
 }
 
-func (b *Blockchain) BlockChan() chan Block {
-	return b.blockChan
+func (b *Blockchain) AddBlock(block *Block) {
+	if b.nowHeight == block.Height {
+		return
+	}
+	b.index[block.Height] = NewIndex()
+	b.nowHeight = block.Height
 }
 
-func (b *Blockchain) AddBlock(t time.Duration) {
-
-}
-
-func (b *Blockchain) doLoadNewBlocks(t time.Duration) {
-}
-
-func (b *Blockchain) LoadNewBlocks() error {
+func (b *Blockchain) GetRemoteBlock() (*Block, error) {
 	info := ChainInfo{}
 	err := b.resolver.GetRequest("/rest/chaininfo.json", &info)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	block := Block{}
 	err = b.resolver.GetRequest("/rest/block/"+info.Bestblockhash+".json", &block)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return &block, nil
 }
 
-/*
-
-
-func (b *BlockChain) getBlock() error {
-
-	err := b.resolver.GetRequest("/rest/block/"+task.BlockHash+".json", &block)
-	if err != nil {
-		b.AddTaskWithError(task)
-		return err
-	}
-	if block.Height == 0 {
-		b.AddTaskWithError(task)
-		return errors.New("Block height is zero " + task.BlockHash)
-	}
-	b.blocktimes = append(b.blocktimes, block.Time)
-	if len(b.blocktimes) > b.pruneblocks+1 {
-		b.blocktimes = b.blocktimes[1:]
-	}
-	log.Infof("Task Block# %d Get", block.Height)
-	b.waitchan <- block
-	if b.nextblockcount <= 0 {
-		return nil
-	}
-	b.nextblockcount--
-	if b.nextblockcount > 0 {
-		task := Task{block.Previousblockhash, 0}
-		b.tasks = append(b.tasks, &task)
-	}
-	return nil
+func (b *Blockchain) GetTxScore() *TxStore {
+	return b.txStore
 }
 
-func (b *BlockChain) GetLatestBlock() int64 {
-	return b.latestblock
+func (b *Blockchain) TxChan() chan *wire.MsgTx {
+	return b.txChan
 }
 
-func (b *BlockChain) GetPruneBlockTime() (int64, error) {
-	if len(b.blocktimes) == b.pruneblocks+1 {
-		return b.blocktimes[0], nil
-	}
-	return 0, errors.New("prune block is not reached")
+func (b *Blockchain) BlockChan() chan *wire.MsgBlock {
+	return b.blockChan
 }
 
-func (b *BlockChain) AddTaskWithError(task *Task) {
-	task.Errors++
-	log.Info("task errors: ", task.Errors)
-	if task.Errors <= 8 {
-		b.tasks = append(b.tasks, task)
-	}
+func (b *Blockchain) PushTxChan() chan *Tx {
+	return b.pushTxChan
 }
-
-*/

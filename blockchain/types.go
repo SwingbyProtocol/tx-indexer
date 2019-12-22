@@ -1,8 +1,8 @@
 package blockchain
 
 type BlockchainConfig struct {
-	// TrustedREST is ip addr for connect to rest api
-	TrustedREST string
+	// TrustedNode is ip addr for connect to rest api
+	TrustedNode string
 }
 
 type ChainInfo struct {
@@ -32,12 +32,6 @@ type Vout struct {
 	Txs          []string          `json:"txs"`
 	N            int               `json:"n"`
 	Scriptpubkey *ScriptPubkeyInfo `json:"scriptPubkey"`
-}
-
-type Meta struct {
-	Txid string
-	Time int64
-	Vout []*Link
 }
 
 type Link struct {

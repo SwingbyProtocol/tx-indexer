@@ -3,6 +3,7 @@ package blockchain
 import (
 	"encoding/hex"
 	"errors"
+	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/common/config"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -45,11 +46,12 @@ func GetTransactionWeight(msgTx *wire.MsgTx) int64 {
 func MsgTxToTx(msgTx *wire.MsgTx) Tx {
 
 	tx := Tx{
-		Txid:      msgTx.TxHash().String(),
-		WitnessID: msgTx.WitnessHash().String(),
-		Version:   msgTx.Version,
-		Locktime:  msgTx.LockTime,
-		Weight:    GetTransactionWeight(msgTx),
+		Txid:         msgTx.TxHash().String(),
+		WitnessID:    msgTx.WitnessHash().String(),
+		Version:      msgTx.Version,
+		Locktime:     msgTx.LockTime,
+		Weight:       GetTransactionWeight(msgTx),
+		Receivedtime: time.Now().Unix(),
 	}
 
 	for _, txin := range msgTx.TxIn {
@@ -75,4 +77,16 @@ func MsgTxToTx(msgTx *wire.MsgTx) Tx {
 		tx.Vout = append(tx.Vout, newVout)
 	}
 	return tx
+}
+
+func MsgBlockToBlock(msgBlock *wire.MsgBlock) Block {
+	block := Block{
+		Hash: msgBlock.BlockHash().String(),
+	}
+	for _, msgTx := range msgBlock.Transactions {
+		tx := MsgTxToTx(msgTx)
+		block.Txs = append(block.Txs, &tx)
+	}
+
+	return block
 }

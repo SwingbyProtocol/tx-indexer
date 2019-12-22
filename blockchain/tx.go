@@ -1,5 +1,9 @@
 package blockchain
 
+import (
+	"github.com/SwingbyProtocol/tx-indexer/common"
+)
+
 type Tx struct {
 	Txid         string  `json:"txid"`
 	WitnessID    string  `json:"hash"`
@@ -28,6 +32,22 @@ func (tx *Tx) AddBlockData(height int64, time int64, medianTime int64) *Tx {
 	tx.MinedTime = time
 	tx.Mediantime = medianTime
 	return tx
+}
+
+func (tx *Tx) GetOutsAddrs() []string {
+	addresses := []string{}
+	for _, vout := range tx.Vout {
+		if len(vout.Scriptpubkey.Addresses) != 1 {
+			// log.Debug("debug : len(vout.ScriptPubkey.Addresses) != 1")
+			continue
+		}
+		addr := vout.Scriptpubkey.Addresses[0]
+		if common.CheckExist(addr, addresses) == true {
+			continue
+		}
+		addresses = append(addresses, addr)
+	}
+	return addresses
 }
 
 /*

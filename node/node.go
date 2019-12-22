@@ -1,13 +1,11 @@
 package node
 
 import (
-	"fmt"
 	"net"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
@@ -30,8 +28,8 @@ type Node struct {
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
 	trustedPeer    string
-	txChan         chan blockchain.Tx
-	BlockChan      chan blockchain.Block
+	txChan         chan *wire.MsgTx
+	BlockChan      chan *wire.MsgBlock
 }
 
 func NewNode(config *NodeConfig) *Node {
@@ -128,7 +126,6 @@ func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	invVects := msg.InvList
 	for i := len(invVects) - 1; i >= 0; i-- {
 		if invVects[i].Type == wire.InvTypeBlock {
-			fmt.Println("inv_block", p.Addr())
 			iv := invVects[i]
 			iv.Type = wire.InvTypeWitnessBlock
 			gdmsg := wire.NewMsgGetData()
@@ -148,23 +145,12 @@ func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	}
 }
 func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
-	msgBlock := msg
-	block := blockchain.Block{
-		Hash: msgBlock.BlockHash().String(),
-	}
-	for _, msgTx := range msgBlock.Transactions {
-		tx := blockchain.MsgTxToTx(msgTx)
-		block.Txs = append(block.Txs, &tx)
-	}
 	go func() {
-		node.BlockChan <- block
+		node.BlockChan <- msg
 	}()
-
-	log.Infof("block %s %s", block.Hash, p.Addr())
 }
 
 func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
-	msgTx := msg
 	//isWitness := msgTx.HasWitness()
 	// Update node rank
 	node.updateRank(p)
@@ -185,20 +171,18 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 		go node.queryDNSSeeds()
 	}
 
-	txHash := msgTx.TxHash().String()
-	if node.isTxReceived(txHash) {
+	txid := msg.TxHash().String()
+	if node.isTxReceived(txid) {
 		return
 	}
-	node.addTxReceived(txHash)
-
-	tx := blockchain.MsgTxToTx(msgTx)
+	node.addTxReceived(txid)
 
 	go func() {
-		node.txChan <- tx
+		node.txChan <- msg
 	}()
 
 	if len(olders) > 2 {
-		log.Debugf("%s  %s  top %d min %d rm %s and %s", tx.Txid, tx.WitnessID, top, min, olders[0], olders[1])
+		log.Debugf("%s top %d min %d rm %s and %s", txid, top, min, olders[0], olders[1])
 	}
 }
 

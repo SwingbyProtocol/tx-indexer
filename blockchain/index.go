@@ -1,20 +1,42 @@
 package blockchain
 
+import "sync"
+
 type Index struct {
 	ranks   map[string]int
-	storage map[string][]*Meta
+	mu      *sync.RWMutex
+	storage map[string]*Info
+}
+
+type Info struct {
+	txs map[string]bool
 }
 
 func NewIndex() *Index {
 	index := &Index{
-		ranks:   make(map[string]int),
-		storage: make(map[string][]*Meta),
+		mu:      new(sync.RWMutex),
+		storage: make(map[string]*Info),
 	}
 	return index
 }
 
-func (i *Index) AddTx(tx *Tx) {
+func (in *Index) UpdateTx(addr string, txid string, spent bool) {
+	in.mu.Lock()
+	if in.storage[addr] == nil {
+		in.storage[addr] = &Info{txs: make(map[string]bool)}
+	}
+	in.storage[addr].txs[txid] = spent
+	in.mu.Unlock()
+}
 
+func (in *Index) GetTxIDs(addr string, spent bool) []string {
+	txids := []string{}
+	for i, status := range in.storage[addr].txs {
+		if status == spent {
+			txids = append(txids, i)
+		}
+	}
+	return []string{}
 }
 
 /*

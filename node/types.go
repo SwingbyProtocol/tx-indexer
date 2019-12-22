@@ -1,8 +1,8 @@
 package node
 
 import (
-	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/wire"
 )
 
 type NodeConfig struct {
@@ -20,7 +20,7 @@ type NodeConfig struct {
 	// If this field is not nil the PeerManager will only connect to this address
 	TrustedPeer string
 	// Chan for Tx
-	TxChan chan blockchain.Tx
+	TxChan chan *wire.MsgTx
 	// Chan for Block
-	BlockChan chan blockchain.Block
+	BlockChan chan *wire.MsgBlock
 }

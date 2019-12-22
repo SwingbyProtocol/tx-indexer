@@ -15,6 +15,7 @@ require (
 	github.com/btcsuite/goleveldb v1.0.0
 	github.com/cevaris/ordered_map v0.0.0-20190319150403-3adeae072e73
 	github.com/google/martian v2.1.0+incompatible
+	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.1
 	github.com/jessevdk/go-flags v1.4.0 // indirect
 	github.com/kkdai/bstream v1.0.0 // indirect

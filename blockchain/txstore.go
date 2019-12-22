@@ -41,3 +41,19 @@ func (ts *TxStore) GetTx(txid string) (*Tx, error) {
 	}
 	return tx, nil
 }
+
+func (ts *TxStore) GetTxs(txids []string) ([]*Tx, error) {
+	txs := []*Tx{}
+	var result error
+	for _, txid := range txids {
+		tx, err := ts.GetTx(txid)
+		if err != nil {
+			result = err
+		}
+		txs = append(txs, tx)
+	}
+	if result != nil {
+		return nil, result
+	}
+	return txs, result
+}

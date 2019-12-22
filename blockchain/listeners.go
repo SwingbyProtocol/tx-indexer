@@ -1,13 +1,13 @@
 package blockchain
 
 import (
-	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
+	"net/http"
+
 	"github.com/ant0ine/go-json-rest/rest"
 	log "github.com/sirupsen/logrus"
-	"net/http"
 )
 
-func (bc *Blockchain) OnGetTxs(w rest.ResponseWriter, r *rest.Request) {
+func (bc *Blockchain) OnGetTx(w rest.ResponseWriter, r *rest.Request) {
 	// Get path params "txid"
 	txid := r.PathParam("txid")
 	tx, err := bc.txStore.GetTx(txid)
@@ -21,21 +21,19 @@ func (bc *Blockchain) OnGetTxs(w rest.ResponseWriter, r *rest.Request) {
 
 func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) {
 	// Get path params "txid"
-	txid := r.PathParam("txid")
+	addr := r.PathParam("address")
 	// Get query "type"
 	spentFlag := r.FormValue("type")
 	// Get qeury "page"
 	pageFlag := r.FormValue("page")
 	// Get query "sort"
-
+	txids, err := bc.GetIndexTxs(addr, 1, false)
+	if err != nil {
+		log.Info(err)
+	}
 	log.Info(spentFlag, pageFlag)
 	w.WriteHeader(http.StatusOK)
-	w.WriteJson(txid)
-}
-
-func (bc *Blockchain) OnGetTxsWS(c *pubsub.Client) {
-	test := []string{"sss"}
-	c.SendJSON(test)
+	w.WriteJson(txids)
 }
 
 func res500(msg error, w rest.ResponseWriter) {

@@ -2,19 +2,19 @@ package api
 
 import (
 	"encoding/json"
-	"net/http"
-	"time"
-
 	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
 	"github.com/SwingbyProtocol/tx-indexer/blockchain"
-	uuid "github.com/satori/go.uuid"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"net/http"
+	"time"
 )
 
 const (
 	WATCHTXS   = "watchTxs"
 	UNWATCHTXS = "unwatchTxs"
 	GETTXS     = "getTxs"
+	GETTX      = "getTx"
 )
 
 type Websocket struct {
@@ -23,20 +23,24 @@ type Websocket struct {
 	listeners *Listeners
 }
 
-type MsgReqest struct {
-	Action        string `json:"action"`
+type MsgWsReqest struct {
+	Action string  `json:"action"`
+	Params *Params `json:"params"`
+}
+
+type Params struct {
 	Address       string `json:"address"`
+	Txid          string `json:"txid"`
 	Type          string `json:"type"`
 	TimestampFrom int64  `json:"timestamp_from"`
 	TimestampTo   int64  `json:"timestamp_to"`
 }
 
-type MsgResponse struct {
-	Action  string           `json:"action"`
-	Address string           `json:"address"`
-	Result  bool             `json:"result"`
-	Message string           `json:"message"`
-	Txs     []*blockchain.Tx `json:"txs"`
+type MsgWsResponse struct {
+	Action  string      `json:"action"`
+	Result  bool        `json:"result"`
+	Message string      `json:"message"`
+	Txs     interface{} `json:"txs"`
 }
 
 func NewWebsocket(conf *APIConfig) *Websocket {
@@ -49,12 +53,6 @@ func NewWebsocket(conf *APIConfig) *Websocket {
 }
 
 func (ws *Websocket) Start() {
-
-	if ws.listeners.OnGetTxsWS == nil {
-		ws.listeners.OnGetTxsWS = func(c *pubsub.Client) {
-			// Default handler
-		}
-	}
 	go func() {
 		http.HandleFunc("/ws", ws.onhandler)
 		err := http.ListenAndServe(ws.listen, nil)
@@ -78,12 +76,13 @@ func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := ws.pubsub.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Info("upgrade:", err)
+		conn.Close()
 		return
 	}
-	defer conn.Close()
+
 	// Create a pubsub client
 	client := pubsub.Client{
-		ID:         uuid.Must(uuid.NewV4(), nil).String(),
+		ID:         uuid.Must(uuid.NewRandom()).String(),
 		Connection: conn,
 		Mu:         &ws.pubsub.Mu,
 	}
@@ -119,11 +118,15 @@ func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func (ws *Websocket) GetPubsub() *pubsub.PubSub {
+	return ws.pubsub
+}
+
 func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
-	req := MsgReqest{}
+	req := MsgWsReqest{}
 	err := json.Unmarshal(msg, &req)
 	if err != nil {
-		errMsg := MsgResponse{
+		errMsg := MsgWsResponse{
 			Action:  "",
 			Result:  false,
 			Message: err.Error(),
@@ -134,33 +137,37 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 
 	switch req.Action {
 	case WATCHTXS:
-		ws.pubsub.Subscribe(c, req.Address)
-		log.Infof("new subscriber to Address: -> %s %d %s", req.Action, len(ws.pubsub.Subscriptions[c.ID]), c.ID)
+		ws.listeners.OnWatchTxWS(c, &req)
 
 	case UNWATCHTXS:
-		if req.Address == "" {
-			errMsg := MsgResponse{
-				Action:  "",
-				Result:  false,
-				Message: "success",
-				Txs:     []*blockchain.Tx{},
-			}
-			c.SendJSON(errMsg)
-			break
-		}
-		log.Infof("Client want to unsubscribe the Address: -> %s %s", req.Address, c.ID)
-		ws.pubsub.Unsubscribe(c, req.Address)
-		res := MsgResponse{
-			Action:  req.Action,
-			Result:  true,
-			Message: "Success",
-			Txs:     []*blockchain.Tx{},
-		}
-		c.SendJSON(res)
+		ws.listeners.OnUnWatchTxWS(c, &req)
+
+	case GETTX:
+		ws.listeners.OnGetTxWS(c, &req)
 
 	case GETTXS:
-		ws.listeners.OnGetTxsWS(c)
+		ws.listeners.OnGetTxsWS(c, &req)
 	}
+}
+
+func CreateMsgSuccessWS(action string, message string, data interface{}) MsgWsResponse {
+	msg := MsgWsResponse{
+		Action:  action,
+		Result:  true,
+		Message: message,
+		Txs:     data,
+	}
+	return msg
+}
+
+func CreateMsgErrorWS(action string, errMsg string) MsgWsResponse {
+	msg := MsgWsResponse{
+		Action:  action,
+		Result:  false,
+		Message: errMsg,
+		Txs:     []string{},
+	}
+	return msg
 }
 
 /*
