@@ -1,9 +1,5 @@
 package blockchain
 
-import (
-	"github.com/SwingbyProtocol/tx-indexer/common"
-)
-
 type Tx struct {
 	Txid         string  `json:"txid"`
 	WitnessID    string  `json:"hash"`
@@ -17,20 +13,6 @@ type Tx struct {
 	Vin          []*Vin  `json:"vin"`
 	Vout         []*Vout `json:"vout"`
 	//Hex      string  `json:"hex"`
-}
-
-type Vin struct {
-	Txid     string `json:"txid"`
-	Vout     uint32 `json:"vout"`
-	Sequence uint32 `json:"sequence"`
-}
-
-type Vout struct {
-	Value        interface{}              `json:"value"`
-	Spent        bool                     `json:"spent"`
-	Txs          []string                 `json:"txs"`
-	N            int                      `json:"n"`
-	Scriptpubkey *common.ScriptPubkeyInfo `json:"scriptPubkey"`
 }
 
 func (tx *Tx) GetTxID() string {

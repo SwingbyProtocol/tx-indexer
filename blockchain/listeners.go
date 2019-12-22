@@ -6,11 +6,6 @@ import (
 	"net/http"
 )
 
-type ErrorResponse struct {
-	Status  bool   `json:"status"`
-	Message string `json:"string"`
-}
-
 func (bc *Blockchain) OnGetTxs(w rest.ResponseWriter, r *rest.Request) {
 	// Get path params "txid"
 	txid := r.PathParam("txid")

@@ -5,15 +5,6 @@ type Index struct {
 	storage map[string][]*Meta
 }
 
-type Meta struct {
-	Txid string
-	Time int64
-	Vout []*Link
-}
-
-type Link struct {
-}
-
 func NewIndex() *Index {
 	index := &Index{
 		ranks:   make(map[string]int),

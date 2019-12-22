@@ -45,12 +45,12 @@ func main() {
 		Listeners:  &api.Listeners{},
 	}
 	// Create api server
-	server := api.NewAPI(apiConfig)
+	apiServer := api.NewAPI(apiConfig)
 
-	li := apiConfig.Listeners
-	li.OnGetTxs = blockchain.OnGetTxs
+	listeners := apiConfig.Listeners
+	listeners.OnGetTxs = blockchain.OnGetTxs
 
-	server.Start()
+	apiServer.Start()
 
 	select {}
 

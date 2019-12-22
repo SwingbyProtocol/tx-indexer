@@ -56,6 +56,7 @@ func (ra *RESTApi) Start() {
 			log.Fatal(err)
 		}
 	}()
+	log.Infof("REST api listen: %s", ra.listen)
 }
 
 func (ra *RESTApi) OnKeep(w rest.ResponseWriter, r *rest.Request) {

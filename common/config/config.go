@@ -60,8 +60,9 @@ func init() {
 			s := strings.Split(f.Function, ".")
 			funcname := s[len(s)-1]
 			_, filename := path.Split(f.File)
-			padded := fmt.Sprintf("%-17v", funcname+"()")
-			return padded, filename
+			paddedFuncname := fmt.Sprintf("%-17v", funcname+"()")
+			paddedFilename := fmt.Sprintf("%10v", filename)
+			return paddedFuncname, paddedFilename
 		},
 	})
 }

@@ -1,7 +1,6 @@
 package node
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -10,8 +9,6 @@ import (
 
 	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/SwingbyProtocol/tx-indexer/common"
-	"github.com/SwingbyProtocol/tx-indexer/common/config"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
@@ -25,29 +22,10 @@ var (
 	DefaultNodeRankSize = uint64(300)
 )
 
-type NodeConfig struct {
-	// The network parameters to use
-	Params *chaincfg.Params
-	// The target number of outbound peers. Defaults to 10.
-	TargetOutbound uint32
-	// UserAgentName specifies the user agent name to advertise.  It is
-	// highly recommended to specify this value.
-	UserAgentName string
-	// UserAgentVersion specifies the user agent version to advertise.  It
-	// is highly recommended to specify this value and that it follows the
-	// form "major.minor.revision" e.g. "2.6.41".
-	UserAgentVersion string
-	// If this field is not nil the PeerManager will only connect to this address
-	TrustedPeer string
-	// Chan for Tx
-	TxChan chan blockchain.Tx
-	// Chan for Block
-	BlockChan chan blockchain.Block
-}
-
 type Node struct {
 	peerConfig     *peer.Config
 	mu             *sync.RWMutex
+	received       map[string]bool
 	targetOutbound uint32
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
@@ -60,11 +38,13 @@ func NewNode(config *NodeConfig) *Node {
 
 	node := &Node{
 		mu:             new(sync.RWMutex),
+		received:       make(map[string]bool),
 		targetOutbound: config.TargetOutbound,
 		connectedRanks: make(map[string]uint64),
 		connectedPeers: make(map[string]*peer.Peer),
 		trustedPeer:    config.TrustedPeer,
 		txChan:         config.TxChan,
+		BlockChan:      config.BlockChan,
 	}
 
 	listeners := &peer.MessageListeners{}
@@ -131,7 +111,7 @@ func (node *Node) OnVerack(p *peer.Peer, msg *wire.MsgVerAck) {
 	if !(isSupportBloom && isSegwit) { // Don't connect to bitcoin cash nodes
 		// onDisconnection will be called
 		// which will remove the peer from openPeers
-		log.Debug("Peer %s does not support bloom filtering, diconnecting", p)
+		log.Debugf("Peer %s does not support bloom filtering, diconnecting", p)
 		p.Disconnect()
 		return
 	}
@@ -168,67 +148,28 @@ func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	}
 }
 func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
-	block := msg
-	txs := []*blockchain.Tx{}
-	for _, tx := range block.Transactions {
-		_, err := json.Marshal(tx)
-		if err != nil {
-			log.Info(err)
-		}
-		t := blockchain.Tx{}
-		txs = append(txs, &t)
+	msgBlock := msg
+	block := blockchain.Block{
+		Hash: msgBlock.BlockHash().String(),
+	}
+	for _, msgTx := range msgBlock.Transactions {
+		tx := blockchain.MsgTxToTx(msgTx)
+		block.Txs = append(block.Txs, &tx)
 	}
 	go func() {
-		node.BlockChan <- blockchain.Block{Hash: block.BlockHash().String()}
+		node.BlockChan <- block
 	}()
 
-	log.Info(block.BlockHash().String())
+	log.Infof("block %s %s", block.Hash, p.Addr())
 }
 
 func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 	msgTx := msg
 	//isWitness := msgTx.HasWitness()
-	tx := blockchain.Tx{
-		Txid:      msgTx.TxHash().String(),
-		WitnessID: msgTx.WitnessHash().String(),
-		Version:   msgTx.Version,
-		Locktime:  msgTx.LockTime,
-		Weight:    common.GetTransactionWeight(msgTx),
-	}
-
-	for _, txin := range msgTx.TxIn {
-		newVin := &blockchain.Vin{
-			Txid:     txin.PreviousOutPoint.Hash.String(),
-			Vout:     txin.PreviousOutPoint.Index,
-			Sequence: txin.Sequence,
-		}
-		tx.Vin = append(tx.Vin, newVin)
-	}
-
-	for i, txout := range msgTx.TxOut {
-		// Ignore the error here because the sender could have used and exotic script
-		// for his change and we don't want to fail in that case.
-		spi, _ := common.ScriptToPubkeyInfo(txout.PkScript, &config.Set.P2PConfig.Params)
-		newVout := &blockchain.Vout{
-			Value:        txout.Value,
-			Spent:        false,
-			Txs:          []string{},
-			N:            i,
-			Scriptpubkey: &spi,
-		}
-		tx.Vout = append(tx.Vout, newVout)
-	}
-
-	go func() {
-		node.txChan <- tx
-	}()
-
-	log.Debugf("%s  %s  ", tx.Txid, tx.WitnessID)
-
 	// Update node rank
 	node.updateRank(p)
 	// Get now ranks counts
-	top, _, _, olders := node.GetRank()
+	top, min, _, olders := node.GetRank()
 	if top >= DefaultNodeRankSize {
 		node.resetConnectedRank()
 		// Remove end peers
@@ -243,6 +184,35 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 		// Finding new peer
 		go node.queryDNSSeeds()
 	}
+
+	txHash := msgTx.TxHash().String()
+	if node.isTxReceived(txHash) {
+		return
+	}
+	node.addTxReceived(txHash)
+
+	tx := blockchain.MsgTxToTx(msgTx)
+
+	go func() {
+		node.txChan <- tx
+	}()
+
+	if len(olders) > 2 {
+		log.Debugf("%s  %s  top %d min %d rm %s and %s", tx.Txid, tx.WitnessID, top, min, olders[0], olders[1])
+	}
+}
+
+func (node *Node) addTxReceived(txHash string) {
+	node.mu.Lock()
+	node.received[txHash] = true
+	node.mu.Unlock()
+}
+
+func (node *Node) isTxReceived(txHash string) bool {
+	node.mu.RLock()
+	bool := node.received[txHash]
+	node.mu.RUnlock()
+	return bool
 }
 
 func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
@@ -276,7 +246,7 @@ func (node *Node) AddPeer(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	log.Info("------- node count ", conns)
+	log.Infof("------- node count %d %s", conns, conn.RemoteAddr().String())
 	addr := conn.RemoteAddr().String()
 	if node.GetConnectedPeer(addr) != nil {
 		log.Debugf("peer is already joined %s", addr)
@@ -307,7 +277,7 @@ func (node *Node) onDisconneted(p *peer.Peer, conn net.Conn) {
 	node.mu.Lock()
 	delete(node.connectedPeers, conn.RemoteAddr().String())
 	node.mu.Unlock()
-	log.Debugf("Peer %s disconnected", p)
+	log.Infof("Peer %s disconnected", p)
 }
 
 // Query the DNS seeds and pass the addresses into the address manager.

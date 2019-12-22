@@ -2,7 +2,7 @@ package api
 
 import (
 	"github.com/SwingbyProtocol/tx-indexer/pubsub"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 )
 
@@ -41,6 +41,7 @@ func (ws *Websocket) Start() {
 			log.Fatal(err)
 		}
 	}()
+	log.Infof("WS api listen: %s", ws.listen)
 }
 
 /*

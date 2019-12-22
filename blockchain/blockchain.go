@@ -1,8 +1,9 @@
 package blockchain
 
 import (
-	"github.com/SwingbyProtocol/tx-indexer/common"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Blockchain struct {
@@ -15,11 +16,6 @@ type Blockchain struct {
 	Nextblockcount int64
 	blockChan      chan Block
 	txChan         chan Tx
-}
-
-type BlockchainConfig struct {
-	// TrustedREST is ip addr for connect to rest api
-	TrustedREST string
 }
 
 func NewBlockchain(conf *BlockchainConfig) *Blockchain {
@@ -42,6 +38,14 @@ func (b *Blockchain) Start() {
 			b.index.AddTx(&tx)
 		}
 	}()
+
+	go func() {
+		for {
+			block := <-b.blockChan
+			// add tx
+			log.Info(block)
+		}
+	}()
 }
 
 func (b *Blockchain) TxChan() chan Tx {
@@ -60,7 +64,7 @@ func (b *Blockchain) doLoadNewBlocks(t time.Duration) {
 }
 
 func (b *Blockchain) LoadNewBlocks() error {
-	info := common.ChainInfo{}
+	info := ChainInfo{}
 	err := b.resolver.GetRequest("/rest/chaininfo.json", &info)
 	if err != nil {
 		return err

@@ -1,9 +1,10 @@
-package common
+package blockchain
 
 import (
 	"encoding/hex"
 	"errors"
 
+	"github.com/SwingbyProtocol/tx-indexer/common/config"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -39,4 +40,39 @@ func GetTransactionWeight(msgTx *wire.MsgTx) int64 {
 	totalSize := msgTx.SerializeSize()
 	// (baseSize * 3) + totalSize
 	return int64((baseSize * (WitnessScaleFactor - 1)) + totalSize)
+}
+
+func MsgTxToTx(msgTx *wire.MsgTx) Tx {
+
+	tx := Tx{
+		Txid:      msgTx.TxHash().String(),
+		WitnessID: msgTx.WitnessHash().String(),
+		Version:   msgTx.Version,
+		Locktime:  msgTx.LockTime,
+		Weight:    GetTransactionWeight(msgTx),
+	}
+
+	for _, txin := range msgTx.TxIn {
+		newVin := &Vin{
+			Txid:     txin.PreviousOutPoint.Hash.String(),
+			Vout:     txin.PreviousOutPoint.Index,
+			Sequence: txin.Sequence,
+		}
+		tx.Vin = append(tx.Vin, newVin)
+	}
+
+	for i, txout := range msgTx.TxOut {
+		// Ignore the error here because the sender could have used and exotic script
+		// for his change and we don't want to fail in that case.
+		spi, _ := ScriptToPubkeyInfo(txout.PkScript, &config.Set.P2PConfig.Params)
+		newVout := &Vout{
+			Value:        txout.Value,
+			Spent:        false,
+			Txs:          []string{},
+			N:            i,
+			Scriptpubkey: &spi,
+		}
+		tx.Vout = append(tx.Vout, newVout)
+	}
+	return tx
 }
