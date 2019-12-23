@@ -87,6 +87,5 @@ func MsgBlockToBlock(msgBlock *wire.MsgBlock) Block {
 		tx := MsgTxToTx(msgTx)
 		block.Txs = append(block.Txs, &tx)
 	}
-
 	return block
 }

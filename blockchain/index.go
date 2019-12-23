@@ -1,42 +1,75 @@
 package blockchain
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
 type Index struct {
-	ranks   map[string]int
-	mu      *sync.RWMutex
-	storage map[string]*Info
+	ranks map[string]int
+	mu    *sync.RWMutex
+	kv    map[string]*Store
 }
 
-type Info struct {
+type Store struct {
 	txs map[string]bool
+}
+
+type Rank struct {
+	addr  string
+	count int
 }
 
 func NewIndex() *Index {
 	index := &Index{
-		mu:      new(sync.RWMutex),
-		storage: make(map[string]*Info),
+		mu: new(sync.RWMutex),
+		kv: make(map[string]*Store),
 	}
 	return index
 }
 
 func (in *Index) UpdateTx(addr string, txid string, spent bool) {
 	in.mu.Lock()
-	if in.storage[addr] == nil {
-		in.storage[addr] = &Info{txs: make(map[string]bool)}
+	if in.kv[addr] == nil {
+		in.kv[addr] = &Store{txs: make(map[string]bool)}
 	}
-	in.storage[addr].txs[txid] = spent
+	in.kv[addr].txs[txid] = spent
 	in.mu.Unlock()
+}
+
+func (in *Index) DeleteTx(addr string, txid string) error {
+	in.mu.Lock()
+	if in.kv[addr] == nil {
+		return errors.New("tx is not exit")
+	}
+	delete(in.kv[addr].txs, txid)
+	in.mu.Unlock()
+	return nil
 }
 
 func (in *Index) GetTxIDs(addr string, spent bool) []string {
 	txids := []string{}
-	for i, status := range in.storage[addr].txs {
+	if in.kv[addr] == nil {
+		return txids
+	}
+	for i, status := range in.kv[addr].txs {
 		if status == spent {
 			txids = append(txids, i)
 		}
 	}
-	return []string{}
+	return txids
+}
+
+func insertionSort(obj []*Rank) {
+	for j := 1; j < len(obj); j++ {
+		key := obj[j]
+		i := j - 1
+		for i >= 0 && obj[i].count > key.count {
+			obj[i+1] = obj[i]
+			i = i - 1
+		}
+		obj[i+1] = key
+	}
 }
 
 /*

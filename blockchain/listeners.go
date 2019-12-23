@@ -25,13 +25,16 @@ func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) 
 	// Get query "type"
 	spentFlag := r.FormValue("type")
 	// Get qeury "page"
-	pageFlag := r.FormValue("page")
+	_ = r.FormValue("page")
 	// Get query "sort"
-	txids, err := bc.GetIndexTxs(addr, 1, false)
+	isSpent := false
+	if spentFlag == "send" {
+		isSpent = true
+	}
+	txids, err := bc.GetIndexTxs(addr, 0, isSpent)
 	if err != nil {
 		log.Info(err)
 	}
-	log.Info(spentFlag, pageFlag)
 	w.WriteHeader(http.StatusOK)
 	w.WriteJson(txids)
 }

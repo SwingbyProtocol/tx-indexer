@@ -2,29 +2,35 @@ package blockchain
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
 )
 
 type Blockchain struct {
-	resolver   *Resolver
-	index      map[int64]*Index
-	txStore    *TxStore
-	nowHeight  int64
-	txChan     chan *wire.MsgTx
-	blockChan  chan *wire.MsgBlock
-	pushTxChan chan *Tx
+	mu       *sync.RWMutex
+	resolver *Resolver
+	// index is stored per block
+	index       map[int64]*Index
+	txStore     *TxStore
+	targetPrune int
+	nowHeight   int64
+	txChan      chan *wire.MsgTx
+	blockChan   chan *wire.MsgBlock
+	pushTxChan  chan *Tx
 }
 
 func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	bc := &Blockchain{
-		resolver:   NewResolver(conf.TrustedNode),
-		index:      make(map[int64]*Index),
-		txStore:    NewTxStore(),
-		txChan:     make(chan *wire.MsgTx),
-		blockChan:  make(chan *wire.MsgBlock),
-		pushTxChan: make(chan *Tx),
+		mu:          new(sync.RWMutex),
+		resolver:    NewResolver(conf.TrustedNode),
+		index:       make(map[int64]*Index),
+		txStore:     NewTxStore(),
+		targetPrune: conf.PruneSize,
+		txChan:      make(chan *wire.MsgTx),
+		blockChan:   make(chan *wire.MsgBlock),
+		pushTxChan:  make(chan *Tx),
 	}
 	log.Info("Using trusted node ", conf.TrustedNode)
 	block, err := bc.GetRemoteBlock()
@@ -40,24 +46,32 @@ func (b *Blockchain) Start() {
 		for {
 			msg := <-b.txChan
 			tx := MsgTxToTx(msg)
-			// Check the input to remark spent tx
+			// Check tx input to update indexer storage
 			for _, in := range tx.Vin {
+				// Load a tx from storage
 				inTx, err := b.txStore.GetTx(in.Txid)
 				if err != nil {
+					// continue if spent tx is not exist
 					//log.Debug(err)
 					continue
 				}
 				targetOutput := inTx.Vout[in.Vout]
+				targetOutput.Spent = true
 				targetOutput.Txs = append(targetOutput.Txs, tx.Txid)
 				// check the sender of tx
 				addrs := inTx.GetOutsAddrs()
 				for _, addr := range addrs {
+					// Update index and the spent tx (spent)
 					b.index[b.nowHeight].UpdateTx(addr, inTx.Txid, true)
 				}
+				// Delete tx that all consumed output
+				b.txStore.DeleteAllSpentTx(inTx)
+
 			}
-			// Check the outputs to remark spent tx
+			// Check tx output to update indexer storage
 			addrs := tx.GetOutsAddrs()
 			for _, addr := range addrs {
+				// Update index and the spent tx (unspent)
 				b.index[b.nowHeight].UpdateTx(addr, tx.Txid, false)
 			}
 
@@ -75,19 +89,29 @@ func (b *Blockchain) Start() {
 			block := MsgBlockToBlock(msg)
 			log.Info(block.Hash)
 			b.AddBlock(&block)
+			b.DeleteOldIndex()
 		}
 	}()
 }
 
-func (b *Blockchain) GetIndexTxs(addr string, times int, spent bool) ([]*Tx, error) {
-	if len(b.index) < times {
+func (b *Blockchain) GetIndexTxs(addr string, depth int, spent bool) ([]*Tx, error) {
+	if len(b.index) < depth {
 		return nil, errors.New("Getindextxs error")
 	}
-	for i := b.nowHeight; i > b.nowHeight-int64(times); i-- {
-		txids := b.index[i].GetTxIDs(addr, spent)
-		log.Info(txids)
+	if depth == 0 {
+		// Set max depth if depth is zero
+		depth = len(b.index)
 	}
-	return nil, nil
+	res := []*Tx{}
+	for i := b.nowHeight; i > b.nowHeight-int64(depth); i-- {
+		txids := b.index[i].GetTxIDs(addr, spent)
+		txs, _ := b.txStore.GetTxs(txids)
+		for _, tx := range txs {
+			res = append(res, tx)
+		}
+		log.Info("count ", len(b.index), " block ", i)
+	}
+	return res, nil
 }
 
 func (b *Blockchain) AddBlock(block *Block) {
@@ -96,6 +120,16 @@ func (b *Blockchain) AddBlock(block *Block) {
 	}
 	b.index[block.Height] = NewIndex()
 	b.nowHeight = block.Height
+}
+
+func (b *Blockchain) DeleteOldIndex() {
+	if len(b.index) > b.targetPrune {
+		// Remove index if prune block is come
+		b.mu.Lock()
+		delete(b.index, b.nowHeight-int64(b.targetPrune))
+		b.mu.Unlock()
+		log.Info("delete index ", b.nowHeight-int64(b.targetPrune))
+	}
 }
 
 func (b *Blockchain) GetRemoteBlock() (*Block, error) {

@@ -3,6 +3,8 @@ package blockchain
 type BlockchainConfig struct {
 	// TrustedNode is ip addr for connect to rest api
 	TrustedNode string
+
+	PruneSize int
 }
 
 type ChainInfo struct {

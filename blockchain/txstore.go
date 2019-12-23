@@ -29,6 +29,22 @@ func (ts *TxStore) AddTx(tx *Tx) error {
 	return nil
 }
 
+func (ts *TxStore) DeleteAllSpentTx(tx *Tx) error {
+	allspent := true
+	for _, vout := range tx.Vout {
+		if !vout.Spent {
+			allspent = false
+		}
+	}
+	if allspent {
+		ts.mu.Lock()
+		delete(ts.txs, tx.GetTxID())
+		ts.mu.Unlock()
+		return nil
+	}
+	return errors.New("remove error")
+}
+
 func (ts *TxStore) GetTx(txid string) (*Tx, error) {
 	if txid == "" {
 		return nil, errors.New("id is null")
