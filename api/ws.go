@@ -32,6 +32,8 @@ type Params struct {
 	Address       string `json:"address"`
 	Txid          string `json:"txid"`
 	Type          string `json:"type"`
+	HeightFrom    int64  `json:"height_from"`
+	HeightTo      int64  `json:"Height_to"`
 	TimestampFrom int64  `json:"timestamp_from"`
 	TimestampTo   int64  `json:"timestamp_to"`
 }
