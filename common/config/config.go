@@ -71,7 +71,7 @@ func init() {
 
 func init() {
 	pflag.Bool("node.testnet", false, "Using testnet")
-	pflag.Int("node.prune", 12, "Proune block size of this app")
+	pflag.IntP("node.prune", "s", 12, "Proune block size of this app")
 	pflag.String("node.loglevel", "info", "The loglevel")
 }
 
