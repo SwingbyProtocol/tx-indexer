@@ -1,12 +1,10 @@
 package api
 
 import (
-
-
+	"encoding/json"
 	"net/http"
 	"time"
 
-		"encoding/json"
 	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
 	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/google/uuid"
@@ -21,9 +19,10 @@ const (
 )
 
 type Websocket struct {
-	pubsub    *pubsub.PubSub
-	listen    string
-	listeners *Listeners
+	pubsub      *pubsub.PubSub
+	listen      string
+	listeners   *Listeners
+	pushMsgChan chan *blockchain.PushMsg
 }
 
 type MsgWsReqest struct {
@@ -36,7 +35,7 @@ type Params struct {
 	Txid          string `json:"txid"`
 	Type          string `json:"type"`
 	HeightFrom    int64  `json:"height_from"`
-	HeightTo      int64  `json:"Height_to"`
+	HeightTo      int64  `json:"height_to"`
 	TimestampFrom int64  `json:"timestamp_from"`
 	TimestampTo   int64  `json:"timestamp_to"`
 }
@@ -50,9 +49,10 @@ type MsgWsResponse struct {
 
 func NewWebsocket(conf *APIConfig) *Websocket {
 	ws := &Websocket{
-		pubsub:    pubsub.NewPubSub(),
-		listen:    conf.WSListen,
-		listeners: conf.Listeners,
+		pubsub:      pubsub.NewPubSub(),
+		listen:      conf.WSListen,
+		listeners:   conf.Listeners,
+		pushMsgChan: conf.PushMsgChan,
 	}
 	return ws
 }
@@ -66,6 +66,16 @@ func (ws *Websocket) Start() {
 		}
 	}()
 	log.Infof("WS api listen: %s", ws.listen)
+	ws.handlePushTxWS()
+}
+
+func (ws *Websocket) handlePushTxWS() {
+	go func() {
+		for {
+			msg := <-ws.pushMsgChan
+			ws.listeners.Publish(ws.pubsub, msg)
+		}
+	}()
 }
 
 func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
@@ -103,10 +113,15 @@ func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
 		// Call onAction
 		ws.onAction(c, msg)
 		return nil
+	}, func(c *pubsub.Client) {
+		// Remove client when ws is closed
+		ws.onRemoved(c)
 	})
 	// Register pubsub client to pubsub manager
 	ws.pubsub.AddClient(client)
-
+	// Send Hello msg
+	client.SendJSON(CreateMsgSuccessWS("", "Websocket connection is succesful", []string{}))
+	// Pubsub client
 	log.Info("New Client is connected, total: ", len(ws.pubsub.Clients))
 
 	ticker := time.NewTicker(24 * time.Second)
@@ -120,7 +135,6 @@ func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
-
 }
 
 func (ws *Websocket) GetPubsub() *pubsub.PubSub {
@@ -131,13 +145,8 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 	req := MsgWsReqest{}
 	err := json.Unmarshal(msg, &req)
 	if err != nil {
-		errMsg := MsgWsResponse{
-			Action:  "",
-			Result:  false,
-			Message: err.Error(),
-			Txs:     []*blockchain.Tx{},
-		}
-		c.SendJSON(errMsg)
+		c.SendJSON(CreateMsgErrorWS("", err.Error()))
+		return
 	}
 
 	switch req.Action {
@@ -153,6 +162,11 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 	case GETTXS:
 		ws.listeners.OnGetTxsWS(c, &req)
 	}
+}
+
+func (ws *Websocket) onRemoved(c *pubsub.Client) {
+	ws.pubsub.RemoveClient(c)
+	log.Infof("Client removed %s", c.ID)
 }
 
 func CreateMsgSuccessWS(action string, message string, data interface{}) MsgWsResponse {

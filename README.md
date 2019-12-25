@@ -1,8 +1,13 @@
-# tx-indexer
+# Tx-indexer
+The Tx indexer is a memory cache for Bitcoin's pending TX getting via a P2P network. this is suitable to be placed before applications that require real-time processing. The prune function keeps data up to the last few blocks. A subsequent block txs is excluded from the index.
 
 ## Usage
 ```
-go run ./cmd/tx-indexer --node.prune 12
+$ go run ./cmd/tx-indexer --node.prune 12
+```
+or 
+```
+$ make run
 ```
 ## Configs
 ```
@@ -11,49 +16,24 @@ go run ./cmd/tx-indexer --node.prune 12
       --node.testnet           Using testnet
       --p2p.connect string     The address to connect p2p
       --p2p.targetSize int     The maximum node count for connect p2p (default 25)
-  -c, --rest.connect string    The address to connect rest (default "http://192.168.1.230:8332")
+  -c, --rest.connect string    The address for connect rest (default "http://192.168.1.230:8332")
   -l, --rest.listen string     The listen address for REST API (default "0.0.0.0:9096")
   -w, --ws.listen string       The listen address for Websocket API (default "0.0.0.0:9099")
 ```
-
+## Build 
+```
+$ make build
+```
 ## API reffecrence
-### Watch new txs of index address
-```
-{"action":"watchTxs","address":"1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"}
 
-response:
-{"action":"watchTxs","message":"Success"}
->>>
-{"action":"watchTxs","address":"1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ","tx":<*Tx>}
-```
-### unwatch of index address
-```
-{"action":"unwatchTxs","address":"1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"}
-
-response:
-{"action":"unwatchTxs","message":"Success"}
-```
-### get txs of index address
-- params
-  - action `string` (*required)
-  - address `string` (*required)
-  - type `string` only support type text `send`
-  - timestamp_from `int64` time window start with linux timestamp
-  - timestamp_to   `int64` time window end with linux timestamp
-
-```
-{"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","type":"send","timestamp_from": 1573394833, "timestamp_to":1573394878}
-
-// if you want to get txs which timestamp between 1573394833 and latest
-{"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","type":"send","timestamp_from": 1573394833}
-
-response:
-{"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","txs":<[]*Tx>}
-```
+- For REST api
+- For Websocket 
 
 ### Docker
-
-### bitcoind with prune mode
+```
+$ make docker
+```
+### Scripts
 ```
 ## bitcoind-node with prune mode
 mainnet

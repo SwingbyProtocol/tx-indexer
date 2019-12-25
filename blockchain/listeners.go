@@ -32,9 +32,9 @@ func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) 
 	// Get qeury "page"
 	_ = r.FormValue("page")
 	// Get query "sort"
-	isSpent := false
+	isSpent := Received
 	if spentFlag == "send" {
-		isSpent = true
+		isSpent = Send
 	}
 	txids, err := bc.GetIndexTxs(addr, 0, isSpent)
 	if err != nil {

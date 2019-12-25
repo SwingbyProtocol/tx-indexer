@@ -5,19 +5,19 @@ import (
 	"sync"
 )
 
+const (
+	Received = iota
+	Send
+	Both
+)
+
 type Index struct {
-	ranks map[string]int
-	mu    *sync.RWMutex
-	kv    map[string]*Store
+	mu *sync.RWMutex
+	kv map[string]*Store
 }
 
 type Store struct {
-	txs map[string]bool
-}
-
-type Rank struct {
-	addr  string
-	count int
+	txs map[string]int
 }
 
 func NewIndex() *Index {
@@ -28,16 +28,20 @@ func NewIndex() *Index {
 	return index
 }
 
-func (in *Index) UpdateTx(addr string, txid string, spent bool) {
+func (in *Index) Update(addr string, txid string, state int) {
 	in.mu.Lock()
 	if in.kv[addr] == nil {
-		in.kv[addr] = &Store{txs: make(map[string]bool)}
+		in.kv[addr] = &Store{txs: make(map[string]int)}
 	}
-	in.kv[addr].txs[txid] = spent
+	if in.kv[addr].txs[txid] == Send && state == Received {
+		in.kv[addr].txs[txid] = Both
+	} else {
+		in.kv[addr].txs[txid] = state
+	}
 	in.mu.Unlock()
 }
 
-func (in *Index) DeleteTx(addr string, txid string) error {
+func (in *Index) Delete(addr string, txid string) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 	if in.kv[addr] == nil {
@@ -47,27 +51,15 @@ func (in *Index) DeleteTx(addr string, txid string) error {
 	return nil
 }
 
-func (in *Index) GetTxIDs(addr string, spent bool) []string {
+func (in *Index) GetTxIDs(addr string, state int) []string {
 	txids := []string{}
 	if in.kv[addr] == nil {
 		return txids
 	}
 	for i, status := range in.kv[addr].txs {
-		if status == spent {
+		if status == state || status == Both {
 			txids = append(txids, i)
 		}
 	}
 	return txids
-}
-
-func insertionSort(obj []*Rank) {
-	for j := 1; j < len(obj); j++ {
-		key := obj[j]
-		i := j - 1
-		for i >= 0 && obj[i].count > key.count {
-			obj[i+1] = obj[i]
-			i = i - 1
-		}
-		obj[i+1] = key
-	}
 }

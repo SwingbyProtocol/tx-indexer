@@ -16,6 +16,12 @@ type ChainInfo struct {
 	Bestblockhash string `json:"bestblockhash"`
 }
 
+type PushMsg struct {
+	Tx    *Tx
+	Addr  string
+	State int
+}
+
 type BlockchainConfig struct {
 	// TrustedNode is ip addr for connect to rest api
 	TrustedNode string
@@ -33,7 +39,7 @@ type Blockchain struct {
 	nowHeight   int64
 	txChan      chan *wire.MsgTx
 	blockChan   chan *wire.MsgBlock
-	pushTxChan  chan *Tx
+	pushMsgChan chan *PushMsg
 }
 
 func NewBlockchain(conf *BlockchainConfig) *Blockchain {
@@ -45,7 +51,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		targetPrune: conf.PruneSize,
 		txChan:      make(chan *wire.MsgTx),
 		blockChan:   make(chan *wire.MsgBlock),
-		pushTxChan:  make(chan *Tx),
+		pushMsgChan: make(chan *PushMsg),
 	}
 	log.Info("Using trusted node ", conf.TrustedNode)
 	block, err := bc.GetRemoteBlock()
@@ -65,7 +71,6 @@ func (bc *Blockchain) Start() {
 			// store the tx
 			bc.txStore.AddTx(&tx)
 			// push notification to ws handler
-			bc.pushTxChan <- &tx
 		}
 	}()
 
@@ -74,6 +79,7 @@ func (bc *Blockchain) Start() {
 			// TODO: Getting block from P2P network
 			_ = <-bc.blockChan
 			// block := MsgBlockToBlock(msg)
+
 			// Get block data from TrustedPeer for now
 			block, err := bc.GetRemoteBlock()
 			if err != nil {
@@ -94,7 +100,7 @@ func (bc *Blockchain) Start() {
 	}()
 }
 
-func (bc *Blockchain) GetIndexTxs(addr string, depth int, spent bool) ([]*Tx, error) {
+func (bc *Blockchain) GetIndexTxs(addr string, depth int, state int) ([]*Tx, error) {
 	if len(bc.index) < depth {
 		return nil, errors.New("Getindextxs error")
 	}
@@ -104,7 +110,7 @@ func (bc *Blockchain) GetIndexTxs(addr string, depth int, spent bool) ([]*Tx, er
 	}
 	res := []*Tx{}
 	for i := bc.nowHeight; i > bc.nowHeight-int64(depth); i-- {
-		txids := bc.index[i].GetTxIDs(addr, spent)
+		txids := bc.index[i].GetTxIDs(addr, state)
 		txs, _ := bc.txStore.GetTxs(txids)
 		for _, tx := range txs {
 			res = append(res, tx)
@@ -130,14 +136,14 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 		// check the sender of tx
 		addrs := targetOutput.Scriptpubkey.Addresses
 		if len(addrs) == 1 {
-			log.Info(tx.Txid)
-			bc.index[bc.nowHeight].UpdateTx(addrs[0], tx.Txid, true)
+			//log.Info(tx.Txid, " ", addrs[0])
+			// Update index and the spent tx (spent)
+			bc.index[bc.nowHeight].Update(addrs[0], tx.Txid, Send)
+			// Publish tx to notification handler
+			bc.pushMsgChan <- &PushMsg{Tx: inTx, Addr: addrs[0], State: Send}
 		}
-		// Update index and the spent tx (spent)
-
 		// Delete tx that all consumed output
 		bc.txStore.DeleteAllSpentTx(inTx)
-
 	}
 	for _, out := range tx.Vout {
 		valueStr := strconv.FormatFloat(out.Value.(float64), 'f', -1, 64)
@@ -147,7 +153,9 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 	addrs := tx.GetOutsAddrs()
 	for _, addr := range addrs {
 		// Update index and the spent tx (unspent)
-		bc.index[bc.nowHeight].UpdateTx(addr, tx.Txid, false)
+		bc.index[bc.nowHeight].Update(addr, tx.Txid, Received)
+		// Publish tx to notification handler
+		bc.pushMsgChan <- &PushMsg{Tx: tx, Addr: addr, State: Received}
 	}
 }
 
@@ -213,6 +221,6 @@ func (bc *Blockchain) BlockChan() chan *wire.MsgBlock {
 	return bc.blockChan
 }
 
-func (bc *Blockchain) PushTxChan() chan *Tx {
-	return bc.pushTxChan
+func (bc *Blockchain) PushMsgChan() chan *PushMsg {
+	return bc.pushMsgChan
 }

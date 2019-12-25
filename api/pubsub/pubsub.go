@@ -16,14 +16,6 @@ type PubSub struct {
 	Upgrader      websocket.Upgrader
 }
 
-type Message struct {
-	Action        string `json:"action"`
-	Address       string `json:"address"`
-	Type          string `json:"type"`
-	TimestampFrom int64  `json:"timestamp_from"`
-	TimestampTo   int64  `json:"timestamp_to"`
-}
-
 type Subscription struct {
 	Topic  string
 	Client *Client
@@ -44,14 +36,10 @@ func NewPubSub() *PubSub {
 func (ps *PubSub) AddClient(client Client) *PubSub {
 	ps.Clients = append(ps.Clients, client)
 	//fmt.Println("adding new client to the list", client.Id, len(ps.Clients))
-	msg := "Hello Client ID: " + client.ID
-	log.Info(msg)
-	payload := []byte(msg)
-	client.Connection.WriteMessage(1, payload)
 	return ps
 }
 
-func (ps *PubSub) RemoveClient(client Client) *PubSub {
+func (ps *PubSub) RemoveClient(client *Client) *PubSub {
 	ps.Mu.Lock()
 	delete(ps.Subscriptions, client.ID)
 	for index, cli := range ps.Clients {
@@ -99,6 +87,18 @@ func (ps *PubSub) Subscribe(client *Client, topic string) error {
 	return nil
 }
 
+func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {
+	//clientSubscriptions := ps.GetSubscriptions(topic, client)
+	for _, subs := range ps.Subscriptions {
+		for index, sub := range subs {
+			if sub.Client.ID == client.ID && sub.Topic == topic {
+				ps.Subscriptions[client.ID] = append(ps.Subscriptions[client.ID][:index], ps.Subscriptions[client.ID][index+1:]...)
+			}
+		}
+	}
+	return ps
+}
+
 func (ps *PubSub) Publish(topic string, msg []byte) {
 	subscriptions := ps.GetTopicSubs(topic, nil)
 	for _, sub := range subscriptions {
@@ -125,16 +125,4 @@ func (ps *PubSub) PublishPing(writeWait time.Duration) {
 			sub.Client.Ping(writeWait)
 		}
 	}
-}
-
-func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {
-	//clientSubscriptions := ps.GetSubscriptions(topic, client)
-	for _, subs := range ps.Subscriptions {
-		for index, sub := range subs {
-			if sub.Client.ID == client.ID && sub.Topic == topic {
-				ps.Subscriptions[client.ID] = append(ps.Subscriptions[client.ID][:index], ps.Subscriptions[client.ID][index+1:]...)
-			}
-		}
-	}
-	return ps
 }

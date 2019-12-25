@@ -77,10 +77,10 @@ func init() {
 
 func init() {
 	// Bind rest flags
-	pflag.StringP("rest.connect", "c", DefaultConenctPeer, "The address to connect rest")
+	pflag.StringP("rest.connect", "c", DefaultConenctPeer, "The address for connect block finalizer")
 	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
 	// Bind p2p flags
-	pflag.String("p2p.connect", "", "The address to connect p2p")
+	pflag.String("p2p.connect", "", "The address for connect p2p network")
 	pflag.Int("p2p.targetSize", 25, "The maximum node count for connect p2p")
 	// Bind ws flags
 	pflag.StringP("ws.listen", "w", "0.0.0.0:9099", "The listen address for Websocket API")

@@ -9,6 +9,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	Received = "received"
+	Send     = "send"
+)
+
 func main() {
 	_, err := config.NewDefaultConfig()
 	if err != nil {
@@ -44,10 +49,10 @@ func main() {
 	// Define API config
 	// Define REST and WS api listener address
 	apiConfig := &api.APIConfig{
-		RESTListen: config.Set.RESTConfig.ListenAddr,
-		WSListen:   config.Set.WSConfig.ListenAddr,
-		Listeners:  &api.Listeners{},
-		PushChan:   bc.PushTxChan(),
+		RESTListen:  config.Set.RESTConfig.ListenAddr,
+		WSListen:    config.Set.WSConfig.ListenAddr,
+		Listeners:   &api.Listeners{},
+		PushMsgChan: bc.PushMsgChan(),
 	}
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
@@ -59,23 +64,51 @@ func main() {
 	listeners.OnGetAddressIndex = bc.OnGetAddressIndex
 
 	listeners.OnWatchTxWS = func(c *pubsub.Client, req *api.MsgWsReqest) {
-		if req.Params != nil && req.Params.Address != "" {
-			apiServer.GetWs().GetPubsub().Subscribe(c, req.Params.Address)
-			log.Infof("new subscription registered for : %s by %s", req.Params.Address, c.ID)
-			c.SendJSON(api.CreateMsgSuccessWS(req.Action, "watch success", []string{}))
+		if req.Params == nil {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params is not correct"))
 			return
 		}
-		c.SendJSON(api.CreateMsgErrorWS(req.Action, "Address is not set"))
+		if req.Params.Address == "" {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Address is not correct"))
+			return
+		}
+		if !(req.Params.Type == "" || req.Params.Type == Received || req.Params.Type == Send) {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Type is not correct"))
+			return
+		}
+		if req.Params.Type == "" {
+			req.Params.Type = Received
+		}
+		topic := req.Params.Type + "_" + req.Params.Address
+		apiServer.GetWs().GetPubsub().Subscribe(c, topic)
+		log.Infof("new subscription registered for : %s when %s by %s", req.Params.Address, req.Params.Type, c.ID)
+
+		msg := "watch success for " + req.Params.Address + " when " + req.Params.Type
+		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []string{}))
 	}
 
 	listeners.OnUnWatchTxWS = func(c *pubsub.Client, req *api.MsgWsReqest) {
-		if req.Params != nil && req.Params.Address != "" {
-			apiServer.GetWs().GetPubsub().Unsubscribe(c, req.Params.Address)
-			log.Infof("Client want to unsubscribe the Address: -> %s %s", req.Params.Address, c.ID)
-			c.SendJSON(api.CreateMsgSuccessWS(req.Action, "unwatch success", []string{}))
+		if req.Params == nil {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params is not correct"))
 			return
 		}
-		c.SendJSON(api.CreateMsgErrorWS(req.Action, "Address is not set"))
+		if req.Params.Address == "" {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Address is not correct"))
+			return
+		}
+		if !(req.Params.Type == "" || req.Params.Type == Received || req.Params.Type == Send) {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Type is not correct"))
+			return
+		}
+		if req.Params.Type == "" {
+			req.Params.Type = Received
+		}
+		topic := req.Params.Type + "_" + req.Params.Address
+		apiServer.GetWs().GetPubsub().Unsubscribe(c, topic)
+		log.Infof("Client want to unsubscribe the Address: -> %s %s", req.Params.Address, c.ID)
+
+		msg := "unwatch success for " + req.Params.Address + " when " + req.Params.Type
+		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []string{}))
 	}
 
 	listeners.OnGetTxWS = func(c *pubsub.Client, req *api.MsgWsReqest) {
@@ -97,6 +130,21 @@ func main() {
 			Txs:     txs,
 		}
 		c.SendJSON(res)
+	}
+
+	listeners.Publish = func(ps *pubsub.PubSub, msg *blockchain.PushMsg) {
+		txs := []*blockchain.Tx{}
+		txs = append(txs, msg.Tx)
+		if msg.State == blockchain.Send {
+			res := api.CreateMsgSuccessWS(api.WATCHTXS, Send, txs)
+			ps.PublishJSON(Send+msg.Addr, res)
+			return
+		}
+		if msg.State == blockchain.Received {
+			res := api.CreateMsgSuccessWS(api.WATCHTXS, Received, txs)
+			ps.PublishJSON(Received+"_"+msg.Addr, res)
+			return
+		}
 	}
 
 	apiServer.Start()
