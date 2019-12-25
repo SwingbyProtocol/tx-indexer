@@ -23,7 +23,6 @@ func main() {
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
-
 	k := Keeper{
 		conn: conn,
 	}
@@ -51,7 +50,6 @@ func main() {
 // enabled by default, and tx obtained by P2Pnetwork is sent to the
 // subscriber in real time.
 func (k *Keeper) WatchAddrReceived() {
-	// Send watch tx
 	watchAddrReq := api.MsgWsReqest{
 		Action: "watchTxs",
 		Params: &api.Params{
@@ -59,7 +57,6 @@ func (k *Keeper) WatchAddrReceived() {
 			Type:    "", // "" mean used as "received" ( "received" or "send" )
 		},
 	}
-
 	k.WriteJSON(watchAddrReq)
 }
 
@@ -68,7 +65,6 @@ func (k *Keeper) WatchAddrReceived() {
 // enabled by default, and tx obtained by P2Pnetwork is sent to the
 // subscriber in real time.
 func (k *Keeper) WatchAddrSend() {
-	// Send watch tx
 	msg := api.MsgWsReqest{
 		Action: "watchTxs",
 		Params: &api.Params{
@@ -76,7 +72,6 @@ func (k *Keeper) WatchAddrSend() {
 			Type:    "send", // "" mean used as "received" ( "received" or "send" )
 		},
 	}
-
 	k.WriteJSON(msg)
 }
 
@@ -87,7 +82,6 @@ func (k *Keeper) WatchAddrSend() {
 // time_from (uint64 unixtime) : start of time window period
 // time_to (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsReceived() {
-	// Send watch tx
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
@@ -95,7 +89,6 @@ func (k *Keeper) GetIndexTxsReceived() {
 			Type:    "", // "" mean used as "received" ( "received" or "send" ),
 		},
 	}
-
 	k.WriteJSON(msg)
 }
 
@@ -106,7 +99,6 @@ func (k *Keeper) GetIndexTxsReceived() {
 // time_from (uint64 unixtime) : start of time window period
 // time_to (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsSend() {
-	// Send watch tx
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
@@ -114,7 +106,6 @@ func (k *Keeper) GetIndexTxsSend() {
 			Type:    "send", // "" mean used as "received" ( "received" or "send" )
 		},
 	}
-
 	k.WriteJSON(msg)
 }
 
@@ -128,8 +119,6 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 	// Round end time
 	end := time.Now().Add(-2 * time.Hour)
 	from := end.Add(-3 * time.Hour)
-
-	// Send watch tx
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
@@ -140,7 +129,6 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 			TimeTo:   end.UnixNano(), // 0 means "latest time"
 		},
 	}
-
 	k.WriteJSON(msg)
 }
 
@@ -154,8 +142,6 @@ func (k *Keeper) GetIndexTxsSendWithTimeWindow() {
 	// Round end time
 	end := time.Now().Add(-2 * time.Hour)
 	from := end.Add(-3 * time.Hour)
-
-	// Send watch tx
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
@@ -166,7 +152,6 @@ func (k *Keeper) GetIndexTxsSendWithTimeWindow() {
 			TimeTo:   end.UnixNano(), // 0 means "latest time"
 		},
 	}
-
 	k.WriteJSON(msg)
 }
 
