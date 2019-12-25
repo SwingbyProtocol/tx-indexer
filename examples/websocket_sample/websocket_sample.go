@@ -99,6 +99,12 @@ func (k *Keeper) GetIndexTxsReceived() {
 	k.WriteJSON(msg)
 }
 
+// GetIndexTxsSend gets all txs for the target address. The required filter parameters are as follows:
+// Address (string) : The target address for index
+// mempool (bool default true) : whether txs is in the memory pool
+// Type (string defualt "") : whether txs is outgoing or incoming
+// time_from (uint64 unixtime) : start of time window period
+// time_to (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsSend() {
 	// Send watch tx
 	msg := api.MsgWsReqest{
@@ -173,15 +179,12 @@ func (k *Keeper) Start() {
 				log.Fatal(err)
 				break
 			}
-			//log.Printf("recv: %s", message)
-
 			var res api.MsgWsResponse
 			err = json.Unmarshal(message, &res)
 			if err != nil {
 				log.Info(err)
 			}
 			log.Infof("action %s %s ", res.Action, res.Message)
-
 			// show txid
 			for _, tx := range res.Txs {
 				log.Info(tx.Txid)
