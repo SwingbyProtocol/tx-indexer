@@ -2,25 +2,22 @@
 
 ## Usage
 ```
-go run index.go -bitcoind=http://<bitcoind endpoint>:8332 -prune=12
+go run ./cmd/tx-indexer --node.prune 12
 ```
-## CMD
+## Configs
 ```
-  -bitcoind string
-    	bitcoind endpoint (default "http://localhost:8332")
-  -prune int
-    	prune blocks (default 4)
-  -restbind string
-    	rest api bind address (default "0.0.0.0:9096")
-  -wsbind string
-    	websocket bind address (default "0.0.0.0:9099")
+      --node.loglevel string   The loglevel (default "info")
+      --node.prune int         Proune block size of this app (default 12)
+      --node.testnet           Using testnet
+      --p2p.connect string     The address to connect p2p
+      --p2p.targetSize int     The maximum node count for connect p2p (default 25)
+  -c, --rest.connect string    The address to connect rest (default "http://192.168.1.230:8332")
+  -l, --rest.listen string     The listen address for REST API (default "0.0.0.0:9096")
+  -w, --ws.listen string       The listen address for Websocket API (default "0.0.0.0:9099")
 ```
-## WS endpoint
-```
-ws://localhost:9099/ws
-```
-## WS requests
-### watch new txs of index address
+
+## API reffecrence
+### Watch new txs of index address
 ```
 {"action":"watchTxs","address":"1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"}
 
@@ -53,20 +50,10 @@ response:
 response:
 {"action":"getTxs","address":"mk91p7zsiZrqM57zeBXj2yrh4SHnNsk4Dr","txs":<[]*Tx>}
 ```
-## Build
-```
-$ docker build -t index .
-```
-## RUN
-```
-$ docker run -d \
-    --restart=on-failure:10 \
-    --name index \
-    -p 9096:9096 \
-    -p 9099:9099 \
-    index \
-    -prune=12 \
-    -bitcoind http://172.17.0.1:8332
+
+### Docker
+
+### bitcoind with prune mode
 ```
 ## bitcoind-node with prune mode
 mainnet

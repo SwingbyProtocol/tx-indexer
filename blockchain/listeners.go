@@ -7,6 +7,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+type ErrorResponse struct {
+	Status  bool   `json:"status"`
+	Message string `json:"message"`
+}
+
 func (bc *Blockchain) OnGetTx(w rest.ResponseWriter, r *rest.Request) {
 	// Get path params "txid"
 	txid := r.PathParam("txid")

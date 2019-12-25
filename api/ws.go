@@ -1,13 +1,16 @@
 package api
 
 import (
-	"encoding/json"
+
+
+	"net/http"
+	"time"
+
+		"encoding/json"
 	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
 	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
-	"net/http"
-	"time"
 )
 
 const (

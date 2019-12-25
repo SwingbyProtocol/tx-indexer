@@ -3,15 +3,16 @@ package config
 import (
 	"flag"
 	"fmt"
+	"os"
+	"path"
+	"runtime"
+	"strings"
+
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"os"
-	"path"
-	"runtime"
-	"strings"
 )
 
 const (
@@ -38,8 +39,9 @@ type NodeConfig struct {
 }
 
 type P2PConfig struct {
-	Params   chaincfg.Params
-	ConnAddr string `mapstructure:"connect" json:"connect"`
+	Params         chaincfg.Params
+	ConnAddr       string `mapstructure:"connect" json:"connect"`
+	TargetOutbound uint32 `mapstructure:"targetSize" json:"targetSize"`
 }
 
 type RESTConfig struct {
@@ -75,10 +77,11 @@ func init() {
 
 func init() {
 	// Bind rest flags
-	pflag.StringP("rest.connect", "r", DefaultConenctPeer, "The address to connect rest")
+	pflag.StringP("rest.connect", "c", DefaultConenctPeer, "The address to connect rest")
 	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
 	// Bind p2p flags
-	pflag.StringP("p2p.connect", "c", "", "The address to connect p2p")
+	pflag.String("p2p.connect", "", "The address to connect p2p")
+	pflag.Int("p2p.targetSize", 25, "The maximum node count for connect p2p")
 	// Bind ws flags
 	pflag.StringP("ws.listen", "w", "0.0.0.0:9099", "The listen address for Websocket API")
 }

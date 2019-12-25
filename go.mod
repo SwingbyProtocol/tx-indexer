@@ -22,6 +22,7 @@ require (
 	github.com/mattn/go-sqlite3 v2.0.2+incompatible // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
+	github.com/prometheus/common v0.4.0
 	github.com/rs/zerolog v1.17.2
 	github.com/satori/go.uuid v1.2.0
 	github.com/sirupsen/logrus v1.4.2

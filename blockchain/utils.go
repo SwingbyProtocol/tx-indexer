@@ -13,6 +13,14 @@ import (
 
 const WitnessScaleFactor = 4
 
+type ScriptPubkeyInfo struct {
+	Asm         string   `json:"asm"`
+	Hex         string   `json:"hex"`
+	Reqsigs     int      `json:"reqSigs"`
+	ScriptClass string   `json:"type"`
+	Addresses   []string `json:"addresses"`
+}
+
 func ScriptToPubkeyInfo(script []byte, params *chaincfg.Params) (ScriptPubkeyInfo, error) {
 	scriptClass, addrs, reqSig, err := txscript.ExtractPkScriptAddrs(script, params)
 	if err != nil {
@@ -67,8 +75,9 @@ func MsgTxToTx(msgTx *wire.MsgTx) Tx {
 		// Ignore the error here because the sender could have used and exotic script
 		// for his change and we don't want to fail in that case.
 		spi, _ := ScriptToPubkeyInfo(txout.PkScript, &config.Set.P2PConfig.Params)
+		value := float64(txout.Value) / 100000000
 		newVout := &Vout{
-			Value:        txout.Value,
+			Value:        value,
 			Spent:        false,
 			Txs:          []string{},
 			N:            i,

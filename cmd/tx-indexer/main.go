@@ -6,7 +6,6 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/SwingbyProtocol/tx-indexer/common/config"
 	"github.com/SwingbyProtocol/tx-indexer/node"
-	"github.com/btcsuite/btcd/chaincfg"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,15 +17,17 @@ func main() {
 	// Create Config
 	blockchianConfig := &blockchain.BlockchainConfig{
 		TrustedNode: config.Set.RESTConfig.ConnAddr,
+		PruneSize:   config.Set.NodeConfig.PurneSize,
 	}
+	log.Infof("Start block syncing with pruneSize: %d", blockchianConfig.PruneSize)
 	// Create blockchain instance
 	bc := blockchain.NewBlockchain(blockchianConfig)
 	// Start blockchain service
 	bc.Start()
 
 	nodeConfig := &node.NodeConfig{
-		Params:           &chaincfg.MainNetParams,
-		TargetOutbound:   20,
+		Params:           &config.Set.P2PConfig.Params,
+		TargetOutbound:   config.Set.P2PConfig.TargetOutbound,
 		UserAgentName:    "test",
 		UserAgentVersion: "0.1.0",
 		// Add trusted P2P Node

@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"errors"
+	"sort"
 	"sync"
 )
 
@@ -27,6 +28,12 @@ func (ts *TxStore) AddTx(tx *Tx) error {
 	ts.txs[tx.GetTxID()] = tx
 	ts.mu.Unlock()
 	return nil
+}
+
+func (ts *TxStore) UpdateTx(tx *Tx) {
+	ts.mu.Lock()
+	ts.txs[tx.GetTxID()] = tx
+	ts.mu.Unlock()
 }
 
 func (ts *TxStore) DeleteAllSpentTx(tx *Tx) error {
@@ -71,5 +78,10 @@ func (ts *TxStore) GetTxs(txids []string) ([]*Tx, error) {
 	if result != nil {
 		return nil, result
 	}
+	sortTx(txs)
 	return txs, result
+}
+
+func sortTx(txs []*Tx) {
+	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Receivedtime > txs[j].Receivedtime })
 }
