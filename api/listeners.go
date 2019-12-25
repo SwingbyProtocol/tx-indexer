@@ -17,10 +17,10 @@ type Listeners struct {
 	OnWatchTxWS func(c *pubsub.Client, req *MsgWsReqest)
 	// OnGetWatchTxWS is invoked when api get address watch messsage.
 	OnUnWatchTxWS func(c *pubsub.Client, req *MsgWsReqest)
-	// OnGetTxs is invoked when api get txs request messsage.
-	OnGetTxsWS func(c *pubsub.Client, req *MsgWsReqest)
 	// OnGetTx is invoked when api get tx request messsage.
 	OnGetTxWS func(c *pubsub.Client, req *MsgWsReqest)
+	// OnGetTxs is invoked when api get txs request messsage.
+	OnGetIndexTxsWS func(c *pubsub.Client, req *MsgWsReqest)
 	// Publish is invoked when new tx is store to index.
 	Publish func(ps *pubsub.PubSub, tx *blockchain.PushMsg)
 }

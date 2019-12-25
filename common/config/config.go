@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path"
 	"runtime"
 	"strings"
 
@@ -61,10 +60,10 @@ func init() {
 		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
 			s := strings.Split(f.Function, ".")
 			funcname := s[len(s)-1]
-			_, filename := path.Split(f.File)
+			//_, filename := path.Split(f.File)
 			paddedFuncname := fmt.Sprintf("%-20v", funcname+"()")
-			paddedFilename := fmt.Sprintf("%17v", filename)
-			return paddedFuncname, paddedFilename
+			//paddedFilename := fmt.Sprintf("%17v", filename)
+			return paddedFuncname, ""
 		},
 	})
 }

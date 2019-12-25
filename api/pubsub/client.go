@@ -40,7 +40,7 @@ func (client *Client) Ping(writeWait time.Duration) error {
 	return nil
 }
 
-func (client *Client) SetMsgHandlers(handler func(c *Client, msg []byte) error, onError func(c *Client)) {
+func (client *Client) SetMsgHandlers(handler func(c *Client, msg []byte), onError func(c *Client)) {
 	go func() {
 		for {
 			_, message, err := client.Connection.ReadMessage()
@@ -48,10 +48,7 @@ func (client *Client) SetMsgHandlers(handler func(c *Client, msg []byte) error, 
 				onError(client)
 				break
 			}
-			err = handler(client, message)
-			if err != nil {
-				log.Info("ws:error:", err)
-			}
+			handler(client, message)
 		}
 	}()
 }

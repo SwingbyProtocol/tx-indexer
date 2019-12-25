@@ -5,10 +5,6 @@ The Tx indexer is a memory cache for Bitcoin's pending TX getting via a P2P netw
 ```
 $ go run ./cmd/tx-indexer -s 12 -c http://192.168.1.101:8332
 ```
-or 
-```
-$ make run
-```
 ## Configs
 ```
       --node.loglevel string   The loglevel (default "info")

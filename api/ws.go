@@ -31,20 +31,21 @@ type MsgWsReqest struct {
 }
 
 type Params struct {
-	Address       string `json:"address"`
-	Txid          string `json:"txid"`
-	Type          string `json:"type"`
-	HeightFrom    int64  `json:"height_from"`
-	HeightTo      int64  `json:"height_to"`
-	TimestampFrom int64  `json:"timestamp_from"`
-	TimestampTo   int64  `json:"timestamp_to"`
+	Address    string `json:"address"`
+	Txid       string `json:"txid"`
+	Type       string `json:"type"`
+	Mempool    bool   `json:"mempool"`
+	HeightFrom int64  `json:"height_from"`
+	HeightTo   int64  `json:"height_to"`
+	TimeFrom   int64  `json:"time_from"`
+	TimeTo     int64  `json:"time_to"`
 }
 
 type MsgWsResponse struct {
-	Action  string      `json:"action"`
-	Result  bool        `json:"result"`
-	Message string      `json:"message"`
-	Txs     interface{} `json:"txs"`
+	Action  string           `json:"action"`
+	Result  bool             `json:"result"`
+	Message string           `json:"message"`
+	Txs     []*blockchain.Tx `json:"txs"`
 }
 
 func NewWebsocket(conf *APIConfig) *Websocket {
@@ -109,10 +110,9 @@ func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	// Add message handler
-	client.SetMsgHandlers(func(c *pubsub.Client, msg []byte) error {
+	client.SetMsgHandlers(func(c *pubsub.Client, msg []byte) {
 		// Call onAction
 		ws.onAction(c, msg)
-		return nil
 	}, func(c *pubsub.Client) {
 		// Remove client when ws is closed
 		ws.onRemoved(c)
@@ -120,7 +120,7 @@ func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
 	// Register pubsub client to pubsub manager
 	ws.pubsub.AddClient(client)
 	// Send Hello msg
-	client.SendJSON(CreateMsgSuccessWS("", "Websocket connection is succesful", []string{}))
+	client.SendJSON(CreateMsgSuccessWS("", "Websocket connection is succesful", []*blockchain.Tx{}))
 	// Pubsub client
 	log.Info("New Client is connected, total: ", len(ws.pubsub.Clients))
 
@@ -148,7 +148,6 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 		c.SendJSON(CreateMsgErrorWS("", err.Error()))
 		return
 	}
-
 	switch req.Action {
 	case WATCHTXS:
 		ws.listeners.OnWatchTxWS(c, &req)
@@ -160,7 +159,7 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 		ws.listeners.OnGetTxWS(c, &req)
 
 	case GETTXS:
-		ws.listeners.OnGetTxsWS(c, &req)
+		ws.listeners.OnGetIndexTxsWS(c, &req)
 	}
 }
 
@@ -169,12 +168,12 @@ func (ws *Websocket) onRemoved(c *pubsub.Client) {
 	log.Infof("Client removed %s", c.ID)
 }
 
-func CreateMsgSuccessWS(action string, message string, data interface{}) MsgWsResponse {
+func CreateMsgSuccessWS(action string, message string, txs []*blockchain.Tx) MsgWsResponse {
 	msg := MsgWsResponse{
 		Action:  action,
 		Result:  true,
 		Message: message,
-		Txs:     data,
+		Txs:     txs,
 	}
 	return msg
 }
@@ -184,7 +183,7 @@ func CreateMsgErrorWS(action string, errMsg string) MsgWsResponse {
 		Action:  action,
 		Result:  false,
 		Message: errMsg,
-		Txs:     []string{},
+		Txs:     []*blockchain.Tx{},
 	}
 	return msg
 }

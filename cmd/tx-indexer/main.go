@@ -33,8 +33,8 @@ func main() {
 	nodeConfig := &node.NodeConfig{
 		Params:           &config.Set.P2PConfig.Params,
 		TargetOutbound:   config.Set.P2PConfig.TargetOutbound,
-		UserAgentName:    "test",
-		UserAgentVersion: "0.1.0",
+		UserAgentName:    "Tx-indexer",
+		UserAgentVersion: "1.0.0",
 		// Add trusted P2P Node
 		TrustedPeer: config.Set.P2PConfig.ConnAddr,
 		TxChan:      bc.TxChan(),
@@ -84,7 +84,7 @@ func main() {
 		log.Infof("new subscription registered for : %s when %s by %s", req.Params.Address, req.Params.Type, c.ID)
 
 		msg := "watch success for " + req.Params.Address + " when " + req.Params.Type
-		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []string{}))
+		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*blockchain.Tx{}))
 	}
 
 	listeners.OnUnWatchTxWS = func(c *pubsub.Client, req *api.MsgWsReqest) {
@@ -108,7 +108,7 @@ func main() {
 		log.Infof("Client want to unsubscribe the Address: -> %s %s", req.Params.Address, c.ID)
 
 		msg := "unwatch success for " + req.Params.Address + " when " + req.Params.Type
-		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []string{}))
+		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*blockchain.Tx{}))
 	}
 
 	listeners.OnGetTxWS = func(c *pubsub.Client, req *api.MsgWsReqest) {
@@ -129,6 +129,34 @@ func main() {
 			Message: "success",
 			Txs:     txs,
 		}
+		c.SendJSON(res)
+	}
+
+	listeners.OnGetIndexTxsWS = func(c *pubsub.Client, req *api.MsgWsReqest) {
+		if req.Params == nil {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params is not correct"))
+			return
+		}
+		if req.Params.Address == "" {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Address is not correct"))
+			return
+		}
+		if !(req.Params.Type == "" || req.Params.Type == Received || req.Params.Type == Send) {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Type is not correct"))
+			return
+		}
+		if req.Params.Type == "" {
+			req.Params.Type = Received
+		}
+		state := blockchain.Received
+		if req.Params.Type == Send {
+			state = blockchain.Send
+		}
+		txs, err := bc.GetIndexTxs(req.Params.Address, 0, state)
+		if err != nil {
+			log.Info(err)
+		}
+		res := api.CreateMsgSuccessWS(api.GETTXS, req.Params.Type, txs)
 		c.SendJSON(res)
 	}
 
