@@ -36,11 +36,9 @@ $ make docker
 ### Scripts
 ```
 ## bitcoind-node with prune mode
-mainnet
-```
-$ chmod +x scripts/docker_bitcoind.sh && scripts/docker_bitcoind.sh
-```
-testnet
-```
+# mainnet
+$ chmod +x scripts/docker_bitcoind.sh && scripts/docker_bitcoind.sh  
+
+# testnet
 $ chmod +x scripts/docker_bitcoind_testnet.sh && scripts/docker_bitcoind_testnet.sh
 ```
