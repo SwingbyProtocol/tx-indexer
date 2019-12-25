@@ -23,7 +23,7 @@ $ make build
 ```
 ## API reffecrence
 
-- [Websocket sample code](./examples/websocket_sample/websoket_sample.go)
+- [Websocket sample code](./examples/websocket_sample/websocket_sample.go)
 
 ### Docker
 ```
