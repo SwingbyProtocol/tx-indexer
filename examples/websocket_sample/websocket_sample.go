@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	apiEndpointMainnet = "ws://localhost:9099/ws"
+	apiEndpointMainnet = "ws://52.221.229.70:9091/ws"
 	watchAddr          = "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"
 )
 
@@ -47,14 +47,15 @@ func main() {
 
 // WatchAddrReceived subscribes the incoming transaction to the
 // target address. The pending transaction on the memory pool is
-// enabled by default, and tx obtained by P2Pnetwork is sent to the
+// disabled by default, and tx obtained by P2Pnetwork is sent to the
 // subscriber in real time.
 func (k *Keeper) WatchAddrReceived() {
 	msg := api.MsgWsReqest{
 		Action: "watchTxs",
 		Params: &api.Params{
 			Address: watchAddr,
-			Type:    "", // "" mean used as "received" ( "received" or "send" )
+			Type:    "",   // "" mean used as "received" ( "received" or "send" )
+			Mempool: true, // Need to set
 		},
 	}
 	k.WriteJSON(msg)
@@ -66,7 +67,7 @@ func (k *Keeper) WatchAddrReceived() {
 		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
 		        "txid": "",
 		        "type": "",
-		        "mempool": false,
+		        "mempool": true,
 		        "height_from": 0,
 		        "height_to": 0,
 		        "time_from": 0,
@@ -78,7 +79,7 @@ func (k *Keeper) WatchAddrReceived() {
 
 // WatchAddrSend subscribes the outgoing transaction from the
 // target address. The pending transaction on the memory pool is
-// enabled by default, and tx obtained by P2Pnetwork is sent to the
+// disabled by default, and tx obtained by P2Pnetwork is sent to the
 // subscriber in real time.
 func (k *Keeper) WatchAddrSend() {
 	msg := api.MsgWsReqest{
@@ -86,6 +87,7 @@ func (k *Keeper) WatchAddrSend() {
 		Params: &api.Params{
 			Address: watchAddr,
 			Type:    "send", // "" mean used as "received" ( "received" or "send" )
+			Mempool: true,   // Need to set
 		},
 	}
 	k.WriteJSON(msg)
@@ -97,7 +99,7 @@ func (k *Keeper) WatchAddrSend() {
 		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
 		        "txid": "",
 		        "type": "send",
-		        "mempool": false,
+		        "mempool": true,
 		        "height_from": 0,
 		        "height_to": 0,
 		        "time_from": 0,
@@ -109,7 +111,7 @@ func (k *Keeper) WatchAddrSend() {
 
 // GetIndexTxsReceived gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
-// mempool (bool default true) : whether txs is in the memory pool
+// mempool (bool default false) : whether includes txs is in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
@@ -142,7 +144,7 @@ func (k *Keeper) GetIndexTxsReceived() {
 
 // GetIndexTxsSend gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
-// mempool (bool default true) : whether txs is in the memory pool
+// mempool (bool default false) : whether txs is in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
@@ -175,7 +177,7 @@ func (k *Keeper) GetIndexTxsSend() {
 
 // GetIndexTxsReceivedWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
-// mempool (bool default true) : whether txs is in the memory pool
+// mempool (bool default false) : whether txs is in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
@@ -214,7 +216,7 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 
 // GetIndexTxsSendWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
-// mempool (bool default true) : whether txs is in the memory pool
+// mempool (bool default false) : whether txs is in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period

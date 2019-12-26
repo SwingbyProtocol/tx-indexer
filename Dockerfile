@@ -35,5 +35,5 @@ COPY --from=builder /app/bin/tx-indexer-linux-amd64 .
 EXPOSE 9096
 
 # Command to run the executable
-ENTRYPOINT ["./index"]
-CMD ["-bitcoind=http://192.168.1.230:8332", "-prune=12"]
+ENTRYPOINT ["./tx-indexer-linux-amd64"]
+CMD ["-c", "http://192.168.1.230:8332", "-s", "14"]

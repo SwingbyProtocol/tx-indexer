@@ -40,7 +40,7 @@ func main() {
 		TxChan:      bc.TxChan(),
 		BlockChan:   bc.BlockChan(),
 	}
-
+	log.Infof("Using network -> %s", nodeConfig.Params.Name)
 	// Node initialize
 	node := node.NewNode(nodeConfig)
 	// Node Start
