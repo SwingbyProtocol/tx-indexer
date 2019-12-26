@@ -18,6 +18,8 @@ var (
 
 	DefaultNodeAddTimes = 4
 
+	DefaultNodeTimeout = 5 * time.Second
+
 	DefaultNodeRankSize = uint64(300)
 )
 
@@ -251,7 +253,6 @@ func (node *Node) AddPeer(conn net.Conn) {
 		conn.Close()
 		return
 	}
-	log.Debugf("node count %d", conns)
 	addr := conn.RemoteAddr().String()
 	if node.GetConnectedPeer(addr) != nil {
 		log.Debugf("peer is already joined %s", addr)
@@ -303,6 +304,7 @@ func (node *Node) queryDNSSeeds() {
 		}(seed.Host)
 	}
 	wg.Wait()
+	log.Infof("Conncted peers -> %d", len(node.ConnectedPeers()))
 }
 
 func (node *Node) addRandomNodes(count int, addrs []string) {
@@ -310,22 +312,21 @@ func (node *Node) addRandomNodes(count int, addrs []string) {
 		DefaultNodeAddTimes = count
 	}
 	for i := 0; i < DefaultNodeAddTimes; i++ {
-		go func() {
-			key := common.RandRange(0, len(addrs)-1)
-			addr := addrs[key]
-			port, err := strconv.Atoi(node.peerConfig.ChainParams.DefaultPort)
-			if err != nil {
-				log.Debug("port error")
-				return
-			}
-			target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
-			conn, err := net.Dial("tcp", target.String())
-			if err != nil {
-				log.Debugf("net.Dial: error %v\n", err)
-				return
-			}
-			node.AddPeer(conn)
-		}()
+		key := common.RandRange(0, len(addrs)-1)
+		addr := addrs[key]
+		port, err := strconv.Atoi(node.peerConfig.ChainParams.DefaultPort)
+		if err != nil {
+			log.Debug("port error")
+			continue
+		}
+		target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
+		dialer := net.Dialer{Timeout: DefaultNodeTimeout}
+		conn, err := dialer.Dial("tcp", target.String())
+		if err != nil {
+			log.Debugf("net.Dial: error %v\n", err)
+			continue
+		}
+		node.AddPeer(conn)
 	}
 }
 

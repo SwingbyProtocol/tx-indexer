@@ -65,19 +65,25 @@ func (ts *TxStore) GetTx(txid string) (*Tx, error) {
 	return tx, nil
 }
 
-func (ts *TxStore) GetTxs(txids []string) ([]*Tx, error) {
+func (ts *TxStore) GetTxs(txids []string, mined bool) ([]*Tx, error) {
 	txs := []*Tx{}
 	var result error
 	for _, txid := range txids {
 		tx, err := ts.GetTx(txid)
 		if err != nil {
 			result = err
+			continue
+		}
+		if tx.MinedTime == 0 && mined {
+			continue
 		}
 		txs = append(txs, tx)
 	}
+	// All of txs shoud be in store
 	if result != nil {
 		return nil, result
 	}
+	// Using Incertion sort
 	sortTx(txs)
 	return txs, result
 }

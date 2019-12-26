@@ -21,6 +21,6 @@ type Listeners struct {
 	OnGetTxWS func(c *pubsub.Client, req *MsgWsReqest)
 	// OnGetTxs is invoked when api get txs request messsage.
 	OnGetIndexTxsWS func(c *pubsub.Client, req *MsgWsReqest)
-	// Publish is invoked when new tx is store to index.
+	// Publish is invoked when new tx is stored to index.
 	Publish func(ps *pubsub.PubSub, tx *blockchain.PushMsg)
 }

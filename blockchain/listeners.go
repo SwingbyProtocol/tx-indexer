@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/ant0ine/go-json-rest/rest"
 	log "github.com/sirupsen/logrus"
@@ -29,19 +30,40 @@ func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) 
 	addr := r.PathParam("address")
 	// Get query "type"
 	spentFlag := r.FormValue("type")
-	// Get qeury "page"
-	_ = r.FormValue("page")
-	// Get query "sort"
-	isSpent := Received
-	if spentFlag == "send" {
-		isSpent = Send
+	// Get qeury "start"
+	startStr := r.FormValue("time_from")
+	start, err := strconv.ParseInt(startStr, 10, 64)
+	if err != nil {
+		log.Info(err)
 	}
-	txids, err := bc.GetIndexTxs(addr, 0, isSpent)
+	// end
+	endStr := r.FormValue("time_to")
+	end, err := strconv.ParseInt(endStr, 10, 64)
+	if err != nil {
+		log.Info(err)
+	}
+	isSend := Received
+	if spentFlag == "send" {
+		isSend = Send
+	}
+	if start != 0 && end != 0 {
+		txs, err := bc.GetIndexTxsWithTW(addr, start, end, isSend)
+		if err != nil {
+			log.Info(err)
+			w.WriteHeader(http.StatusOK)
+			w.WriteJson([]*Tx{})
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.WriteJson(txs)
+		return
+	}
+	txs, err := bc.GetIndexTxs(addr, 0, isSend)
 	if err != nil {
 		log.Info(err)
 	}
 	w.WriteHeader(http.StatusOK)
-	w.WriteJson(txids)
+	w.WriteJson(txs)
 }
 
 func res500(msg error, w rest.ResponseWriter) {
