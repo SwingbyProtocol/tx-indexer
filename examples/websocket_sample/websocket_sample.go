@@ -50,14 +50,30 @@ func main() {
 // enabled by default, and tx obtained by P2Pnetwork is sent to the
 // subscriber in real time.
 func (k *Keeper) WatchAddrReceived() {
-	watchAddrReq := api.MsgWsReqest{
+	msg := api.MsgWsReqest{
 		Action: "watchTxs",
 		Params: &api.Params{
 			Address: watchAddr,
 			Type:    "", // "" mean used as "received" ( "received" or "send" )
 		},
 	}
-	k.WriteJSON(watchAddrReq)
+	k.WriteJSON(msg)
+	/*
+		MsgWsReqest:
+		{
+		    "action": "watchTxs",
+		    "params": {
+		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
+		        "txid": "",
+		        "type": "",
+		        "mempool": false,
+		        "height_from": 0,
+		        "height_to": 0,
+		        "time_from": 0,
+		        "time_to": 0
+		    }
+		}
+	*/
 }
 
 // WatchAddrSend subscribes the outgoing transaction from the
@@ -73,14 +89,30 @@ func (k *Keeper) WatchAddrSend() {
 		},
 	}
 	k.WriteJSON(msg)
+	/*
+		MsgWsReqest:
+		{
+		    "action": "watchTxs",
+		    "params": {
+		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
+		        "txid": "",
+		        "type": "send",
+		        "mempool": false,
+		        "height_from": 0,
+		        "height_to": 0,
+		        "time_from": 0,
+		        "time_to": 0
+		    }
+		}
+	*/
 }
 
 // GetIndexTxsReceived gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
 // mempool (bool default true) : whether txs is in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
-// time_from (uint64 unixtime) : start of time window period
-// time_to (int64 unixtime) : end of time window period
+// TimeFrom (int64 unixtime) : start of time window period
+// TimeTo (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsReceived() {
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
@@ -90,14 +122,30 @@ func (k *Keeper) GetIndexTxsReceived() {
 		},
 	}
 	k.WriteJSON(msg)
+	/*
+		MsgWsReqest:
+		{
+		    "action": "getTxs",
+		    "params": {
+		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
+		        "txid": "",
+		        "type": "",
+		        "mempool": false,
+		        "height_from": 0,
+		        "height_to": 0,
+		        "time_from": 0,
+		        "time_to": 0
+		    }
+		}
+	*/
 }
 
 // GetIndexTxsSend gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
 // mempool (bool default true) : whether txs is in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
-// time_from (uint64 unixtime) : start of time window period
-// time_to (int64 unixtime) : end of time window period
+// TimeFrom (int64 unixtime) : start of time window period
+// TimeTo (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsSend() {
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
@@ -107,14 +155,30 @@ func (k *Keeper) GetIndexTxsSend() {
 		},
 	}
 	k.WriteJSON(msg)
+	/*
+		MsgWsReqest:
+		{
+		    "action": "getTxs",
+		    "params": {
+		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
+		        "txid": "",
+		        "type": "send",
+		        "mempool": false,
+		        "height_from": 0,
+		        "height_to": 0,
+		        "time_from": 0,
+		        "time_to": 0
+		    }
+		}
+	*/
 }
 
 // GetIndexTxsReceivedWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
 // mempool (bool default true) : whether txs is in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
-// time_from (uint64 unixtime) : start of time window period
-// time_to (int64 unixtime) : end of time window period
+// TimeFrom (int64 unixtime) : start of time window period
+// TimeTo (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 	// Round end time
 	end := time.Now().Add(-2 * time.Hour)
@@ -125,19 +189,35 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 			Address:  watchAddr,
 			Type:     "", // "" mean used as "received" ( "received" or "send" )
 			Mempool:  false,
-			TimeFrom: from.UnixNano(),
-			TimeTo:   end.UnixNano(), // 0 means "latest time"
+			TimeFrom: from.Unix(),
+			TimeTo:   end.Unix(), // 0 means "latest time"
 		},
 	}
 	k.WriteJSON(msg)
+	/*
+		MsgWsReqest:
+		{
+		    "action": "getTxs",
+		    "params": {
+		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
+		        "txid": "",
+		        "type": "",
+		        "mempool": false,
+		        "height_from": 0,
+		        "height_to": 0,
+		        "time_from": 1577332562,
+		        "time_to": 1577343362
+			}
+		}
+	*/
 }
 
 // GetIndexTxsSendWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
 // mempool (bool default true) : whether txs is in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
-// time_from (uint64 unixtime) : start of time window period
-// time_to (int64 unixtime) : end of time window period
+// TimeFrom (int64 unixtime) : start of time window period
+// TimeTo (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsSendWithTimeWindow() {
 	// Round end time
 	end := time.Now().Add(-2 * time.Hour)
@@ -148,11 +228,27 @@ func (k *Keeper) GetIndexTxsSendWithTimeWindow() {
 			Address:  watchAddr,
 			Type:     "send", // "" mean used as "received" ( "received" or "send" )
 			Mempool:  false,
-			TimeFrom: from.UnixNano(),
-			TimeTo:   end.UnixNano(), // 0 means "latest time"
+			TimeFrom: from.Unix(),
+			TimeTo:   end.Unix(), // 0 means "latest time"
 		},
 	}
 	k.WriteJSON(msg)
+	/*
+		MsgWsReqest:
+		{
+			"action": "getTxs",
+			"params": {
+				"address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
+				"txid": "",
+				"type": "send",
+				"mempool": false,
+				"height_from": 0,
+				"height_to": 0,
+				"time_from": 1577332501,
+				"time_to": 1577343301
+			}
+		}
+	*/
 }
 
 func (k *Keeper) Start() {
@@ -180,11 +276,14 @@ func (k *Keeper) Start() {
 }
 
 func (k *Keeper) WriteJSON(data interface{}) {
-	json, err := json.Marshal(data)
+	parsed, err := json.Marshal(data)
 	if err != nil {
 		return
 	}
-	err = k.conn.WriteMessage(websocket.TextMessage, json)
+	//out := new(bytes.Buffer)
+	//json.Indent(out, parsed, "", "    ")
+	//fmt.Println(out.String())
+	err = k.conn.WriteMessage(websocket.TextMessage, parsed)
 	if err != nil {
 		log.Info(err)
 	}
