@@ -165,7 +165,7 @@ func main() {
 		txs = append(txs, msg.Tx)
 		if msg.State == blockchain.Send {
 			res := api.CreateMsgSuccessWS(api.WATCHTXS, Send, txs)
-			ps.PublishJSON(Send+msg.Addr, res)
+			ps.PublishJSON(Send+"_"+msg.Addr, res)
 			return
 		}
 		if msg.State == blockchain.Received {
