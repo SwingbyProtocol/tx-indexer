@@ -48,7 +48,7 @@ func main() {
 // WatchAddrReceived subscribes the incoming transaction to the
 // target address. The pending transaction on the memory pool is
 // disabled by default, and tx obtained by P2Pnetwork is sent to the
-// subscriber in real time.
+// subscribers in real time.
 func (k *Keeper) WatchAddrReceived() {
 	msg := api.MsgWsReqest{
 		Action: "watchTxs",
@@ -80,7 +80,7 @@ func (k *Keeper) WatchAddrReceived() {
 // WatchAddrSend subscribes the outgoing transaction from the
 // target address. The pending transaction on the memory pool is
 // disabled by default, and tx obtained by P2Pnetwork is sent to the
-// subscriber in real time.
+// subscribers in real time.
 func (k *Keeper) WatchAddrSend() {
 	msg := api.MsgWsReqest{
 		Action: "watchTxs",
@@ -111,7 +111,7 @@ func (k *Keeper) WatchAddrSend() {
 
 // GetIndexTxsReceived gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
-// mempool (bool default false) : whether includes txs is in the memory pool
+// mempool (bool default false) : whether include txs that are in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
@@ -144,7 +144,7 @@ func (k *Keeper) GetIndexTxsReceived() {
 
 // GetIndexTxsSend gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
-// mempool (bool default false) : whether txs is in the memory pool
+// mempool (bool default false) : whether include txs that are in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
@@ -177,7 +177,7 @@ func (k *Keeper) GetIndexTxsSend() {
 
 // GetIndexTxsReceivedWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
-// mempool (bool default false) : whether txs is in the memory pool
+// mempool (bool default false) : whether include txs that are in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
@@ -216,7 +216,7 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 
 // GetIndexTxsSendWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
-// mempool (bool default false) : whether txs is in the memory pool
+// mempool (bool default false) : whether include txs that are in the memory pool
 // Type (string defualt "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
