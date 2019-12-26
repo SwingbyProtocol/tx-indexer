@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
@@ -9,7 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
+var (
 	apiEndpointMainnet = "ws://52.221.229.70:9091/ws"
 	watchAddr          = "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"
 )
@@ -18,7 +19,16 @@ type Keeper struct {
 	conn *websocket.Conn
 }
 
+// To exec $ ENDPOINT=<endpoint> ADDR=<address> go run examples/websocket_sample/websocket_sample.go
 func main() {
+	endpoint := os.Getenv("ENDPOINT")
+	if endpoint != "" {
+		apiEndpointMainnet = endpoint
+	}
+	address := os.Getenv("ADDR")
+	if address != "" {
+		watchAddr = address
+	}
 	conn, _, err := websocket.DefaultDialer.Dial(apiEndpointMainnet, nil)
 	if err != nil {
 		log.Fatal("dial:", err)
@@ -35,13 +45,13 @@ func main() {
 
 	k.WatchAddrSend()
 
-	k.GetIndexTxsReceived()
+	//k.GetIndexTxsReceived()
 	// get index txs for send
-	k.GetIndexTxsSend()
+	//k.GetIndexTxsSend()
 	// get index txs for received with timestamp window
-	k.GetIndexTxsReceivedWithTimeWindow()
+	//k.GetIndexTxsReceivedWithTimeWindow()
 	// get index txs for send with timestamp window
-	k.GetIndexTxsSendWithTimeWindow()
+	//k.GetIndexTxsSendWithTimeWindow()
 	select {}
 }
 
