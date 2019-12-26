@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	apiEndpointMainnet = "wss://indexer.swingby.network/ws"
-	watchAddr          = "tb1qu0vk6z9fkqwuxthfnfmkkup5gmvmsu6l4y6l8k"
+	//apiEndpoint = "wss://indexer.swingby.network/ws"
+	apiEndpoint = "wss://testnet-indexer.swingby.network/ws"
+	watchAddr   = "tb1qu0vk6z9fkqwuxthfnfmkkup5gmvmsu6l4y6l8k"
 )
 
 type Keeper struct {
@@ -23,13 +24,13 @@ type Keeper struct {
 func main() {
 	endpoint := os.Getenv("ENDPOINT")
 	if endpoint != "" {
-		apiEndpointMainnet = endpoint
+		apiEndpoint = endpoint
 	}
 	address := os.Getenv("ADDR")
 	if address != "" {
 		watchAddr = address
 	}
-	conn, _, err := websocket.DefaultDialer.Dial(apiEndpointMainnet, nil)
+	conn, _, err := websocket.DefaultDialer.Dial(apiEndpoint, nil)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
