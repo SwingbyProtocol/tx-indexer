@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	apiEndpointMainnet = "ws://52.221.229.70:9091/ws"
-	watchAddr          = "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ"
+	apiEndpointMainnet = "wss://indexer.swingby.network/ws"
+	watchAddr          = "tb1qu0vk6z9fkqwuxthfnfmkkup5gmvmsu6l4y6l8k"
 )
 
 type Keeper struct {
