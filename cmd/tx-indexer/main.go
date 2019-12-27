@@ -152,9 +152,15 @@ func main() {
 		if req.Params.Type == Send {
 			state = blockchain.Send
 		}
-		txs, err := bc.GetIndexTxs(req.Params.Address, 0, state)
+
+		timeFrom := req.Params.TimeFrom
+		timeTo := req.Params.TimeTo
+		mempool := req.Params.Mempool
+		log.Info(mempool)
+		txs, err := bc.GetIndexTxsWithTW(req.Params.Address, timeFrom, timeTo, state, mempool)
 		if err != nil {
-			log.Info(err)
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "txs is not correct"))
+			return
 		}
 		res := api.CreateMsgSuccessWS(api.GETTXS, req.Params.Type, txs)
 		c.SendJSON(res)

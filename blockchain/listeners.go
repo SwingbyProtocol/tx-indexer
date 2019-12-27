@@ -50,29 +50,25 @@ func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) 
 		}
 		start = parsed
 	}
-
+	mempool := r.FormValue("mempool")
+	mm := false
+	if mempool == "true" {
+		mm = true
+	}
 	isSend := Received
 	if spentFlag == "send" {
 		isSend = Send
 	}
-	if start != 0 && end != 0 {
-		txs, err := bc.GetIndexTxsWithTW(addr, start, end, isSend)
-		if err != nil {
-			log.Info(err)
-			w.WriteHeader(http.StatusOK)
-			w.WriteJson([]*Tx{})
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		w.WriteJson(txs)
-		return
-	}
-	txs, err := bc.GetIndexTxs(addr, 0, isSend)
+	txs, err := bc.GetIndexTxsWithTW(addr, start, end, isSend, mm)
 	if err != nil {
 		log.Info(err)
+		w.WriteHeader(http.StatusOK)
+		w.WriteJson([]*Tx{})
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 	w.WriteJson(txs)
+	return
 }
 
 func res500(msg error, w rest.ResponseWriter) {
