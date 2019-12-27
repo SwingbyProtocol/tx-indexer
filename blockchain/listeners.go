@@ -31,17 +31,26 @@ func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) 
 	// Get query "type"
 	spentFlag := r.FormValue("type")
 	// Get qeury "start"
-	startStr := r.FormValue("time_from")
-	start, err := strconv.ParseInt(startStr, 10, 64)
-	if err != nil {
-		log.Info(err)
-	}
 	// end
+	end := int64(0)
+	start := int64(0)
 	endStr := r.FormValue("time_to")
-	end, err := strconv.ParseInt(endStr, 10, 64)
-	if err != nil {
-		log.Info(err)
+	if endStr != "" {
+		parsed, err := strconv.ParseInt(endStr, 10, 64)
+		if err != nil {
+			log.Info(err)
+		}
+		end = parsed
 	}
+	startStr := r.FormValue("time_from")
+	if startStr != "" {
+		parsed, err := strconv.ParseInt(startStr, 10, 64)
+		if err != nil {
+			log.Info(err)
+		}
+		start = parsed
+	}
+
 	isSend := Received
 	if spentFlag == "send" {
 		isSend = Send

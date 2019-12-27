@@ -65,7 +65,7 @@ func (ts *TxStore) GetTx(txid string) (*Tx, error) {
 	return tx, nil
 }
 
-func (ts *TxStore) GetTxs(txids []string, mined bool) ([]*Tx, error) {
+func (ts *TxStore) GetTxs(txids []string, blocktime int64) ([]*Tx, error) {
 	txs := []*Tx{}
 	var result error
 	for _, txid := range txids {
@@ -74,7 +74,10 @@ func (ts *TxStore) GetTxs(txids []string, mined bool) ([]*Tx, error) {
 			result = err
 			continue
 		}
-		if tx.MinedTime == 0 && mined {
+		if blocktime > 0 {
+			if tx.MinedTime == blocktime {
+				txs = append(txs, tx)
+			}
 			continue
 		}
 		txs = append(txs, tx)

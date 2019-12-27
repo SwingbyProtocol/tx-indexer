@@ -58,7 +58,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	log.Info("Using trusted node ", conf.TrustedNode)
 	block, err := bc.GetRemoteBlock()
 	if err != nil {
-		log.Fatal("latest block is not get")
+		log.Fatal(err)
 	}
 	//bc.index[block.Height] = NewIndex()
 	bc.FinalizeBlock(block)
@@ -86,13 +86,10 @@ func (bc *Blockchain) Start() {
 			// Get block data from TrustedPeer for now
 			block, err := bc.GetRemoteBlock()
 			if err != nil {
-				log.Info(err)
+				//log.Info(err)
 				continue
 			}
-			if bc.targetHeight == block.Height+1 {
-				continue
-			}
-			log.Infof("New Block comming #%d", block.Height)
+			log.Infof("Get block -> #%d %s", block.Height, bc.latestBlockHash)
 			// Add/Update txs from block
 			bc.UpdateBlockTxs(block)
 			// Finalize block
@@ -114,19 +111,27 @@ func (bc *Blockchain) GetIndexTxs(addr string, depth int, state int) ([]*Tx, err
 func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, state int) ([]*Tx, error) {
 	endHeight := int64(0)
 	startHeight := int64(0)
-	for height, time := range bc.minedtime {
-		if time <= end {
-			endHeight = height
-		}
-		if time <= start {
-			startHeight = height
+	topHeight := int64(0)
+	for height := range bc.minedtime {
+		if topHeight < height {
+			topHeight = height
 		}
 	}
+	for i := topHeight; i > topHeight-int64(len(bc.minedtime)); i-- {
+		if bc.minedtime[i] >= end {
+			endHeight = i
+		}
+		if bc.minedtime[i] >= start {
+			startHeight = i
+		}
+	}
+	log.Infof("top %d start %d end %d", topHeight, start, end)
+
 	depth := endHeight + 1 - startHeight
-	log.Infof("end height -> %d start height -> %d depth -> %d", endHeight, startHeight, depth)
 	if endHeight == 0 || startHeight == 0 {
 		return nil, errors.New("time window is not available")
 	}
+	log.Infof("end height -> %d start height -> %d depth -> %d", endHeight, startHeight, depth)
 	// Get txs with range
 	txs, err := bc.GetIndexTxsRange(addr, endHeight, int(depth), state, true)
 	if err != nil {
@@ -148,12 +153,13 @@ func (bc *Blockchain) GetIndexTxsRange(addr string, end int64, depth int, state 
 		}
 		txids := bc.index[i].GetTxIDs(addr, state)
 		// Getting txs with sorted
-		txs, _ := bc.txStore.GetTxs(txids, mined)
+		txs, _ := bc.txStore.GetTxs(txids, bc.minedtime[i])
 		for _, tx := range txs {
 			res = append(res, tx)
 		}
-		log.Info("count ", len(bc.index)-1, " block ", i)
+		log.Info("count ", len(bc.index), " block ", i)
 	}
+	sortTx(res)
 	return res, nil
 }
 
@@ -217,6 +223,7 @@ func (bc *Blockchain) UpdateBlockTxs(block *Block) {
 			bc.UpdateIndex(tx)
 			// Store new founded Tx
 			bc.txStore.AddTx(tx)
+			//log.Info("new tx")
 			continue
 		}
 		storedtx.AddBlockData(block.Height, block.Time, block.Mediantime)
@@ -225,38 +232,47 @@ func (bc *Blockchain) UpdateBlockTxs(block *Block) {
 }
 
 func (bc *Blockchain) FinalizeBlock(block *Block) {
-	newHeight := bc.targetHeight + 1
-	bc.index[newHeight] = NewIndex()
 	// Check the old block
 	if bc.index[bc.targetHeight] != nil {
 		// Update prev block's mined time
 		bc.minedtime[bc.targetHeight] = block.Time
 	}
+	newHeight := bc.targetHeight + 1
+	bc.index[newHeight] = NewIndex()
 	// Update curernt block height
 	bc.targetHeight = newHeight
 	log.Info("now -> ", bc.targetHeight, " ", bc.index, bc.minedtime)
 }
 
 func (bc *Blockchain) GetRemoteBlock() (*Block, error) {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+
 	info := ChainInfo{}
 	err := bc.resolver.GetRequest("/rest/chaininfo.json", &info)
 	if err != nil {
 		return nil, err
 	}
+	if bc.targetHeight == info.Blocks+1 {
+		return nil, errors.New("target height is latest")
+	}
+
 	if bc.latestBlockHash == "" {
-		bc.latestBlockHash = info.Bestblockhash
+		// Initialize targetHeight
 		bc.targetHeight = info.Blocks
 	}
 	diff := info.Blocks - bc.targetHeight
+	if diff < 0 {
+		diff = 0
+	}
 	depthBlock, err := bc.GetDepthBlock(info.Bestblockhash, int(diff))
 	if err != nil {
-		log.Info(err)
 		return nil, err
 	}
-	if depthBlock.Previousblockhash == bc.latestBlockHash {
-		bc.latestBlockHash = depthBlock.Hash
+	if bc.latestBlockHash != "" && depthBlock.Previousblockhash != bc.latestBlockHash {
+		return nil, errors.New("Previousblockhash is not correct")
 	}
-	log.Infof("Get block -> #%d %s", depthBlock.Height, bc.latestBlockHash)
+	bc.latestBlockHash = depthBlock.Hash
 	return depthBlock, nil
 }
 
