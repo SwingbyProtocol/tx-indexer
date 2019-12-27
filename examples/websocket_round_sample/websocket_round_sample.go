@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"time"
+	"strconv"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/gorilla/websocket"
@@ -20,7 +20,7 @@ type Keeper struct {
 	conn *websocket.Conn
 }
 
-// To exec $ ENDPOINT=<endpoint> ADDR=<address> go run examples/websocket_sample/websocket_sample.go
+// To exec $ ENDPOINT=<endpoint> ADDR=<address> START=0 END=0 MEMPOOL=true go run examples/websocket_sample/websocket_sample.go
 func main() {
 	endpoint := os.Getenv("ENDPOINT")
 	if endpoint != "" {
@@ -42,17 +42,14 @@ func main() {
 	// open
 	k.WriteJSON(api.MsgWsReqest{})
 
-	k.WatchAddrReceived()
+	//k.WatchAddrReceived()
 
-	k.WatchAddrSend()
+	//k.WatchAddrSend()
 
-	k.GetIndexTxsReceived()
-	// get index txs for send
-	k.GetIndexTxsSend()
 	// get index txs for received with timestamp window
 	k.GetIndexTxsReceivedWithTimeWindow()
 	// get index txs for send with timestamp window
-	k.GetIndexTxsSendWithTimeWindow()
+	//k.GetIndexTxsSendWithTimeWindow()
 	select {}
 }
 
@@ -194,18 +191,26 @@ func (k *Keeper) GetIndexTxsSend() {
 // TimeTo (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 	// Round end time
-	end := time.Now().Add(-2 * time.Hour)
-	from := end.Add(-3 * time.Hour)
+	start, err := strconv.ParseInt(os.Getenv("START"), 10, 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+	end, err := strconv.ParseInt(os.Getenv("END"), 10, 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+	mempool, err := strconv.ParseBool(os.Getenv("MEMPOOL"))
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
 			Address:  watchAddr,
 			Type:     "", // "" mean used as "received" ( "received" or "send" )
-			Mempool:  false,
-			TimeFrom: from.Unix(),
-			TimeTo:   end.Unix(), // 0 means "latest time"
+			Mempool:  mempool,
+			TimeFrom: start,
+			TimeTo:   end, // 0 means "latest time"
 		},
 	}
+	//log.Infof("start %d end %d", start.Unix(), end.Unix())
 	k.WriteJSON(msg)
 	/*
 		MsgWsReqest:
@@ -233,16 +238,16 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 // TimeTo (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsSendWithTimeWindow() {
 	// Round end time
-	end := time.Now().Add(-2 * time.Hour)
-	from := end.Add(-3 * time.Hour)
+	//	end := time.Now().Add(-2 * time.Hour)
+	//start := end.Add(-3 * time.Hour)
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
 			Address:  watchAddr,
-			Type:     "send", // "" mean used as "received" ( "received" or "send" )
-			Mempool:  false,
-			TimeFrom: from.Unix(),
-			TimeTo:   end.Unix(), // 0 means "latest time"
+			Type:     "", // "" mean used as "received" ( "received" or "send" )
+			Mempool:  true,
+			TimeFrom: 0,
+			TimeTo:   0, // 0 means "latest time"
 		},
 	}
 	k.WriteJSON(msg)
@@ -281,7 +286,7 @@ func (k *Keeper) Start() {
 			log.Infof("action %s %s ", res.Action, res.Message)
 			// show txid
 			for _, tx := range res.Txs {
-				log.Info(tx.Txid)
+				log.Infof("Tx %s confirm %10d minedtime %10d received %10d", tx.Txid, tx.Confirms, tx.MinedTime, tx.Receivedtime)
 			}
 
 		}
@@ -293,6 +298,7 @@ func (k *Keeper) WriteJSON(data interface{}) {
 	if err != nil {
 		return
 	}
+	log.Info(string(parsed))
 	//out := new(bytes.Buffer)
 	//json.Indent(out, parsed, "", "    ")
 	//fmt.Println(out.String())

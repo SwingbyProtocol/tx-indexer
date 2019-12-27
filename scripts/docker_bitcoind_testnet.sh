@@ -1,8 +1,8 @@
 #!/bin/bash
 
-docker run -v /var/bitcoind:/bitcoin -d \
+docker run -v /var/bitcoind-test:/bitcoin -d \
     --restart=on-failure:10 \
-    --name=bitcoind-node \
+    --name=bitcoind-node-test \
     -p 0.0.0.0:18333:18333 \
     -p 0.0.0.0:18332:18332 \
     kylemanna/bitcoind \
