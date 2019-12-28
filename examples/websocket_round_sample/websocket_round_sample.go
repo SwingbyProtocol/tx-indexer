@@ -193,13 +193,18 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 	// Round end time
 	start, err := strconv.ParseInt(os.Getenv("START"), 10, 64)
 	if err != nil {
-		log.Fatal(err)
+		start = 0
+		log.Info(err)
 	}
 	end, err := strconv.ParseInt(os.Getenv("END"), 10, 64)
 	if err != nil {
-		log.Fatal(err)
+		end = 0
+		log.Info(err)
 	}
 	mempool, err := strconv.ParseBool(os.Getenv("MEMPOOL"))
+	if err != nil {
+		mempool = false
+	}
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
