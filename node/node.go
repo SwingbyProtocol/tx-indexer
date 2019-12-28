@@ -82,7 +82,6 @@ func NewNode(config *NodeConfig) *Node {
 	listeners := &peer.MessageListeners{}
 	listeners.OnVersion = node.OnVersion
 	listeners.OnVerAck = node.OnVerack
-	listeners.OnAddr = node.OnAddr
 	listeners.OnInv = node.OnInv
 	listeners.OnTx = node.OnTx
 	listeners.OnBlock = node.OnBlock
@@ -147,6 +146,7 @@ func (node *Node) BroadcastTx(hexStr string) error {
 	tx := btcutil.NewTx(&msgTx)
 	// TODO: add invtxs
 	node.invtxs[tx.Hash().String()] = tx.MsgTx()
+	log.Info(tx.Hash().String())
 	iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
 	node.sendBroadcastInv(iv)
 	return nil
@@ -192,10 +192,6 @@ func (node *Node) OnVerack(p *peer.Peer, msg *wire.MsgVerAck) {
 	log.Debugf("Connected to %s - %s", p.Addr(), p.UserAgent())
 }
 
-func (node *Node) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
-	// TODO check addr
-}
-
 func (node *Node) OnReject(p *peer.Peer, msg *wire.MsgReject) {
 	log.Warningf("Received reject message from peer %d: Code: %s, Hash %s, Reason: %s", int(p.ID()), msg.Code.String(), msg.Hash.String(), msg.Reason)
 }
@@ -224,7 +220,6 @@ func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 }
 
 func (node *Node) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
-	log.Info("get inv data")
 	for _, iv := range msg.InvList {
 		var err error
 		c := make(chan struct{}, 1)
@@ -234,7 +229,10 @@ func (node *Node) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
 		case wire.InvTypeTx:
 			err = node.pushTxMsg(p, &iv.Hash, c, wire.BaseEncoding)
 		}
-		log.Info(err)
+		if err != nil {
+			log.Info(err)
+		}
+		<-c
 	}
 }
 
@@ -242,8 +240,9 @@ func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, doneChan chan<- 
 	// Attempt to fetch the requested transaction from the pool.  A
 	// call could be made to check for existence first, but simply trying
 	// to fetch a missing transaction results in the same behavior.
+	log.Info(hash.String())
 	msgTx := node.invtxs[hash.String()]
-	if msgTx != nil {
+	if msgTx == nil {
 		if doneChan != nil {
 			doneChan <- struct{}{}
 		}
@@ -251,7 +250,6 @@ func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, doneChan chan<- 
 	}
 	p.QueueMessageWithEncoding(msgTx, doneChan, enc)
 	log.Info("broadcast")
-
 	return nil
 }
 
@@ -429,7 +427,6 @@ func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
 	peers := node.ConnectedPeers()
 	for _, peer := range peers {
 		peer.QueueInventory(iv)
-		log.Info("send inv")
 	}
 }
 

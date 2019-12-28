@@ -199,7 +199,11 @@ func main() {
 		err := node.BroadcastTx(req.Params.Hex)
 		if err != nil {
 			log.Info(err)
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Tx data is not correct"))
+			return
 		}
+		res := api.CreateMsgSuccessWS(api.BROADCAST, "Tx data broadcast success", []*blockchain.Tx{})
+		c.SendJSON(res)
 	}
 
 	apiServer.Start()

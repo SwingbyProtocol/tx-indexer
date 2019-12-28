@@ -38,7 +38,6 @@ func main() {
 		conn: conn,
 	}
 	k.Start()
-
 	// open
 	k.WriteJSON(api.MsgWsReqest{})
 
@@ -76,7 +75,8 @@ func (k *Keeper) WatchAddrReceived() {
 		    "action": "watchTxs",
 		    "params": {
 		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-		        "txid": "",
+				"txid": "",
+				"hex": "",
 		        "type": "",
 		        "mempool": true,
 		        "height_from": 0,
@@ -108,7 +108,8 @@ func (k *Keeper) WatchAddrSend() {
 		    "action": "watchTxs",
 		    "params": {
 		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-		        "txid": "",
+				"txid": "",
+				"hex": "",
 		        "type": "send",
 		        "mempool": true,
 		        "height_from": 0,
@@ -141,7 +142,8 @@ func (k *Keeper) GetIndexTxsReceived() {
 		    "action": "getTxs",
 		    "params": {
 		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-		        "txid": "",
+				"txid": "",
+				"hex":"",
 		        "type": "",
 		        "mempool": false,
 		        "height_from": 0,
@@ -174,7 +176,8 @@ func (k *Keeper) GetIndexTxsSend() {
 		    "action": "getTxs",
 		    "params": {
 		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-		        "txid": "",
+				"txid": "",
+				"hex": "",
 		        "type": "send",
 		        "mempool": false,
 		        "height_from": 0,
@@ -213,7 +216,8 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 		    "action": "getTxs",
 		    "params": {
 		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-		        "txid": "",
+				"txid": "",
+				"hex": "",
 		        "type": "",
 		        "mempool": false,
 		        "height_from": 0,
@@ -253,6 +257,7 @@ func (k *Keeper) GetIndexTxsSendWithTimeWindow() {
 			"params": {
 				"address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
 				"txid": "",
+				"hex": "",
 				"type": "send",
 				"mempool": false,
 				"height_from": 0,
