@@ -1,6 +1,9 @@
 package node
 
 import (
+	"bytes"
+	"encoding/hex"
+	"errors"
 	"net"
 	"strconv"
 	"sync"
@@ -8,8 +11,10 @@ import (
 
 	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcutil"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -50,6 +55,7 @@ type Node struct {
 	targetOutbound uint32
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
+	invtxs         map[string]*wire.MsgTx
 	trustedPeer    string
 	txChan         chan *wire.MsgTx
 	BlockChan      chan *wire.MsgBlock
@@ -63,9 +69,14 @@ func NewNode(config *NodeConfig) *Node {
 		targetOutbound: config.TargetOutbound,
 		connectedRanks: make(map[string]uint64),
 		connectedPeers: make(map[string]*peer.Peer),
+		invtxs:         make(map[string]*wire.MsgTx),
 		trustedPeer:    config.TrustedPeer,
 		txChan:         config.TxChan,
 		BlockChan:      config.BlockChan,
+	}
+	// Override node count times
+	if config.Params.Name == "testnet3" {
+		DefaultNodeAddTimes = 12
 	}
 
 	listeners := &peer.MessageListeners{}
@@ -76,6 +87,7 @@ func NewNode(config *NodeConfig) *Node {
 	listeners.OnTx = node.OnTx
 	listeners.OnBlock = node.OnBlock
 	listeners.OnReject = node.OnReject
+	listeners.OnGetData = node.OnGetData
 
 	node.peerConfig = &peer.Config{
 		UserAgentName:    config.UserAgentName,
@@ -117,6 +129,27 @@ func (node *Node) Stop() {
 	}
 	node.connectedPeers = make(map[string]*peer.Peer)
 	wg.Wait()
+}
+
+func (node *Node) BroadcastTx(hexStr string) error {
+	if len(hexStr)%2 != 0 {
+		hexStr = "0" + hexStr
+	}
+	serializedTx, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return err
+	}
+	var msgTx wire.MsgTx
+	err = msgTx.Deserialize(bytes.NewReader(serializedTx))
+	if err != nil {
+		return err
+	}
+	tx := btcutil.NewTx(&msgTx)
+	// TODO: add invtxs
+	node.invtxs[tx.Hash().String()] = tx.MsgTx()
+	iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
+	node.sendBroadcastInv(iv)
+	return nil
 }
 
 func (node *Node) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
@@ -189,6 +222,39 @@ func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 		}
 	}
 }
+
+func (node *Node) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
+	log.Info("get inv data")
+	for _, iv := range msg.InvList {
+		var err error
+		c := make(chan struct{}, 1)
+		switch iv.Type {
+		case wire.InvTypeWitnessTx:
+			err = node.pushTxMsg(p, &iv.Hash, c, wire.WitnessEncoding)
+		case wire.InvTypeTx:
+			err = node.pushTxMsg(p, &iv.Hash, c, wire.BaseEncoding)
+		}
+		log.Info(err)
+	}
+}
+
+func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, doneChan chan<- struct{}, enc wire.MessageEncoding) error {
+	// Attempt to fetch the requested transaction from the pool.  A
+	// call could be made to check for existence first, but simply trying
+	// to fetch a missing transaction results in the same behavior.
+	msgTx := node.invtxs[hash.String()]
+	if msgTx != nil {
+		if doneChan != nil {
+			doneChan <- struct{}{}
+		}
+		return errors.New("Unable to fetch tx from invtxs")
+	}
+	p.QueueMessageWithEncoding(msgTx, doneChan, enc)
+	log.Info("broadcast")
+
+	return nil
+}
+
 func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	go func() {
 		node.BlockChan <- msg
@@ -320,9 +386,6 @@ func (node *Node) addRandomNodes(count int, addrs []string) {
 	if count != 0 {
 		DefaultNodeAddTimes = count
 	}
-	if node.peerConfig.ChainParams.Name == "testnet3" {
-		DefaultNodeAddTimes = 12
-	}
 	for i := 0; i < DefaultNodeAddTimes; i++ {
 		key := common.RandRange(0, len(addrs)-1)
 		addr := addrs[key]
@@ -355,10 +418,18 @@ func (node *Node) isTxReceived(txHash string) bool {
 	return bool
 }
 
-func (node *Node) handleBroadcastMsg(bmsg wire.Message) {
+func (node *Node) sendBroadcastMsg(bmsg wire.Message) {
 	peers := node.ConnectedPeers()
 	for _, peer := range peers {
 		peer.QueueMessage(bmsg, nil)
+	}
+}
+
+func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
+	peers := node.ConnectedPeers()
+	for _, peer := range peers {
+		peer.QueueInventory(iv)
+		log.Info("send inv")
 	}
 }
 

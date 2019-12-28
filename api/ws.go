@@ -16,6 +16,7 @@ const (
 	UNWATCHTXS = "unwatchTxs"
 	GETTXS     = "getTxs"
 	GETTX      = "getTx"
+	BROADCAST  = "broadcast"
 )
 
 type Websocket struct {
@@ -33,6 +34,7 @@ type MsgWsReqest struct {
 type Params struct {
 	Address    string `json:"address"`
 	Txid       string `json:"txid"`
+	Hex        string `json:"hex"`
 	Type       string `json:"type"`
 	Mempool    bool   `json:"mempool"`
 	HeightFrom int64  `json:"height_from"`
@@ -160,6 +162,11 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 
 	case GETTXS:
 		ws.listeners.OnGetIndexTxsWS(c, &req)
+
+	case BROADCAST:
+		ws.listeners.OnBroadcastTx(c, &req)
+	default:
+		c.SendJSON(CreateMsgErrorWS("", "action is not correct"))
 	}
 }
 

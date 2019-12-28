@@ -180,6 +180,28 @@ func main() {
 		}
 	}
 
+	listeners.OnBroadcastTx = func(c *pubsub.Client, req *api.MsgWsReqest) {
+		if req.Params == nil {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params is not correct"))
+			return
+		}
+		if req.Params.Address == "" {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Address is not correct"))
+			return
+		}
+		if !(req.Params.Type == "" || req.Params.Type == Received || req.Params.Type == Send) {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Type is not correct"))
+			return
+		}
+		if req.Params.Type == "" {
+			req.Params.Type = Received
+		}
+		err := node.BroadcastTx(req.Params.Hex)
+		if err != nil {
+			log.Info(err)
+		}
+	}
+
 	apiServer.Start()
 
 	select {}
