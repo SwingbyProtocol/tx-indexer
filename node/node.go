@@ -320,6 +320,9 @@ func (node *Node) addRandomNodes(count int, addrs []string) {
 	if count != 0 {
 		DefaultNodeAddTimes = count
 	}
+	if node.peerConfig.ChainParams.Name == "testnet3" {
+		DefaultNodeAddTimes = 12
+	}
 	for i := 0; i < DefaultNodeAddTimes; i++ {
 		key := common.RandRange(0, len(addrs)-1)
 		addr := addrs[key]
