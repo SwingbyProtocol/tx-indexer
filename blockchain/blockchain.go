@@ -192,6 +192,8 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 		if err != nil {
 			// continue if spent tx is not exist
 			//log.Debug(err)
+			in.Value = "not exist"
+			in.Addresses = []string{"not exist"}
 			continue
 		}
 		targetOutput := inTx.Vout[in.Vout]
