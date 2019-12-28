@@ -197,6 +197,10 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 		targetOutput := inTx.Vout[in.Vout]
 		targetOutput.Spent = true
 		targetOutput.Txs = append(targetOutput.Txs, tx.Txid)
+		// Add vaue of spent to in
+		in.Value = targetOutput.Value
+		// Add address of spent to in
+		in.Addresses = targetOutput.Addresses
 		// check the sender of tx
 		addrs := targetOutput.Scriptpubkey.Addresses
 		if len(addrs) == 1 {
@@ -212,6 +216,11 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 	for _, out := range tx.Vout {
 		valueStr := strconv.FormatFloat(out.Value.(float64), 'f', -1, 64)
 		out.Value = valueStr
+		if len(out.Scriptpubkey.Addresses) != 0 {
+			out.Addresses = out.Scriptpubkey.Addresses
+		} else {
+			out.Addresses = []string{}
+		}
 	}
 	// Check tx output to update indexer storage
 	addrs := tx.GetOutsAddrs()
@@ -263,7 +272,7 @@ func (bc *Blockchain) FinalizeBlock(block *Block) {
 	bc.index[newHeight] = NewIndex()
 	// Update curernt block height
 	bc.targetHeight = newHeight
-	log.Info("now -> ", bc.targetHeight, " ", bc.index, bc.minedtime)
+	log.Info("now -> ", bc.targetHeight, " ", bc.minedtime)
 }
 
 func (bc *Blockchain) GetRemoteBlock() (*Block, error) {

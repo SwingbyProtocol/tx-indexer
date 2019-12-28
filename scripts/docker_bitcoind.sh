@@ -13,4 +13,4 @@ docker run -v /var/bitcoind-main:/bitcoin -d \
     -minrelaytxfee=0 \
     -maxmempool=300 \
     -mempoolexpiry=72 \
-    -rpcworkqueue=100
+    -rpcworkqueue=200

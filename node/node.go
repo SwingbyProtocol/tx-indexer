@@ -69,6 +69,7 @@ func NewNode(config *NodeConfig) *Node {
 	}
 
 	listeners := &peer.MessageListeners{}
+	listeners.OnVersion = node.OnVersion
 	listeners.OnVerAck = node.OnVerack
 	listeners.OnAddr = node.OnAddr
 	listeners.OnInv = node.OnInv
@@ -103,12 +104,14 @@ func (node *Node) Stop() {
 	node.mu.Lock()
 	defer node.mu.Unlock()
 	wg := new(sync.WaitGroup)
-	for _, peer := range node.connectedPeers {
+	peers := node.ConnectedPeers()
+	for _, peer := range peers {
 		wg.Add(1)
+		p := peer
 		go func() {
 			// onDisconnection will be called.
-			peer.Disconnect()
-			peer.WaitForDisconnect()
+			p.Disconnect()
+			p.WaitForDisconnect()
 			wg.Done()
 		}()
 	}
@@ -116,35 +119,54 @@ func (node *Node) Stop() {
 	wg.Wait()
 }
 
-func (node *Node) OnVerack(p *peer.Peer, msg *wire.MsgVerAck) {
-	// Check this peer offers bloom filtering services. If not dump them.
-	p.NA().Services = p.Services()
-	// Check the full node acceptance. p.NA().HasService(wire.SFNodeNetwork)
-	isCash := p.NA().HasService(SFNodeBitcoinCash)
-	isSupportBloom := p.NA().HasService(wire.SFNodeBloom)
-	isSegwit := p.NA().HasService(wire.SFNodeWitness)
-
-	if isCash {
-		log.Debugf("Peer %s does not support Bitcoin Cash", p)
-		p.Disconnect()
-		return
+func (node *Node) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
+	remoteAddr := p.NA()
+	remoteAddr.Services = msg.Services
+	// Ignore peers that have a protcol version that is too old.  The peer
+	// negotiation logic will disconnect it after this callback returns.
+	if msg.ProtocolVersion < int32(peer.MinAcceptableProtocolVersion) {
+		return nil
 	}
-	if !(isSupportBloom && isSegwit) { // Don't connect to bitcoin cash nodes
+	// Check the full node acceptance.
+	isFullNode := remoteAddr.HasService(wire.SFNodeNetwork)
+	isBCash := remoteAddr.HasService(SFNodeBitcoinCash)
+	isSupportBloom := remoteAddr.HasService(wire.SFNodeBloom)
+	isSegwit := remoteAddr.HasService(wire.SFNodeWitness)
+	// Reject outbound peers that are not full nodes.
+	if !isFullNode {
+		log.Debugf("Peer %s is not full node", p)
+		reason := "Peer is not full node"
+		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
+	}
+	// Don't connect to bitcoin cash nodes
+	if isBCash {
+		log.Debugf("Peer %s does not support Bitcoin Cash", p)
+		reason := "does not support Bitcoin Cash"
+		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
+	}
+	if !(isSupportBloom && isSegwit) {
 		// onDisconnection will be called
 		// which will remove the peer from openPeers
-		log.Debugf("Peer %s does not support bloom filtering, diconnecting", p)
-		p.Disconnect()
-		return
+		log.Debugf("Peer %s does not support bloom filtering and segwit, diconnecting...", p)
+		reason := "Peer does not support bloom filtering and segwit"
+		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
 	}
-	log.Debugf("Connected to %s - %s - [segwit: %t]", p.Addr(), p.UserAgent(), isSegwit)
+	return nil
+}
+
+func (node *Node) OnVerack(p *peer.Peer, msg *wire.MsgVerAck) {
+	// Check this peer offers bloom filtering services. If not dump them.
+	log.Debugf("Connected to %s - %s", p.Addr(), p.UserAgent())
 }
 
 func (node *Node) OnAddr(p *peer.Peer, msg *wire.MsgAddr) {
 	// TODO check addr
 }
+
 func (node *Node) OnReject(p *peer.Peer, msg *wire.MsgReject) {
 	log.Warningf("Received reject message from peer %d: Code: %s, Hash %s, Reason: %s", int(p.ID()), msg.Code.String(), msg.Hash.String(), msg.Reason)
 }
+
 func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	invVects := msg.InvList
 	for i := len(invVects) - 1; i >= 0; i-- {
@@ -205,21 +227,8 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 	}()
 
 	if len(olders) > 2 {
-		log.Debugf("%s top %d min %d rm %s and %s", txid, top, min, olders[0], olders[1])
+		log.Debugf("%s top %d min %d rm %s", txid, top, min, olders[0])
 	}
-}
-
-func (node *Node) addTxReceived(txHash string) {
-	node.mu.Lock()
-	node.received[txHash] = true
-	node.mu.Unlock()
-}
-
-func (node *Node) isTxReceived(txHash string) bool {
-	node.mu.RLock()
-	bool := node.received[txHash]
-	node.mu.RUnlock()
-	return bool
 }
 
 func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
@@ -232,7 +241,7 @@ func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
 func (node *Node) ConnectedPeers() []*peer.Peer {
 	node.mu.RLock()
 	defer node.mu.RUnlock()
-	var ret []*peer.Peer
+	ret := []*peer.Peer{}
 	for _, p := range node.connectedPeers {
 		ret = append(ret, p)
 	}
@@ -327,6 +336,26 @@ func (node *Node) addRandomNodes(count int, addrs []string) {
 			continue
 		}
 		node.AddPeer(conn)
+	}
+}
+
+func (node *Node) addTxReceived(txHash string) {
+	node.mu.Lock()
+	node.received[txHash] = true
+	node.mu.Unlock()
+}
+
+func (node *Node) isTxReceived(txHash string) bool {
+	node.mu.RLock()
+	bool := node.received[txHash]
+	node.mu.RUnlock()
+	return bool
+}
+
+func (node *Node) handleBroadcastMsg(bmsg wire.Message) {
+	peers := node.ConnectedPeers()
+	for _, peer := range peers {
+		peer.QueueMessage(bmsg, nil)
 	}
 }
 

@@ -20,7 +20,7 @@ type Keeper struct {
 	conn *websocket.Conn
 }
 
-// To exec $ ENDPOINT=<endpoint> ADDR=<address> START=0 END=0 MEMPOOL=true go run examples/websocket_sample/websocket_sample.go
+// To exec $ ENDPOINT=<endpoint> ADDR=<address> START=0 END=0 MEMPOOL=false go run examples/websocket_sample/websocket_sample.go
 func main() {
 	endpoint := os.Getenv("ENDPOINT")
 	if endpoint != "" {

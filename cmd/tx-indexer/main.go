@@ -156,7 +156,6 @@ func main() {
 		timeFrom := req.Params.TimeFrom
 		timeTo := req.Params.TimeTo
 		mempool := req.Params.Mempool
-		log.Info(mempool)
 		txs, err := bc.GetIndexTxsWithTW(req.Params.Address, timeFrom, timeTo, state, mempool)
 		if err != nil {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "txs is not correct"))

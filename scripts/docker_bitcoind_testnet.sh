@@ -13,5 +13,5 @@ docker run -v /var/bitcoind-test:/bitcoin -d \
     -minrelaytxfee=0 \
     -maxmempool=300 \
     -mempoolexpiry=72 \
-    -rpcworkqueue=100 \
+    -rpcworkqueue=200 \
     -testnet=1
