@@ -114,14 +114,13 @@ func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 }
 
 func (node *Node) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
-	c := make(chan struct{})
 	for _, iv := range msg.InvList {
 		var err error
 		switch iv.Type {
 		case wire.InvTypeWitnessTx:
-			err = node.pushTxMsg(p, &iv.Hash, c, wire.WitnessEncoding)
+			err = node.pushTxMsg(p, &iv.Hash, wire.WitnessEncoding)
 		case wire.InvTypeTx:
-			err = node.pushTxMsg(p, &iv.Hash, c, wire.BaseEncoding)
+			err = node.pushTxMsg(p, &iv.Hash, wire.BaseEncoding)
 		default:
 			log.Warnf("Unknown type in inventory request %d", iv.Type)
 			continue
@@ -130,28 +129,24 @@ func (node *Node) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
 			log.Info(err)
 			continue
 		}
-		<-c
 		txid := iv.Hash.String()
 		go func() {
 			// Remove inv txs after time transition
 			time.Sleep(30 * time.Second)
 			err := node.RemoveInvTx(txid)
 			if err == nil {
-				log.Info("Removed ", txid)
+				log.Infof("Removed inv txs %s", txid)
 			}
 		}()
 	}
 }
 
-func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, doneChan chan<- struct{}, enc wire.MessageEncoding) error {
+func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.MessageEncoding) error {
 	msgTx := node.GetInvTx(hash.String())
 	if msgTx == nil {
-		if doneChan != nil {
-			doneChan <- struct{}{}
-		}
 		return errors.New("Unable to fetch tx from invtxs")
 	}
-	p.QueueMessageWithEncoding(msgTx, doneChan, enc)
+	p.QueueMessageWithEncoding(msgTx, nil, enc)
 	log.Infof("Broadcast tx data success: %s peer: %s", hash.String(), p.Addr())
 	return nil
 }
