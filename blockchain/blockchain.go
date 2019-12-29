@@ -69,11 +69,13 @@ func (bc *Blockchain) Start() {
 	go func() {
 		for {
 			msg := <-bc.txChan
-			tx := MsgTxToTx(msg)
-			bc.UpdateIndex(&tx)
-			// store the tx
-			bc.txStore.AddTx(&tx)
-			// push notification to ws handler
+			_, err := bc.txStore.GetTx(msg.TxHash().String())
+			if err != nil {
+				tx := MsgTxToTx(msg)
+				bc.UpdateIndex(&tx)
+				// store the tx
+				bc.txStore.AddTx(&tx)
+			}
 		}
 	}()
 

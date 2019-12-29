@@ -142,8 +142,8 @@ func (k *Keeper) GetIndexTxsReceived() {
 		Action: "getTxs",
 		Params: &api.Params{
 			Address: watchAddr,
-			Type:    "", // "" mean used as "received" ( "received" or "send" ),
-			Mempool: mempool,
+			Type:    "",      // "" mean used as "received" ( "received" or "send" ),
+			Mempool: mempool, // using mempool
 		},
 	}
 	// returns {"action":"getTxs","result":true,"message":"received","txs":[{"txid":"d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c","hash":"dddd6484bb1007df40c29b8d624ec0d24b0bfaaf431df7a08301a071838f5ab3","confirms":0,"receivedtime":1577609049,"minedtime":0,"mediantime":0,"version":2,"weight":708,"locktime":1636073,"vin":[{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","vout":1,"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"value":"0.01","sequence":4294967293},{"txid":"d86babcb176d85f777057c07822d0c49565236448758d888876157a6c6039bd1","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967293}],"vout":[{"value":"0.02998544","spent":false,"txs":[],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":0,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]},{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","hash":"84cf09e32f1d85eecc93e9405be86d3dcfcf60c8e8046d6d2778f2b129667876","confirms":0,"receivedtime":1577608726,"minedtime":0,"mediantime":0,"version":1,"weight":562,"locktime":0,"vin":[{"txid":"9c988543aff5fada3d57391e6e2563b7086ec642b02be4c53a86ed702e771282","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967295}],"vout":[{"value":"0.01899077","spent":false,"txs":[],"addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"],"n":0,"scriptPubkey":{"asm":"","hex":"00148f8a183f3ec669807e74150e9b31f06be6207ff7","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"]}},{"value":"0.01","spent":true,"txs":["d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c"],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":1,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]}]}
@@ -165,8 +165,8 @@ func (k *Keeper) GetIndexTxsSend() {
 		Action: "getTxs",
 		Params: &api.Params{
 			Address: watchAddr,
-			Type:    "send", // "" mean used as "received" ( "received" or "send" )
-			Mempool: mempool,
+			Type:    "send",  // "" mean used as "received" ( "received" or "send" )
+			Mempool: mempool, // using mempool
 		},
 	}
 	// returns {"action":"getTxs","result":true,"message":"received","txs":[{"txid":"d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c","hash":"dddd6484bb1007df40c29b8d624ec0d24b0bfaaf431df7a08301a071838f5ab3","confirms":0,"receivedtime":1577609049,"minedtime":0,"mediantime":0,"version":2,"weight":708,"locktime":1636073,"vin":[{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","vout":1,"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"value":"0.01","sequence":4294967293},{"txid":"d86babcb176d85f777057c07822d0c49565236448758d888876157a6c6039bd1","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967293}],"vout":[{"value":"0.02998544","spent":false,"txs":[],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":0,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]},{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","hash":"84cf09e32f1d85eecc93e9405be86d3dcfcf60c8e8046d6d2778f2b129667876","confirms":0,"receivedtime":1577608726,"minedtime":0,"mediantime":0,"version":1,"weight":562,"locktime":0,"vin":[{"txid":"9c988543aff5fada3d57391e6e2563b7086ec642b02be4c53a86ed702e771282","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967295}],"vout":[{"value":"0.01899077","spent":false,"txs":[],"addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"],"n":0,"scriptPubkey":{"asm":"","hex":"00148f8a183f3ec669807e74150e9b31f06be6207ff7","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"]}},{"value":"0.01","spent":true,"txs":["d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c"],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":1,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]}]}
@@ -196,9 +196,9 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 		Action: "getTxs",
 		Params: &api.Params{
 			Address:  watchAddr,
-			Type:     "", // "" mean used as "received" ( "received" or "send" )
-			TimeFrom: start,
-			TimeTo:   end, // 0 means "latest time"
+			Type:     "",    // "" mean used as "received" ( "received" or "send" )
+			TimeFrom: start, // 0 means "oldest time"
+			TimeTo:   end,   // 0 means "latest time"
 		},
 	}
 	// returns {"action":"getTxs","result":true,"message":"received","txs":[{"txid":"d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c","hash":"dddd6484bb1007df40c29b8d624ec0d24b0bfaaf431df7a08301a071838f5ab3","confirms":0,"receivedtime":1577609049,"minedtime":0,"mediantime":0,"version":2,"weight":708,"locktime":1636073,"vin":[{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","vout":1,"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"value":"0.01","sequence":4294967293},{"txid":"d86babcb176d85f777057c07822d0c49565236448758d888876157a6c6039bd1","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967293}],"vout":[{"value":"0.02998544","spent":false,"txs":[],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":0,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]},{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","hash":"84cf09e32f1d85eecc93e9405be86d3dcfcf60c8e8046d6d2778f2b129667876","confirms":0,"receivedtime":1577608726,"minedtime":0,"mediantime":0,"version":1,"weight":562,"locktime":0,"vin":[{"txid":"9c988543aff5fada3d57391e6e2563b7086ec642b02be4c53a86ed702e771282","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967295}],"vout":[{"value":"0.01899077","spent":false,"txs":[],"addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"],"n":0,"scriptPubkey":{"asm":"","hex":"00148f8a183f3ec669807e74150e9b31f06be6207ff7","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"]}},{"value":"0.01","spent":true,"txs":["d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c"],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":1,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]}]}
@@ -229,8 +229,8 @@ func (k *Keeper) GetIndexTxsSendWithTimeWindow() {
 		Params: &api.Params{
 			Address:  watchAddr,
 			Type:     "send", // "" mean used as "received" ( "received" or "send" )
-			TimeFrom: start,
-			TimeTo:   end, // 0 means "latest time"
+			TimeFrom: start,  // 0 means "oldest time"
+			TimeTo:   end,    // 0 means "latest time"
 		},
 	}
 	// returns {"action":"getTxs","result":true,"message":"received","txs":[{"txid":"d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c","hash":"dddd6484bb1007df40c29b8d624ec0d24b0bfaaf431df7a08301a071838f5ab3","confirms":0,"receivedtime":1577609049,"minedtime":0,"mediantime":0,"version":2,"weight":708,"locktime":1636073,"vin":[{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","vout":1,"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"value":"0.01","sequence":4294967293},{"txid":"d86babcb176d85f777057c07822d0c49565236448758d888876157a6c6039bd1","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967293}],"vout":[{"value":"0.02998544","spent":false,"txs":[],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":0,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]},{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","hash":"84cf09e32f1d85eecc93e9405be86d3dcfcf60c8e8046d6d2778f2b129667876","confirms":0,"receivedtime":1577608726,"minedtime":0,"mediantime":0,"version":1,"weight":562,"locktime":0,"vin":[{"txid":"9c988543aff5fada3d57391e6e2563b7086ec642b02be4c53a86ed702e771282","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967295}],"vout":[{"value":"0.01899077","spent":false,"txs":[],"addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"],"n":0,"scriptPubkey":{"asm":"","hex":"00148f8a183f3ec669807e74150e9b31f06be6207ff7","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"]}},{"value":"0.01","spent":true,"txs":["d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c"],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":1,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]}]}
@@ -242,9 +242,9 @@ func (k *Keeper) BroadcastRawSingedTx() {
 	msg := api.MsgWsReqest{
 		Action: "broadcast",
 		Params: &api.Params{
-			Address: "", // Address should be "" when action is broadcast
-			Type:    "", // Type should be "" when action is broadcast
-			Hex:     hex,
+			Address: "",  // Address should be "" when action is broadcast
+			Type:    "",  // Type should be "" when action is broadcast
+			Hex:     hex, // e.g. 020000000001011cfac0397a34fb0cdf6a84c8131753db2bf9920dfe3be8c976ba02370bb322d30000000000fdffffff01a2c02d00000000001600143f520b1c2accdf1dbf256ac2435c962e77c10e3c0247304402203ca03725cb7db38564e22fc7381d45e28eccf1cb8c7fe33c33e9c69a422a017c02207fd3b62da1f94c44c4d4dece406a9976d0f33ed071a27ca315b364354856e1cf012102f6717e4284ae8778029a16f636a1e6fee788a59f5c368ef49e98276cdbd3a845ebf61800
 		},
 	}
 	//returns {"action":"broadcast","result":true,"message":"Tx data broadcast success: d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c","txs":[]}
