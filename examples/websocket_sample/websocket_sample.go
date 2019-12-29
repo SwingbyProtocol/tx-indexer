@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
-	"time"
+	"strconv"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/gorilla/websocket"
@@ -13,15 +13,39 @@ import (
 var (
 	//apiEndpoint = "wss://indexer.swingby.network/ws"
 	apiEndpoint = "wss://testnet-indexer.swingby.network/ws"
-	watchAddr   = "tb1qu0vk6z9fkqwuxthfnfmkkup5gmvmsu6l4y6l8k"
+	watchAddr   = "tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"
 )
 
 type Keeper struct {
 	conn *websocket.Conn
 }
 
-// To exec $ ENDPOINT=<endpoint> ADDR=<address> go run examples/websocket_sample/websocket_sample.go
+// Using with environment variables
+/*
+$ source env.sh
+$ go run examples/websocket_sample/websocket_sample.go
+*/
+
+// Request msg sample
+/*
+{
+	"action": "watchTxs",
+	"params": {
+		"address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
+		"txid": "",
+		"hex": "",		   // "hex" represents raw Signed Tx Data that hex encoded string
+		"type": "",   	   // "" mean used as "received" ( "received" or "send" )
+		"mempool": true,   // Need to set (default: false)
+		"height_from": 0,
+		"height_to": 0,b
+		"time_from": 0,
+		"time_to": 0
+	}
+}
+*/
+
 func main() {
+	run := os.Getenv("RUN")
 	endpoint := os.Getenv("ENDPOINT")
 	if endpoint != "" {
 		apiEndpoint = endpoint
@@ -30,6 +54,7 @@ func main() {
 	if address != "" {
 		watchAddr = address
 	}
+	log.Infof("RUN: %s ENDPOINT: %s ADDR: %s", run, apiEndpoint, watchAddr)
 	conn, _, err := websocket.DefaultDialer.Dial(apiEndpoint, nil)
 	if err != nil {
 		log.Fatal("dial:", err)
@@ -38,20 +63,35 @@ func main() {
 		conn: conn,
 	}
 	k.Start()
+
 	// open
-	k.WriteJSON(api.MsgWsReqest{})
+	///k.WriteJSON(api.MsgWsReqest{})
 
-	k.WatchAddrReceived()
-
-	k.WatchAddrSend()
-
-	k.GetIndexTxsReceived()
-	// get index txs for send
-	k.GetIndexTxsSend()
-	// get index txs for received with timestamp window
-	k.GetIndexTxsReceivedWithTimeWindow()
-	// get index txs for send with timestamp window
-	k.GetIndexTxsSendWithTimeWindow()
+	switch run {
+	case "WatchAddrReceived":
+		k.WatchAddrReceived()
+		break
+	case "WatchAddrSend":
+		k.WatchAddrSend()
+		break
+	case "GetIndexTxsReceived":
+		k.GetIndexTxsReceived()
+		break
+	case "GetIndexTxsSend":
+		k.GetIndexTxsSend()
+		break
+	case "GetIndexTxsReceivedWithTimeWindow":
+		k.GetIndexTxsReceivedWithTimeWindow()
+		break
+	case "GetIndexTxsSendWithTimeWindow":
+		k.GetIndexTxsSendWithTimeWindow()
+		break
+	case "BroadcastRawSingedTx":
+		k.BroadcastRawSingedTx()
+		break
+	default:
+		k.WatchAddrReceived()
+	}
 	select {}
 }
 
@@ -69,23 +109,6 @@ func (k *Keeper) WatchAddrReceived() {
 		},
 	}
 	k.WriteJSON(msg)
-	/*
-		MsgWsReqest:
-		{
-		    "action": "watchTxs",
-		    "params": {
-		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-				"txid": "",
-				"hex": "",
-		        "type": "",
-		        "mempool": true,
-		        "height_from": 0,
-		        "height_to": 0,
-		        "time_from": 0,
-		        "time_to": 0
-		    }
-		}
-	*/
 }
 
 // WatchAddrSend subscribes the outgoing transaction from the
@@ -102,23 +125,6 @@ func (k *Keeper) WatchAddrSend() {
 		},
 	}
 	k.WriteJSON(msg)
-	/*
-		MsgWsReqest:
-		{
-		    "action": "watchTxs",
-		    "params": {
-		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-				"txid": "",
-				"hex": "",
-		        "type": "send",
-		        "mempool": true,
-		        "height_from": 0,
-		        "height_to": 0,
-		        "time_from": 0,
-		        "time_to": 0
-		    }
-		}
-	*/
 }
 
 // GetIndexTxsReceived gets all txs for the target address. The required filter parameters are as follows:
@@ -136,23 +142,6 @@ func (k *Keeper) GetIndexTxsReceived() {
 		},
 	}
 	k.WriteJSON(msg)
-	/*
-		MsgWsReqest:
-		{
-		    "action": "getTxs",
-		    "params": {
-		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-				"txid": "",
-				"hex":"",
-		        "type": "",
-		        "mempool": false,
-		        "height_from": 0,
-		        "height_to": 0,
-		        "time_from": 0,
-		        "time_to": 0
-		    }
-		}
-	*/
 }
 
 // GetIndexTxsSend gets all txs for the target address. The required filter parameters are as follows:
@@ -170,23 +159,6 @@ func (k *Keeper) GetIndexTxsSend() {
 		},
 	}
 	k.WriteJSON(msg)
-	/*
-		MsgWsReqest:
-		{
-		    "action": "getTxs",
-		    "params": {
-		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-				"txid": "",
-				"hex": "",
-		        "type": "send",
-		        "mempool": false,
-		        "height_from": 0,
-		        "height_to": 0,
-		        "time_from": 0,
-		        "time_to": 0
-		    }
-		}
-	*/
 }
 
 // GetIndexTxsReceivedWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
@@ -195,38 +167,35 @@ func (k *Keeper) GetIndexTxsSend() {
 // Type (string defualt "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
+// NOTE: time window only support mined txs
 func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 	// Round end time
-	end := time.Now().Add(-2 * time.Hour)
-	from := end.Add(-3 * time.Hour)
+	start, err := strconv.ParseInt(os.Getenv("START"), 10, 64)
+	if err != nil {
+		start = 0
+		log.Info(err)
+	}
+	end, err := strconv.ParseInt(os.Getenv("END"), 10, 64)
+	if err != nil {
+		end = 0
+		log.Info(err)
+	}
+	mempool, err := strconv.ParseBool(os.Getenv("MEMPOOL"))
+	if err != nil {
+		mempool = false
+	}
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
 			Address:  watchAddr,
 			Type:     "", // "" mean used as "received" ( "received" or "send" )
-			Mempool:  false,
-			TimeFrom: from.Unix(),
-			TimeTo:   end.Unix(), // 0 means "latest time"
+			Mempool:  mempool,
+			TimeFrom: start,
+			TimeTo:   end, // 0 means "latest time"
 		},
 	}
+	//log.Infof("start %d end %d", start.Unix(), end.Unix())
 	k.WriteJSON(msg)
-	/*
-		MsgWsReqest:
-		{
-		    "action": "getTxs",
-		    "params": {
-		        "address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-				"txid": "",
-				"hex": "",
-		        "type": "",
-		        "mempool": false,
-		        "height_from": 0,
-		        "height_to": 0,
-		        "time_from": 1577332562,
-		        "time_to": 1577343362
-			}
-		}
-	*/
 }
 
 // GetIndexTxsSendWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
@@ -235,38 +204,49 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 // Type (string defualt "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
+// NOTE: time window only support mined txs
 func (k *Keeper) GetIndexTxsSendWithTimeWindow() {
 	// Round end time
-	end := time.Now().Add(-2 * time.Hour)
-	from := end.Add(-3 * time.Hour)
+	start, err := strconv.ParseInt(os.Getenv("START"), 10, 64)
+	if err != nil {
+		start = 0
+		log.Info(err)
+	}
+	end, err := strconv.ParseInt(os.Getenv("END"), 10, 64)
+	if err != nil {
+		end = 0
+		log.Info(err)
+	}
+	mempool, err := strconv.ParseBool(os.Getenv("MEMPOOL"))
+	if err != nil {
+		mempool = false
+	}
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
 			Address:  watchAddr,
 			Type:     "send", // "" mean used as "received" ( "received" or "send" )
-			Mempool:  false,
-			TimeFrom: from.Unix(),
-			TimeTo:   end.Unix(), // 0 means "latest time"
+			Mempool:  mempool,
+			TimeFrom: start,
+			TimeTo:   end, // 0 means "latest time"
 		},
 	}
+	//log.Infof("start %d end %d", start.Unix(), end.Unix())
 	k.WriteJSON(msg)
-	/*
-		MsgWsReqest:
-		{
-			"action": "getTxs",
-			"params": {
-				"address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
-				"txid": "",
-				"hex": "",
-				"type": "send",
-				"mempool": false,
-				"height_from": 0,
-				"height_to": 0,
-				"time_from": 1577332501,
-				"time_to": 1577343301
-			}
-		}
-	*/
+}
+
+func (k *Keeper) BroadcastRawSingedTx() {
+	hex := os.Getenv("HEX")
+	msg := api.MsgWsReqest{
+		Action: "broadcast",
+		Params: &api.Params{
+			Address: "", // Address should be "" when action is broadcast
+			Type:    "", // Type should be "" when action is broadcast
+			Hex:     hex,
+		},
+	}
+	//log.Infof("start %d end %d", start.Unix(), end.Unix())
+	k.WriteJSON(msg)
 }
 
 func (k *Keeper) Start() {
@@ -283,10 +263,10 @@ func (k *Keeper) Start() {
 			if err != nil {
 				log.Info(err)
 			}
-			log.Infof("action %s %s ", res.Action, res.Message)
+			log.Infof("action: %s msg: %s ", res.Action, res.Message)
 			// show txid
 			for _, tx := range res.Txs {
-				log.Info(tx.Txid)
+				log.Infof("Tx %s confirm %10d minedtime %10d received %10d", tx.Txid, tx.Confirms, tx.MinedTime, tx.Receivedtime)
 			}
 
 		}
@@ -298,6 +278,7 @@ func (k *Keeper) WriteJSON(data interface{}) {
 	if err != nil {
 		return
 	}
+	log.Info(string(parsed))
 	//out := new(bytes.Buffer)
 	//json.Indent(out, parsed, "", "    ")
 	//fmt.Println(out.String())

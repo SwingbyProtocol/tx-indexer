@@ -153,18 +153,19 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 	switch req.Action {
 	case WATCHTXS:
 		ws.listeners.OnWatchTxWS(c, &req)
-
+		break
 	case UNWATCHTXS:
 		ws.listeners.OnUnWatchTxWS(c, &req)
-
+		break
 	case GETTX:
 		ws.listeners.OnGetTxWS(c, &req)
-
+		break
 	case GETTXS:
 		ws.listeners.OnGetIndexTxsWS(c, &req)
-
+		break
 	case BROADCAST:
 		ws.listeners.OnBroadcastTx(c, &req)
+		break
 	default:
 		c.SendJSON(CreateMsgErrorWS("", "action is not correct"))
 	}

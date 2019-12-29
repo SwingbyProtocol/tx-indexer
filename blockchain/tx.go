@@ -2,21 +2,22 @@ package blockchain
 
 import (
 	"github.com/SwingbyProtocol/tx-indexer/common"
+	"github.com/btcsuite/btcd/wire"
 )
 
 type Tx struct {
-	Txid         string  `json:"txid"`
-	WitnessID    string  `json:"hash"`
-	Confirms     int64   `json:"confirms"`
-	Receivedtime int64   `json:"receivedtime"`
-	MinedTime    int64   `json:"minedtime"`
-	Mediantime   int64   `json:"mediantime"`
-	Version      int32   `json:"version"`
-	Weight       int64   `json:"weight"`
-	Locktime     uint32  `json:"locktime"`
-	Vin          []*Vin  `json:"vin"`
-	Vout         []*Vout `json:"vout"`
-	//Hex      string  `json:"hex"`
+	Txid         string      `json:"txid"`
+	WitnessID    string      `json:"hash"`
+	Confirms     int64       `json:"confirms"`
+	Receivedtime int64       `json:"receivedtime"`
+	MinedTime    int64       `json:"minedtime"`
+	Mediantime   int64       `json:"mediantime"`
+	Version      int32       `json:"version"`
+	Weight       int64       `json:"weight"`
+	Locktime     uint32      `json:"locktime"`
+	Vin          []*Vin      `json:"vin"`
+	Vout         []*Vout     `json:"vout"`
+	MsgTx        *wire.MsgTx `json:"-"`
 }
 
 type Vin struct {

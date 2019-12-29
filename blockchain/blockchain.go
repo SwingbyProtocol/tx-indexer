@@ -201,16 +201,15 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 		targetOutput.Txs = append(targetOutput.Txs, tx.Txid)
 		// Add vaue of spent to in
 		in.Value = targetOutput.Value
-		// Add address of spent to in
-		in.Addresses = targetOutput.Addresses
 		// check the sender of tx
 		addrs := targetOutput.Scriptpubkey.Addresses
 		if len(addrs) == 1 {
-			//log.Info(tx.Txid, " ", addrs[0])
+			// Add address of spent to in
+			in.Addresses = addrs
 			// Update index and the spent tx (spent)
 			bc.index[bc.targetHeight].Update(addrs[0], tx.Txid, Send)
 			// Publish tx to notification handler
-			bc.pushMsgChan <- &PushMsg{Tx: inTx, Addr: addrs[0], State: Send}
+			bc.pushMsgChan <- &PushMsg{Tx: tx, Addr: addrs[0], State: Send}
 		}
 		// Delete tx that all consumed output
 		bc.txStore.DeleteAllSpentTx(inTx)
@@ -327,7 +326,7 @@ func (bc *Blockchain) GetDepthBlock(blockHash string, depth int) (*Block, error)
 	return bc.GetDepthBlock(block.Previousblockhash, depth)
 }
 
-func (bc *Blockchain) GetTxScore() *TxStore {
+func (bc *Blockchain) TxScore() *TxStore {
 	return bc.txStore
 }
 

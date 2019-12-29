@@ -3,7 +3,6 @@ package node
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"net"
 	"strconv"
 	"sync"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/btcsuite/btcd/chaincfg"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
@@ -19,8 +17,6 @@ import (
 )
 
 var (
-	SFNodeBitcoinCash wire.ServiceFlag = 1 << 5
-
 	DefaultNodeAddTimes = 4
 
 	DefaultNodeTimeout = 5 * time.Second
@@ -130,169 +126,52 @@ func (node *Node) Stop() {
 	wg.Wait()
 }
 
-func (node *Node) BroadcastTx(hexStr string) error {
+func (node *Node) DecodeToTx(hexStr string) (*btcutil.Tx, error) {
 	if len(hexStr)%2 != 0 {
 		hexStr = "0" + hexStr
 	}
 	serializedTx, err := hex.DecodeString(hexStr)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var msgTx wire.MsgTx
 	err = msgTx.Deserialize(bytes.NewReader(serializedTx))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	tx := btcutil.NewTx(&msgTx)
-	// TODO: add invtxs
-	node.invtxs[tx.Hash().String()] = tx.MsgTx()
-	log.Info(tx.Hash().String())
-	iv := wire.NewInvVect(wire.InvTypeTx, tx.Hash())
+	return tx, nil
+}
+
+func (node *Node) AddInvTx(txid string, msgTx *wire.MsgTx) {
+	node.mu.Lock()
+	node.invtxs[txid] = msgTx
+	node.mu.Unlock()
+}
+
+func (node *Node) GetInvTx(txid string) *wire.MsgTx {
+	node.mu.RLock()
+	msg := node.invtxs[txid]
+	node.mu.RUnlock()
+	return msg
+}
+
+func (node *Node) BroadcastTxInv(txid string) error {
+	// Get msgTx
+	msgTx := node.GetInvTx(txid)
+	// Add new tx to invtxs
+	var invType wire.InvType
+	if msgTx.HasWitness() {
+		invType = wire.InvTypeWitnessTx
+	} else {
+		invType = wire.InvTypeTx
+	}
+	hash := msgTx.TxHash()
+	iv := wire.NewInvVect(invType, &hash)
+	// Submit inv msg to network
 	node.sendBroadcastInv(iv)
+	log.Infof("Broadcast inv msg success: %s", txid)
 	return nil
-}
-
-func (node *Node) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
-	remoteAddr := p.NA()
-	remoteAddr.Services = msg.Services
-	// Ignore peers that have a protcol version that is too old.  The peer
-	// negotiation logic will disconnect it after this callback returns.
-	if msg.ProtocolVersion < int32(peer.MinAcceptableProtocolVersion) {
-		return nil
-	}
-	// Check the full node acceptance.
-	isFullNode := remoteAddr.HasService(wire.SFNodeNetwork)
-	isBCash := remoteAddr.HasService(SFNodeBitcoinCash)
-	isSupportBloom := remoteAddr.HasService(wire.SFNodeBloom)
-	isSegwit := remoteAddr.HasService(wire.SFNodeWitness)
-	// Reject outbound peers that are not full nodes.
-	if !isFullNode {
-		log.Debugf("Peer %s is not full node", p)
-		reason := "Peer is not full node"
-		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
-	}
-	// Don't connect to bitcoin cash nodes
-	if isBCash {
-		log.Debugf("Peer %s does not support Bitcoin Cash", p)
-		reason := "does not support Bitcoin Cash"
-		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
-	}
-	if !(isSupportBloom && isSegwit) {
-		// onDisconnection will be called
-		// which will remove the peer from openPeers
-		log.Debugf("Peer %s does not support bloom filtering and segwit, diconnecting...", p)
-		reason := "Peer does not support bloom filtering and segwit"
-		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
-	}
-	return nil
-}
-
-func (node *Node) OnVerack(p *peer.Peer, msg *wire.MsgVerAck) {
-	// Check this peer offers bloom filtering services. If not dump them.
-	log.Debugf("Connected to %s - %s", p.Addr(), p.UserAgent())
-}
-
-func (node *Node) OnReject(p *peer.Peer, msg *wire.MsgReject) {
-	log.Warningf("Received reject message from peer %d: Code: %s, Hash %s, Reason: %s", int(p.ID()), msg.Code.String(), msg.Hash.String(), msg.Reason)
-}
-
-func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
-	invVects := msg.InvList
-	for i := len(invVects) - 1; i >= 0; i-- {
-		if invVects[i].Type == wire.InvTypeBlock {
-			iv := invVects[i]
-			iv.Type = wire.InvTypeWitnessBlock
-			gdmsg := wire.NewMsgGetData()
-			gdmsg.AddInvVect(iv)
-			p.QueueMessage(gdmsg, nil)
-			continue
-		}
-		if invVects[i].Type == wire.InvTypeTx {
-			//fmt.Println("inv_tx", invVects[i].Hash, p.Addr())
-			iv := invVects[i]
-			iv.Type = wire.InvTypeWitnessTx
-			gdmsg := wire.NewMsgGetData()
-			gdmsg.AddInvVect(iv)
-			p.QueueMessage(gdmsg, nil)
-			continue
-		}
-	}
-}
-
-func (node *Node) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
-	for _, iv := range msg.InvList {
-		var err error
-		c := make(chan struct{}, 1)
-		switch iv.Type {
-		case wire.InvTypeWitnessTx:
-			err = node.pushTxMsg(p, &iv.Hash, c, wire.WitnessEncoding)
-		case wire.InvTypeTx:
-			err = node.pushTxMsg(p, &iv.Hash, c, wire.BaseEncoding)
-		}
-		if err != nil {
-			log.Info(err)
-		}
-		<-c
-	}
-}
-
-func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, doneChan chan<- struct{}, enc wire.MessageEncoding) error {
-	// Attempt to fetch the requested transaction from the pool.  A
-	// call could be made to check for existence first, but simply trying
-	// to fetch a missing transaction results in the same behavior.
-	log.Info(hash.String())
-	msgTx := node.invtxs[hash.String()]
-	if msgTx == nil {
-		if doneChan != nil {
-			doneChan <- struct{}{}
-		}
-		return errors.New("Unable to fetch tx from invtxs")
-	}
-	p.QueueMessageWithEncoding(msgTx, doneChan, enc)
-	log.Info("broadcast")
-	return nil
-}
-
-func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
-	go func() {
-		node.BlockChan <- msg
-	}()
-}
-
-func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
-	//isWitness := msgTx.HasWitness()
-	// Update node rank
-	node.updateRank(p)
-	// Get now ranks counts
-	top, min, _, olders := node.GetRank()
-	if top >= DefaultNodeRankSize {
-		node.resetConnectedRank()
-		// Remove end peers
-		if len(olders) > 2 {
-			for i := 0; i < 2; i++ {
-				peer := node.GetConnectedPeer(olders[i])
-				if peer != nil {
-					peer.Disconnect()
-				}
-			}
-		}
-		// Finding new peer
-		go node.queryDNSSeeds()
-	}
-
-	txid := msg.TxHash().String()
-	if node.isTxReceived(txid) {
-		return
-	}
-	node.addTxReceived(txid)
-
-	go func() {
-		node.txChan <- msg
-	}()
-
-	if len(olders) > 2 {
-		log.Debugf("%s top %d min %d rm %s", txid, top, min, olders[0])
-	}
 }
 
 func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
@@ -414,20 +293,6 @@ func (node *Node) isTxReceived(txHash string) bool {
 	bool := node.received[txHash]
 	node.mu.RUnlock()
 	return bool
-}
-
-func (node *Node) sendBroadcastMsg(bmsg wire.Message) {
-	peers := node.ConnectedPeers()
-	for _, peer := range peers {
-		peer.QueueMessage(bmsg, nil)
-	}
-}
-
-func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
-	peers := node.ConnectedPeers()
-	for _, peer := range peers {
-		peer.QueueInventory(iv)
-	}
 }
 
 func (node *Node) updateRank(p *peer.Peer) {

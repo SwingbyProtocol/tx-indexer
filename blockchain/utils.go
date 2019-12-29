@@ -52,7 +52,6 @@ func GetTransactionWeight(msgTx *wire.MsgTx) int64 {
 }
 
 func MsgTxToTx(msgTx *wire.MsgTx) Tx {
-
 	tx := Tx{
 		Txid:         msgTx.TxHash().String(),
 		WitnessID:    msgTx.WitnessHash().String(),
@@ -60,6 +59,7 @@ func MsgTxToTx(msgTx *wire.MsgTx) Tx {
 		Locktime:     msgTx.LockTime,
 		Weight:       GetTransactionWeight(msgTx),
 		Receivedtime: time.Now().Unix(),
+		MsgTx:        msgTx,
 	}
 
 	for _, txin := range msgTx.TxIn {

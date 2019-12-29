@@ -116,7 +116,7 @@ func main() {
 			c.SendJSON(api.CreateMsgErrorWS(req.Params.Txid, "txid is not set"))
 			return
 		}
-		tx, err := bc.GetTxScore().GetTx(req.Params.Txid)
+		tx, err := bc.TxScore().GetTx(req.Params.Txid)
 		if err != nil {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, err.Error()))
 			return
@@ -185,24 +185,43 @@ func main() {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params is not correct"))
 			return
 		}
-		if req.Params.Address == "" {
+		if req.Params.Address != "" {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Address is not correct"))
 			return
 		}
-		if !(req.Params.Type == "" || req.Params.Type == Received || req.Params.Type == Send) {
+		if req.Params.Type != "" {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Type is not correct"))
 			return
 		}
-		if req.Params.Type == "" {
-			req.Params.Type = Received
+		if req.Params.Hex == "" {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Hex is not correct"))
+			return
 		}
-		err := node.BroadcastTx(req.Params.Hex)
+		tx, err := node.DecodeToTx(req.Params.Hex)
+		if err != nil {
+			log.Info(err)
+		}
+		txHash := tx.Hash().String()
+		// Add tx to store
+		bc.TxChan() <- tx.MsgTx()
+		// Add tx to inv
+		node.AddInvTx(txHash, tx.MsgTx())
+		for _, in := range tx.MsgTx().TxIn {
+			inTx, err := bc.TxScore().GetTx(in.PreviousOutPoint.Hash.String())
+			if err != nil {
+				log.Info(err)
+				continue
+			}
+			// Add inTx to inv
+			node.AddInvTx(inTx.Txid, inTx.MsgTx)
+		}
+		err = node.BroadcastTxInv(txHash)
 		if err != nil {
 			log.Info(err)
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Tx data is not correct"))
 			return
 		}
-		res := api.CreateMsgSuccessWS(api.BROADCAST, "Tx data broadcast success", []*blockchain.Tx{})
+		res := api.CreateMsgSuccessWS(api.BROADCAST, "Tx data broadcast success: "+txHash, []*blockchain.Tx{})
 		c.SendJSON(res)
 	}
 
