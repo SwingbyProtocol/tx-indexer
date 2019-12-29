@@ -134,13 +134,19 @@ func (k *Keeper) WatchAddrSend() {
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsReceived() {
+	mempool, err := strconv.ParseBool(os.Getenv("MEMPOOL"))
+	if err != nil {
+		mempool = false
+	}
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
 			Address: watchAddr,
 			Type:    "", // "" mean used as "received" ( "received" or "send" ),
+			Mempool: mempool,
 		},
 	}
+	// returns {"action":"getTxs","result":true,"message":"received","txs":[{"txid":"d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c","hash":"dddd6484bb1007df40c29b8d624ec0d24b0bfaaf431df7a08301a071838f5ab3","confirms":0,"receivedtime":1577609049,"minedtime":0,"mediantime":0,"version":2,"weight":708,"locktime":1636073,"vin":[{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","vout":1,"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"value":"0.01","sequence":4294967293},{"txid":"d86babcb176d85f777057c07822d0c49565236448758d888876157a6c6039bd1","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967293}],"vout":[{"value":"0.02998544","spent":false,"txs":[],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":0,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]},{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","hash":"84cf09e32f1d85eecc93e9405be86d3dcfcf60c8e8046d6d2778f2b129667876","confirms":0,"receivedtime":1577608726,"minedtime":0,"mediantime":0,"version":1,"weight":562,"locktime":0,"vin":[{"txid":"9c988543aff5fada3d57391e6e2563b7086ec642b02be4c53a86ed702e771282","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967295}],"vout":[{"value":"0.01899077","spent":false,"txs":[],"addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"],"n":0,"scriptPubkey":{"asm":"","hex":"00148f8a183f3ec669807e74150e9b31f06be6207ff7","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"]}},{"value":"0.01","spent":true,"txs":["d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c"],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":1,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]}]}
 	k.WriteJSON(msg)
 }
 
@@ -151,13 +157,19 @@ func (k *Keeper) GetIndexTxsReceived() {
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsSend() {
+	mempool, err := strconv.ParseBool(os.Getenv("MEMPOOL"))
+	if err != nil {
+		mempool = false
+	}
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
 			Address: watchAddr,
 			Type:    "send", // "" mean used as "received" ( "received" or "send" )
+			Mempool: mempool,
 		},
 	}
+	// returns {"action":"getTxs","result":true,"message":"received","txs":[{"txid":"d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c","hash":"dddd6484bb1007df40c29b8d624ec0d24b0bfaaf431df7a08301a071838f5ab3","confirms":0,"receivedtime":1577609049,"minedtime":0,"mediantime":0,"version":2,"weight":708,"locktime":1636073,"vin":[{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","vout":1,"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"value":"0.01","sequence":4294967293},{"txid":"d86babcb176d85f777057c07822d0c49565236448758d888876157a6c6039bd1","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967293}],"vout":[{"value":"0.02998544","spent":false,"txs":[],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":0,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]},{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","hash":"84cf09e32f1d85eecc93e9405be86d3dcfcf60c8e8046d6d2778f2b129667876","confirms":0,"receivedtime":1577608726,"minedtime":0,"mediantime":0,"version":1,"weight":562,"locktime":0,"vin":[{"txid":"9c988543aff5fada3d57391e6e2563b7086ec642b02be4c53a86ed702e771282","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967295}],"vout":[{"value":"0.01899077","spent":false,"txs":[],"addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"],"n":0,"scriptPubkey":{"asm":"","hex":"00148f8a183f3ec669807e74150e9b31f06be6207ff7","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"]}},{"value":"0.01","spent":true,"txs":["d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c"],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":1,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]}]}
 	k.WriteJSON(msg)
 }
 
@@ -180,21 +192,16 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 		end = 0
 		log.Info(err)
 	}
-	mempool, err := strconv.ParseBool(os.Getenv("MEMPOOL"))
-	if err != nil {
-		mempool = false
-	}
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
 			Address:  watchAddr,
 			Type:     "", // "" mean used as "received" ( "received" or "send" )
-			Mempool:  mempool,
 			TimeFrom: start,
 			TimeTo:   end, // 0 means "latest time"
 		},
 	}
-	//log.Infof("start %d end %d", start.Unix(), end.Unix())
+	// returns {"action":"getTxs","result":true,"message":"received","txs":[{"txid":"d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c","hash":"dddd6484bb1007df40c29b8d624ec0d24b0bfaaf431df7a08301a071838f5ab3","confirms":0,"receivedtime":1577609049,"minedtime":0,"mediantime":0,"version":2,"weight":708,"locktime":1636073,"vin":[{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","vout":1,"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"value":"0.01","sequence":4294967293},{"txid":"d86babcb176d85f777057c07822d0c49565236448758d888876157a6c6039bd1","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967293}],"vout":[{"value":"0.02998544","spent":false,"txs":[],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":0,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]},{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","hash":"84cf09e32f1d85eecc93e9405be86d3dcfcf60c8e8046d6d2778f2b129667876","confirms":0,"receivedtime":1577608726,"minedtime":0,"mediantime":0,"version":1,"weight":562,"locktime":0,"vin":[{"txid":"9c988543aff5fada3d57391e6e2563b7086ec642b02be4c53a86ed702e771282","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967295}],"vout":[{"value":"0.01899077","spent":false,"txs":[],"addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"],"n":0,"scriptPubkey":{"asm":"","hex":"00148f8a183f3ec669807e74150e9b31f06be6207ff7","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"]}},{"value":"0.01","spent":true,"txs":["d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c"],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":1,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]}]}
 	k.WriteJSON(msg)
 }
 
@@ -217,21 +224,16 @@ func (k *Keeper) GetIndexTxsSendWithTimeWindow() {
 		end = 0
 		log.Info(err)
 	}
-	mempool, err := strconv.ParseBool(os.Getenv("MEMPOOL"))
-	if err != nil {
-		mempool = false
-	}
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
 			Address:  watchAddr,
 			Type:     "send", // "" mean used as "received" ( "received" or "send" )
-			Mempool:  mempool,
 			TimeFrom: start,
 			TimeTo:   end, // 0 means "latest time"
 		},
 	}
-	//log.Infof("start %d end %d", start.Unix(), end.Unix())
+	// returns {"action":"getTxs","result":true,"message":"received","txs":[{"txid":"d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c","hash":"dddd6484bb1007df40c29b8d624ec0d24b0bfaaf431df7a08301a071838f5ab3","confirms":0,"receivedtime":1577609049,"minedtime":0,"mediantime":0,"version":2,"weight":708,"locktime":1636073,"vin":[{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","vout":1,"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"value":"0.01","sequence":4294967293},{"txid":"d86babcb176d85f777057c07822d0c49565236448758d888876157a6c6039bd1","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967293}],"vout":[{"value":"0.02998544","spent":false,"txs":[],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":0,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]},{"txid":"70dd63a7e4d493b27c37e56857c8f40e495bac89f64c32f847f05b766aa32483","hash":"84cf09e32f1d85eecc93e9405be86d3dcfcf60c8e8046d6d2778f2b129667876","confirms":0,"receivedtime":1577608726,"minedtime":0,"mediantime":0,"version":1,"weight":562,"locktime":0,"vin":[{"txid":"9c988543aff5fada3d57391e6e2563b7086ec642b02be4c53a86ed702e771282","vout":0,"addresses":["not exist"],"value":"not exist","sequence":4294967295}],"vout":[{"value":"0.01899077","spent":false,"txs":[],"addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"],"n":0,"scriptPubkey":{"asm":"","hex":"00148f8a183f3ec669807e74150e9b31f06be6207ff7","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q379ps0e7ce5cqln5z58fkv0sd0nzqllhaj79fm"]}},{"value":"0.01","spent":true,"txs":["d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c"],"addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"],"n":1,"scriptPubkey":{"asm":"","hex":"00143f520b1c2accdf1dbf256ac2435c962e77c10e3c","reqSigs":1,"type":"witness_v0_keyhash","addresses":["tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"]}}]}]}
 	k.WriteJSON(msg)
 }
 
@@ -245,7 +247,7 @@ func (k *Keeper) BroadcastRawSingedTx() {
 			Hex:     hex,
 		},
 	}
-	//log.Infof("start %d end %d", start.Unix(), end.Unix())
+	//returns {"action":"broadcast","result":true,"message":"Tx data broadcast success: d322b30b3702ba76c9e83bfe0d92f92bdb531713c8846adf0cfb347a39c0fa1c","txs":[]}
 	k.WriteJSON(msg)
 }
 
