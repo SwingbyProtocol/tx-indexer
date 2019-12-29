@@ -3,6 +3,7 @@ package node
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"net"
 	"strconv"
 	"sync"
@@ -156,6 +157,16 @@ func (node *Node) GetInvTx(txid string) *wire.MsgTx {
 	return msg
 }
 
+func (node *Node) RemoveInvTx(txid string) error {
+	node.mu.Lock()
+	if node.invtxs[txid] == nil {
+		return errors.New("inv is not exist")
+	}
+	delete(node.invtxs, txid)
+	node.mu.Unlock()
+	return nil
+}
+
 func (node *Node) BroadcastTxInv(txid string) error {
 	// Get msgTx
 	msgTx := node.GetInvTx(txid)
@@ -280,19 +291,6 @@ func (node *Node) addRandomNodes(count int, addrs []string) {
 		}
 		node.AddPeer(conn)
 	}
-}
-
-func (node *Node) addTxReceived(txHash string) {
-	node.mu.Lock()
-	node.received[txHash] = true
-	node.mu.Unlock()
-}
-
-func (node *Node) isTxReceived(txHash string) bool {
-	node.mu.RLock()
-	bool := node.received[txHash]
-	node.mu.RUnlock()
-	return bool
 }
 
 func (node *Node) updateRank(p *peer.Peer) {

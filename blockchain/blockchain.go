@@ -75,6 +75,7 @@ func (bc *Blockchain) Start() {
 				bc.UpdateIndex(&tx)
 				// store the tx
 				bc.txStore.AddTx(&tx)
+				log.Debugf("new tx came %s", tx.Txid)
 			}
 		}
 	}()

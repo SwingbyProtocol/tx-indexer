@@ -2,6 +2,7 @@ package node
 
 import (
 	"errors"
+	"time"
 
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/peer"
@@ -85,7 +86,7 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 	// Update node rank
 	node.updateRank(p)
 	// Get now ranks counts
-	top, min, _, olders := node.GetRank()
+	top, _, _, olders := node.GetRank()
 	if top >= DefaultNodeRankSize {
 		node.resetConnectedRank()
 		// Remove end peers
@@ -101,19 +102,9 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 		go node.queryDNSSeeds()
 	}
 
-	txid := msg.TxHash().String()
-	if node.isTxReceived(txid) {
-		return
-	}
-	node.addTxReceived(txid)
-
 	go func() {
 		node.txChan <- msg
 	}()
-
-	if len(olders) > 2 {
-		log.Debugf("%s top %d min %d rm %s", txid, top, min, olders[0])
-	}
 }
 
 func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
@@ -123,19 +114,32 @@ func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 }
 
 func (node *Node) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
+	c := make(chan struct{})
 	for _, iv := range msg.InvList {
 		var err error
-		c := make(chan struct{}, 1)
 		switch iv.Type {
 		case wire.InvTypeWitnessTx:
 			err = node.pushTxMsg(p, &iv.Hash, c, wire.WitnessEncoding)
 		case wire.InvTypeTx:
 			err = node.pushTxMsg(p, &iv.Hash, c, wire.BaseEncoding)
+		default:
+			log.Warnf("Unknown type in inventory request %d", iv.Type)
+			continue
 		}
 		if err != nil {
 			log.Info(err)
+			continue
 		}
 		<-c
+		txid := iv.Hash.String()
+		go func() {
+			// Remove inv txs after time transition
+			time.Sleep(30 * time.Second)
+			err := node.RemoveInvTx(txid)
+			if err == nil {
+				log.Info("Removed ", txid)
+			}
+		}()
 	}
 }
 
@@ -148,7 +152,7 @@ func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, doneChan chan<- 
 		return errors.New("Unable to fetch tx from invtxs")
 	}
 	p.QueueMessageWithEncoding(msgTx, doneChan, enc)
-	log.Infof("bcast tx data success: %s peer: %s", hash.String(), p.Addr())
+	log.Infof("Broadcast tx data success: %s peer: %s", hash.String(), p.Addr())
 	return nil
 }
 
