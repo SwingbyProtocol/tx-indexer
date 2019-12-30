@@ -276,7 +276,7 @@ func (bc *Blockchain) FinalizeBlock(block *Block) {
 	// Update curernt block height
 	bc.targetHeight = newHeight
 	log.Infof("now -> #%d", bc.targetHeight)
-	log.Info(bc.index, " ", bc.minedtime)
+	//log.Info(bc.index, " ", bc.minedtime)
 	bc.mu.Unlock()
 }
 
