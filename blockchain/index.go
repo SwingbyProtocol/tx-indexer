@@ -41,7 +41,7 @@ func (in *Index) Update(addr string, txid string, state int) {
 	in.mu.Unlock()
 }
 
-func (in *Index) Delete(addr string, txid string) error {
+func (in *Index) Remove(addr string, txid string) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 	if in.kv[addr] == nil {
@@ -52,6 +52,8 @@ func (in *Index) Delete(addr string, txid string) error {
 }
 
 func (in *Index) GetTxIDs(addr string, state int) []string {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
 	txids := []string{}
 	if in.kv[addr] == nil {
 		return txids

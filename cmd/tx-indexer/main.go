@@ -152,10 +152,13 @@ func main() {
 		if req.Params.Type == Send {
 			state = blockchain.Send
 		}
-
 		timeFrom := req.Params.TimeFrom
 		timeTo := req.Params.TimeTo
 		mempool := req.Params.Mempool
+		if mempool && timeFrom != 0 && timeTo != 0 {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "time windows cannot enable mempool flag"))
+			return
+		}
 		txs, err := bc.GetIndexTxsWithTW(req.Params.Address, timeFrom, timeTo, state, mempool)
 		if err != nil {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "txs is not correct"))

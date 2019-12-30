@@ -33,11 +33,11 @@ $ go run examples/websocket_sample/websocket_sample.go
 	"params": {
 		"address": "1HckjUpRGcrrRAtFaaCAUaGjsPx9oYmLaZ",
 		"txid": "",
-		"hex": "",		   // "hex" represents raw Signed Tx Data that hex encoded string
-		"type": "",   	   // "" mean used as "received" ( "received" or "send" )
-		"mempool": true,   // Need to set (default: false)
+		"hex": "",
+		"type": "",
+		"mempool": true,
 		"height_from": 0,
-		"height_to": 0,b
+		"height_to": 0,
 		"time_from": 0,
 		"time_to": 0
 	}
@@ -86,8 +86,8 @@ func main() {
 	case "GetIndexTxsSendWithTimeWindow":
 		k.GetIndexTxsSendWithTimeWindow()
 		break
-	case "BroadcastRawSingedTx":
-		k.BroadcastRawSingedTx()
+	case "BroadcastSignedRawTransaction":
+		k.BroadcastSignedRawTransaction()
 		break
 	default:
 		k.WatchAddrReceived()
@@ -237,7 +237,7 @@ func (k *Keeper) GetIndexTxsSendWithTimeWindow() {
 	k.WriteJSON(msg)
 }
 
-func (k *Keeper) BroadcastRawSingedTx() {
+func (k *Keeper) BroadcastSignedRawTransaction() {
 	hex := os.Getenv("HEX")
 	msg := api.MsgWsReqest{
 		Action: "broadcast",
@@ -270,7 +270,6 @@ func (k *Keeper) Start() {
 			for _, tx := range res.Txs {
 				log.Infof("Tx %s confirm %10d minedtime %10d received %10d", tx.Txid, tx.Confirms, tx.MinedTime, tx.Receivedtime)
 			}
-
 		}
 	}()
 }
@@ -280,10 +279,6 @@ func (k *Keeper) WriteJSON(data interface{}) {
 	if err != nil {
 		return
 	}
-	log.Info(string(parsed))
-	//out := new(bytes.Buffer)
-	//json.Indent(out, parsed, "", "    ")
-	//fmt.Println(out.String())
 	err = k.conn.WriteMessage(websocket.TextMessage, parsed)
 	if err != nil {
 		log.Info(err)

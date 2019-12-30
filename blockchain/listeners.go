@@ -30,25 +30,22 @@ func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) 
 	addr := r.PathParam("address")
 	// Get query "type"
 	spentFlag := r.FormValue("type")
-	// Get qeury "start"
-	// end
+	// Define params
 	end := int64(0)
 	start := int64(0)
 	endStr := r.FormValue("time_to")
-	if endStr != "" {
-		parsed, err := strconv.ParseInt(endStr, 10, 64)
-		if err != nil {
-			log.Info(err)
-		}
-		end = parsed
+	endParsed, err := strconv.ParseInt(endStr, 10, 64)
+	if err != nil {
+		log.Info(err)
+	} else {
+		end = endParsed
 	}
 	startStr := r.FormValue("time_from")
-	if startStr != "" {
-		parsed, err := strconv.ParseInt(startStr, 10, 64)
-		if err != nil {
-			log.Info(err)
-		}
-		start = parsed
+	startParsed, err := strconv.ParseInt(startStr, 10, 64)
+	if err != nil {
+		log.Info(err)
+	} else {
+		start = startParsed
 	}
 	mempool := r.FormValue("mempool")
 	mm := false

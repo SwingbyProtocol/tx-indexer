@@ -36,7 +36,7 @@ func (ts *TxStore) UpdateTx(tx *Tx) {
 	ts.mu.Unlock()
 }
 
-func (ts *TxStore) DeleteAllSpentTx(tx *Tx) error {
+func (ts *TxStore) RemoveAllSpentTx(tx *Tx) error {
 	allspent := true
 	for _, vout := range tx.Vout {
 		if !vout.Spent {
@@ -49,7 +49,7 @@ func (ts *TxStore) DeleteAllSpentTx(tx *Tx) error {
 		ts.mu.Unlock()
 		return nil
 	}
-	return errors.New("remove error")
+	return errors.New("Remove all spent tx error")
 }
 
 func (ts *TxStore) GetTx(txid string) (*Tx, error) {

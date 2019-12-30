@@ -10,7 +10,7 @@ func RandRange(min int, max int) int {
 
 func GetMaxMin(ranks map[string]uint64) (uint64, uint64, string, []string) {
 	top := uint64(0)
-	min := uint64(1000000)
+	min := uint64(^uint(0) >> 1)
 	topAddr := ""
 	olders := []string{}
 	sorted := []string{}

@@ -55,7 +55,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *PushMsg),
 	}
-	log.Info("Using trusted node ", conf.TrustedNode)
+	log.Infof("Using trusted node: %s", conf.TrustedNode)
 	block, err := bc.GetRemoteBlock()
 	if err != nil {
 		log.Fatal(err)
@@ -75,7 +75,7 @@ func (bc *Blockchain) Start() {
 				bc.UpdateIndex(&tx)
 				// store the tx
 				bc.txStore.AddTx(&tx)
-				log.Debugf("new tx came %s", tx.Txid)
+				log.Debugf("new tx came %s witness %t", tx.Txid, msg.HasWitness())
 			}
 		}
 	}()
@@ -97,18 +97,12 @@ func (bc *Blockchain) Start() {
 			bc.UpdateBlockTxs(block)
 			// Finalize block
 			bc.FinalizeBlock(block)
-			// Delte old index
-			bc.DeleteOldIndex()
+			// Remove old index
+			bc.RemoveOldIndex()
+			// Remove old minedtime
+			bc.RemoveMinedtiime()
 		}
 	}()
-}
-
-func (bc *Blockchain) GetIndexTxs(addr string, depth int, state int) ([]*Tx, error) {
-	res, err := bc.GetIndexTxsRange(addr, bc.targetHeight, depth, state, false)
-	if err != nil {
-		return nil, err
-	}
-	return res, nil
 }
 
 func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, state int, mempool bool) ([]*Tx, error) {
@@ -125,19 +119,19 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 	if mempool {
 		heights = append(heights, bc.targetHeight)
 	}
-	isError := false
+	errMsg := ""
 	for _, height := range heights {
 		txs, err := bc.GetIndexTxsBlock(addr, height, state, mempool)
 		if err != nil {
-			isError = true
+			errMsg = err.Error()
 			continue
 		}
 		for _, tx := range txs {
 			res = append(res, tx)
 		}
 	}
-	if isError {
-		return nil, errors.New("block tx get error")
+	if errMsg != "" {
+		return nil, errors.New(errMsg)
 	}
 	log.Info(heights)
 	sortTx(res)
@@ -146,11 +140,12 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 
 func (bc *Blockchain) GetIndexTxsBlock(addr string, height int64, state int, mempool bool) ([]*Tx, error) {
 	res := []*Tx{}
-	if bc.index[height] == nil {
-		return nil, errors.New("error ")
+	index := bc.index[height]
+	if index == nil {
+		return nil, errors.New("error index is nil")
 	}
-	txids := bc.index[height].GetTxIDs(addr, state)
-	minedtime := bc.minedtime[height]
+	txids := index.GetTxIDs(addr, state)
+	minedtime := bc.getMinedtime(height)
 	if mempool {
 		minedtime = 0
 	}
@@ -165,26 +160,17 @@ func (bc *Blockchain) GetIndexTxsBlock(addr string, height int64, state int, mem
 	return res, nil
 }
 
-func (bc *Blockchain) GetIndexTxsRange(addr string, end int64, depth int, state int, mined bool) ([]*Tx, error) {
-	if depth == 0 {
-		// Set max depth if depth is zero
-		depth = len(bc.index)
-	}
-	res := []*Tx{}
-	// Start with hightest block
-	for i := end; i > end-int64(depth); i-- {
-		if bc.index[i] == nil {
-			continue
-		}
-		txids := bc.index[i].GetTxIDs(addr, state)
-		// Getting txs with sorted
-		txs, _ := bc.txStore.GetTxs(txids, bc.minedtime[i])
-		for _, tx := range txs {
-			res = append(res, tx)
-		}
-		log.Info("count ", len(bc.index), " block ", i)
-	}
-	return res, nil
+func (bc *Blockchain) getMinedtime(height int64) int64 {
+	bc.mu.RLock()
+	minedtime := bc.minedtime[height]
+	bc.mu.RUnlock()
+	return minedtime
+}
+
+func (bc *Blockchain) updateMinedtime(height int64, time int64) {
+	bc.mu.Lock()
+	bc.minedtime[height] = time
+	bc.mu.Unlock()
 }
 
 func (bc *Blockchain) UpdateIndex(tx *Tx) {
@@ -214,8 +200,8 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 			// Publish tx to notification handler
 			bc.pushMsgChan <- &PushMsg{Tx: tx, Addr: addrs[0], State: Send}
 		}
-		// Delete tx that all consumed output
-		bc.txStore.DeleteAllSpentTx(inTx)
+		// Remove tx that all consumed output
+		//bc.txStore.RemoveAllSpentTx(inTx)
 	}
 	for _, out := range tx.Vout {
 		valueStr := strconv.FormatFloat(out.Value.(float64), 'f', -1, 64)
@@ -236,15 +222,27 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 	}
 }
 
-func (bc *Blockchain) DeleteOldIndex() {
-	if len(bc.index) > int(bc.targetPrune) {
-		// Remove index if prune block is come
-		bc.mu.Lock()
-		delete(bc.index, bc.targetHeight-int64(bc.targetPrune))
-		delete(bc.minedtime, bc.targetHeight-int64(bc.targetPrune))
-		bc.mu.Unlock()
-		log.Info("delete index and minedtime ", bc.targetHeight-int64(bc.targetPrune))
+// RemoveOldIndex invoked when prune block is came
+func (bc *Blockchain) RemoveOldIndex() {
+	if len(bc.index) <= int(bc.targetPrune)+1 {
+		return
 	}
+	target := bc.targetHeight - int64(bc.targetPrune) - 1
+	bc.mu.Lock()
+	delete(bc.index, target)
+	bc.mu.Unlock()
+	log.Infof("Remove index #%d", target)
+}
+
+func (bc *Blockchain) RemoveMinedtiime() {
+	if len(bc.minedtime) <= int(bc.targetPrune) {
+		return
+	}
+	target := bc.targetHeight - int64(bc.targetPrune) - 1
+	bc.mu.Lock()
+	delete(bc.minedtime, target)
+	bc.mu.Unlock()
+	log.Infof("Remove minedtime #%d", target)
 }
 
 func (bc *Blockchain) UpdateBlockTxs(block *Block) {
@@ -267,6 +265,7 @@ func (bc *Blockchain) UpdateBlockTxs(block *Block) {
 }
 
 func (bc *Blockchain) FinalizeBlock(block *Block) {
+	bc.mu.Lock()
 	// Check the old block
 	if bc.index[bc.targetHeight] != nil {
 		// Update prev block's mined time
@@ -276,7 +275,9 @@ func (bc *Blockchain) FinalizeBlock(block *Block) {
 	bc.index[newHeight] = NewIndex()
 	// Update curernt block height
 	bc.targetHeight = newHeight
-	log.Info("now -> ", bc.targetHeight, " ", bc.minedtime)
+	log.Infof("now -> #%d", bc.targetHeight)
+	log.Info(bc.index, " ", bc.minedtime)
+	bc.mu.Unlock()
 }
 
 func (bc *Blockchain) GetRemoteBlock() (*Block, error) {

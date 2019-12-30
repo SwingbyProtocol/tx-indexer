@@ -117,7 +117,6 @@ func (node *Node) Stop() {
 		wg.Add(1)
 		p := peer
 		go func() {
-			// onDisconnection will be called.
 			p.Disconnect()
 			p.WaitForDisconnect()
 			wg.Done()
@@ -176,6 +175,7 @@ func (node *Node) BroadcastTxInv(txid string) error {
 		invType = wire.InvTypeWitnessTx
 	} else {
 		invType = wire.InvTypeTx
+
 	}
 	hash := msgTx.TxHash()
 	iv := wire.NewInvVect(invType, &hash)
@@ -237,6 +237,7 @@ func (node *Node) AddPeer(conn net.Conn) {
 
 	go func() {
 		p.WaitForDisconnect()
+		// onDisconnection will be called.
 		node.onDisconneted(p, conn)
 	}()
 }

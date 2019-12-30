@@ -29,21 +29,24 @@ func (node *Node) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject 
 	isSegwit := remoteAddr.HasService(wire.SFNodeWitness)
 	// Reject outbound peers that are not full nodes.
 	if !isFullNode {
-		log.Debugf("Peer %s is not full node", p)
+		log.Debugf("Peer %s is not full node, diconnecting...", p)
 		reason := "Peer is not full node"
 		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
 	}
 	// Don't connect to bitcoin cash nodes
 	if isBCash {
-		log.Debugf("Peer %s does not support Bitcoin Cash", p)
+		log.Debugf("Peer %s does not support Bitcoin Cash, diconnecting...", p)
 		reason := "does not support Bitcoin Cash"
 		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
 	}
-	if !(isSupportBloom && isSegwit) {
-		// onDisconnection will be called
-		// which will remove the peer from openPeers
-		log.Debugf("Peer %s does not support bloom filtering and segwit, diconnecting...", p)
-		reason := "Peer does not support bloom filtering and segwit"
+	if !isSegwit {
+		log.Debugf("Peer %s does not support segwit, diconnecting...", p)
+		reason := "Peer does not support segwit"
+		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
+	}
+	if !isSupportBloom {
+		log.Debugf("Peer %s does not support bloom filtering, diconnecting...", p)
+		reason := "Peer does not support bloom filtering"
 		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
 	}
 	return nil
@@ -61,28 +64,27 @@ func (node *Node) OnReject(p *peer.Peer, msg *wire.MsgReject) {
 func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	invVects := msg.InvList
 	for i := len(invVects) - 1; i >= 0; i-- {
-		if invVects[i].Type == wire.InvTypeBlock {
-			iv := invVects[i]
-			iv.Type = wire.InvTypeWitnessBlock
+		iv := invVects[i]
+		if iv.Type == wire.InvTypeBlock {
+			if p.IsWitnessEnabled() {
+				iv.Type = wire.InvTypeWitnessBlock
+			}
 			gdmsg := wire.NewMsgGetData()
 			gdmsg.AddInvVect(iv)
 			p.QueueMessage(gdmsg, nil)
-			continue
 		}
-		if invVects[i].Type == wire.InvTypeTx {
-			//fmt.Println("inv_tx", invVects[i].Hash, p.Addr())
-			iv := invVects[i]
-			iv.Type = wire.InvTypeWitnessTx
+		if iv.Type == wire.InvTypeTx {
+			if p.IsWitnessEnabled() {
+				iv.Type = wire.InvTypeWitnessTx
+			}
 			gdmsg := wire.NewMsgGetData()
 			gdmsg.AddInvVect(iv)
 			p.QueueMessage(gdmsg, nil)
-			continue
 		}
 	}
 }
 
 func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
-	//isWitness := msgTx.HasWitness()
 	// Update node rank
 	node.updateRank(p)
 	// Get now ranks counts
@@ -101,7 +103,6 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 		// Finding new peer
 		go node.queryDNSSeeds()
 	}
-
 	go func() {
 		node.txChan <- msg
 	}()
@@ -135,7 +136,7 @@ func (node *Node) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
 			time.Sleep(30 * time.Second)
 			err := node.RemoveInvTx(txid)
 			if err == nil {
-				log.Infof("Removed inv txs %s", txid)
+				log.Infof("Remove inv txs %s", txid)
 			}
 		}()
 	}
@@ -147,7 +148,7 @@ func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.Message
 		return errors.New("Unable to fetch tx from invtxs")
 	}
 	p.QueueMessageWithEncoding(msgTx, nil, enc)
-	log.Infof("Broadcast tx data success: %s peer: %s", hash.String(), p.Addr())
+	log.Infof("Broadcast success txhash: %s peer: %s", hash.String(), p.Addr())
 	return nil
 }
 
