@@ -89,7 +89,7 @@ func (bc *Blockchain) Start() {
 			// Get block data from TrustedPeer for now
 			block, err := bc.GetRemoteBlock()
 			if err != nil {
-				//log.Info(err)
+				log.Error(err)
 				continue
 			}
 			log.Infof("Get block -> #%d %s", block.Height, bc.latestBlockHash)
