@@ -102,7 +102,7 @@ func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {
 func (ps *PubSub) Publish(topic string, msg []byte) {
 	subscriptions := ps.GetTopicSubs(topic, nil)
 	for _, sub := range subscriptions {
-		log.Infof("Sending to client id %s msg is %s \n", sub.Client.ID, msg[:30])
+		log.Infof("Publish msg to client id %s msg is %s \n", sub.Client.ID, msg[:30])
 		//sub.Client.Connection.WriteMessage(1, message)
 		sub.Client.Send(msg)
 	}
@@ -111,7 +111,7 @@ func (ps *PubSub) Publish(topic string, msg []byte) {
 func (ps *PubSub) PublishJSON(topic string, data interface{}) {
 	subscriptions := ps.GetTopicSubs(topic, nil)
 	for _, sub := range subscriptions {
-		log.Infof("Sending to client id %s \n", sub.Client.ID)
+		log.Infof("Publish msg to client id %s \n", sub.Client.ID)
 		//sub.Client.Connection.WriteMessage(1, message)
 		sub.Client.SendJSON(data)
 	}
