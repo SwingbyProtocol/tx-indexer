@@ -164,7 +164,7 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 		ws.listeners.OnGetIndexTxsWS(c, &req)
 		break
 	case BROADCAST:
-		ws.listeners.OnBroadcastTx(c, &req)
+		ws.listeners.OnBroadcastTxWS(c, &req)
 		break
 	default:
 		c.SendJSON(CreateMsgErrorWS("", "action is not correct"))

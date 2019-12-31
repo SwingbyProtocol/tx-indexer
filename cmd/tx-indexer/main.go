@@ -57,13 +57,7 @@ func main() {
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
 
-	listeners := apiConfig.Listeners
-
-	listeners.OnGetTx = bc.OnGetTx
-
-	listeners.OnGetAddressIndex = bc.OnGetAddressIndex
-
-	listeners.OnWatchTxWS = func(c *pubsub.Client, req *api.MsgWsReqest) {
+	onWatchTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
 		if req.Params == nil {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params is not correct"))
 			return
@@ -87,7 +81,7 @@ func main() {
 		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*blockchain.Tx{}))
 	}
 
-	listeners.OnUnWatchTxWS = func(c *pubsub.Client, req *api.MsgWsReqest) {
+	onUnWatchTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
 		if req.Params == nil {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params is not correct"))
 			return
@@ -111,7 +105,7 @@ func main() {
 		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*blockchain.Tx{}))
 	}
 
-	listeners.OnGetTxWS = func(c *pubsub.Client, req *api.MsgWsReqest) {
+	onGetTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
 		if req.Params.Txid == "" {
 			c.SendJSON(api.CreateMsgErrorWS(req.Params.Txid, "txid is not set"))
 			return
@@ -132,7 +126,7 @@ func main() {
 		c.SendJSON(res)
 	}
 
-	listeners.OnGetIndexTxsWS = func(c *pubsub.Client, req *api.MsgWsReqest) {
+	onGetIndexTxsWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
 		if req.Params == nil {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params is not correct"))
 			return
@@ -155,8 +149,9 @@ func main() {
 		timeFrom := req.Params.TimeFrom
 		timeTo := req.Params.TimeTo
 		mempool := req.Params.Mempool
-		if mempool && timeFrom != 0 && timeTo != 0 {
+		if mempool && (timeFrom != 0 || timeTo != 0) {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "time windows cannot enable mempool flag"))
+			log.Warn("Get txs call: time windows cannot enable mempool flag")
 			return
 		}
 		txs, err := bc.GetIndexTxsWithTW(req.Params.Address, timeFrom, timeTo, state, mempool)
@@ -164,11 +159,12 @@ func main() {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "txs is not correct"))
 			return
 		}
-		res := api.CreateMsgSuccessWS(api.GETTXS, req.Params.Type, txs)
+		res := api.CreateMsgSuccessWS(api.GETTXS, "Get txs success only for "+req.Params.Type, txs)
 		c.SendJSON(res)
+		log.Infof("Get txs for %s with params from %d to %d type %s mempool %t", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool)
 	}
 
-	listeners.Publish = func(ps *pubsub.PubSub, msg *blockchain.PushMsg) {
+	Publish := func(ps *pubsub.PubSub, msg *blockchain.PushMsg) {
 		txs := []*blockchain.Tx{}
 		txs = append(txs, msg.Tx)
 		if msg.State == blockchain.Send {
@@ -183,7 +179,7 @@ func main() {
 		}
 	}
 
-	listeners.OnBroadcastTx = func(c *pubsub.Client, req *api.MsgWsReqest) {
+	onBroadcastTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
 		if req.Params == nil {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params is not correct"))
 			return
@@ -227,6 +223,16 @@ func main() {
 		res := api.CreateMsgSuccessWS(api.BROADCAST, "Tx data broadcast success: "+txHash, []*blockchain.Tx{})
 		c.SendJSON(res)
 	}
+	// Add handler for WS
+	apiConfig.Listeners.OnWatchTxWS = onWatchTxWS
+	apiConfig.Listeners.OnUnWatchTxWS = onUnWatchTxWS
+	apiConfig.Listeners.OnGetTxWS = onGetTxWS
+	apiConfig.Listeners.OnGetIndexTxsWS = onGetIndexTxsWS
+	apiConfig.Listeners.OnBroadcastTxWS = onBroadcastTxWS
+	apiConfig.Listeners.Publish = Publish
+	// Add handler for REST
+	apiConfig.Listeners.OnGetTx = bc.OnGetTx
+	apiConfig.Listeners.OnGetAddressIndex = bc.OnGetAddressIndex
 
 	apiServer.Start()
 

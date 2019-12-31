@@ -89,7 +89,9 @@ func (bc *Blockchain) Start() {
 			// Get block data from TrustedPeer for now
 			block, err := bc.GetRemoteBlock()
 			if err != nil {
-				log.Error(err)
+				if err.Error() == "Previousblockhash is not correct" {
+					log.Warn(err)
+				}
 				continue
 			}
 			log.Infof("Get block -> #%d %s", block.Height, bc.latestBlockHash)
@@ -106,57 +108,34 @@ func (bc *Blockchain) Start() {
 }
 
 func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, state int, mempool bool) ([]*Tx, error) {
-	heights := []int64{}
-	res := []*Tx{}
 	if end == 0 {
 		end = int64(^uint(0) >> 1)
 	}
-	for height, time := range bc.minedtime {
-		if time >= start && time <= end {
-			heights = append(heights, height)
+	// Seek all index
+	txidsAll := []string{}
+	for height := range bc.index {
+		index := bc.index[height]
+		if index != nil {
+			txids := index.GetTxIDs(addr, state)
+			for _, tx := range txids {
+				txidsAll = append(txidsAll, tx)
+			}
 		}
 	}
-	if mempool {
-		heights = append(heights, bc.targetHeight)
-	}
-	errMsg := ""
-	for _, height := range heights {
-		txs, err := bc.GetIndexTxsBlock(addr, height, state, mempool)
-		if err != nil {
-			errMsg = err.Error()
-			continue
-		}
-		for _, tx := range txs {
-			res = append(res, tx)
-		}
-	}
-	if errMsg != "" {
-		return nil, errors.New(errMsg)
-	}
-	log.Info(heights)
-	sortTx(res)
-	return res, nil
-}
-
-func (bc *Blockchain) GetIndexTxsBlock(addr string, height int64, state int, mempool bool) ([]*Tx, error) {
-	res := []*Tx{}
-	index := bc.index[height]
-	if index == nil {
-		return nil, errors.New("error index is nil")
-	}
-	txids := index.GetTxIDs(addr, state)
-	minedtime := bc.getMinedtime(height)
-	if mempool {
-		minedtime = 0
-	}
-	// Getting txs
-	txs, err := bc.txStore.GetTxs(txids, minedtime)
+	txs, err := bc.txStore.GetTxs(txidsAll)
 	if err != nil {
 		return nil, err
 	}
+	res := []*Tx{}
 	for _, tx := range txs {
-		res = append(res, tx)
+		if tx.MinedTime == 0 && !mempool {
+			continue
+		}
+		if tx.MinedTime >= start && tx.MinedTime <= end {
+			res = append(res, tx)
+		}
 	}
+	sortTx(res)
 	return res, nil
 }
 
