@@ -165,7 +165,7 @@ func main() {
 		}
 		res := api.CreateMsgSuccessWS(api.GETTXS, "Get txs success only for "+req.Params.Type, txs)
 		c.SendJSON(res)
-		log.Infof("Get txs for %s with params from %11d to %11d type %10s mempool %t txs %d", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool, len(res.Txs))
+		log.Infof("Get txs for %s with params from %11d to %11d type %10s mempool %6t txs %d", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool, len(res.Txs))
 	}
 
 	Publish := func(ps *pubsub.PubSub, msg *blockchain.PushMsg) {
