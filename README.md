@@ -21,11 +21,15 @@ $ go run ./cmd/tx-indexer -s 12 -c http://192.168.1.101:8332
 ```
 $ make build
 ```
+for linux-amd64
+```
+$ make build-linux-amd64
+```
 ## API reffecrence
 
 - [Websocket sample code](./examples/websocket_sample/websocket_sample.go)
 
-### Docker
+### Build Docker container
 ```
 $ make docker
 ```
