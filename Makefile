@@ -8,4 +8,4 @@ build-linux-amd64:
 run:
 		go run cmd/tx-indexer/main.go
 docker:
-		docker bulid -t indexer .
+		docker build -t indexer .
