@@ -31,9 +31,8 @@ WORKDIR /root/
 # Copy the Pre-built binary file from the previous stage
 COPY --from=builder /app/bin/tx-indexer-linux-amd64 .
 
-# Expose port 9096 to the outside world
-EXPOSE 9096
+# Expose port 9096 and 9099 to the outside world
+EXPOSE 9096 9099
 
 # Command to run the executable
 ENTRYPOINT ["./tx-indexer-linux-amd64"]
-CMD ["-c", "http://192.168.1.230:8332", "-s", "14"]
