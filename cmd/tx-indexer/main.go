@@ -70,6 +70,10 @@ func main() {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Type is not correct"))
 			return
 		}
+		if !req.Params.Mempool {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Mempool should be true to call watchTxs"))
+			return
+		}
 		if req.Params.Type == "" {
 			req.Params.Type = Received
 		}
