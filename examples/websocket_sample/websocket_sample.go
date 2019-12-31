@@ -11,8 +11,7 @@ import (
 )
 
 var (
-	//apiEndpoint = "wss://indexer.swingby.network/ws"
-	apiEndpoint = "wss://testnet-indexer.swingby.network/ws"
+	apiEndpoint = "ws://localhost:9099/ws"
 	watchAddr   = "tb1q8afqk8p2en03m0e9dtpyxhyk9emuzr3u2hey04"
 )
 
@@ -23,7 +22,7 @@ type Keeper struct {
 // Using with environment variables
 /*
 $ source env.sh
-$ go run examples/websocket_sample/websocket_sample.go
+$ go run websocket_sample.go
 */
 
 // Request msg sample

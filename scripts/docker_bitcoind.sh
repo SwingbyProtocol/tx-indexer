@@ -1,6 +1,6 @@
 #!/bin/bash
 
-docker run -v /var/bitcoind-main:/bitcoin -d \
+docker run --cpus=0.4 -v /var/bitcoind-main:/bitcoin -d \
     --restart=on-failure:10 \
     --name=bitcoind-node-main \
     -p 0.0.0.0:8333:8333 \

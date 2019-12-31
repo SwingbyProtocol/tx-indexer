@@ -33,7 +33,6 @@ type Blockchain struct {
 	mu              *sync.RWMutex
 	resolver        *Resolver
 	index           map[int64]*Index // index is stored per block
-	minedtime       map[int64]int64  // store the minedtime per block
 	txStore         *TxStore
 	targetPrune     uint
 	targetHeight    int64
@@ -48,7 +47,6 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		mu:          new(sync.RWMutex),
 		resolver:    NewResolver(conf.TrustedNode),
 		index:       make(map[int64]*Index),
-		minedtime:   make(map[int64]int64),
 		txStore:     NewTxStore(),
 		targetPrune: conf.PruneSize,
 		txChan:      make(chan *wire.MsgTx),
@@ -101,8 +99,6 @@ func (bc *Blockchain) Start() {
 			bc.FinalizeBlock(block)
 			// Remove old index
 			bc.RemoveOldIndex()
-			// Remove old minedtime
-			bc.RemoveMinedtiime()
 		}
 	}()
 }
@@ -137,19 +133,6 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 	}
 	sortTx(res)
 	return res, nil
-}
-
-func (bc *Blockchain) getMinedtime(height int64) int64 {
-	bc.mu.RLock()
-	minedtime := bc.minedtime[height]
-	bc.mu.RUnlock()
-	return minedtime
-}
-
-func (bc *Blockchain) updateMinedtime(height int64, time int64) {
-	bc.mu.Lock()
-	bc.minedtime[height] = time
-	bc.mu.Unlock()
 }
 
 func (bc *Blockchain) UpdateIndex(tx *Tx) {
@@ -213,17 +196,6 @@ func (bc *Blockchain) RemoveOldIndex() {
 	log.Infof("Remove index #%d", target)
 }
 
-func (bc *Blockchain) RemoveMinedtiime() {
-	if len(bc.minedtime) <= int(bc.targetPrune) {
-		return
-	}
-	target := bc.targetHeight - int64(bc.targetPrune) - 1
-	bc.mu.Lock()
-	delete(bc.minedtime, target)
-	bc.mu.Unlock()
-	log.Infof("Remove minedtime #%d", target)
-}
-
 func (bc *Blockchain) UpdateBlockTxs(block *Block) {
 	for _, tx := range block.Txs {
 		// Adding tx data from block
@@ -245,17 +217,11 @@ func (bc *Blockchain) UpdateBlockTxs(block *Block) {
 
 func (bc *Blockchain) FinalizeBlock(block *Block) {
 	bc.mu.Lock()
-	// Check the old block
-	if bc.index[bc.targetHeight] != nil {
-		// Update prev block's mined time
-		bc.minedtime[bc.targetHeight] = block.Time
-	}
 	newHeight := bc.targetHeight + 1
 	bc.index[newHeight] = NewIndex()
 	// Update curernt block height
 	bc.targetHeight = newHeight
 	log.Infof("now -> #%d", bc.targetHeight)
-	//log.Info(bc.index, " ", bc.minedtime)
 	bc.mu.Unlock()
 }
 
