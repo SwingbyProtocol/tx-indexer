@@ -3,6 +3,7 @@ package blockchain
 import (
 	"encoding/hex"
 	"errors"
+	"sort"
 	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/common/config"
@@ -97,4 +98,8 @@ func MsgBlockToBlock(msgBlock *wire.MsgBlock) Block {
 		block.Txs = append(block.Txs, &tx)
 	}
 	return block
+}
+
+func sortTx(txs []*Tx) {
+	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Receivedtime > txs[j].Receivedtime })
 }
