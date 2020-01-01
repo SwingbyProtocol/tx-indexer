@@ -66,10 +66,10 @@ func (bc *Blockchain) WatchTx() {
 		storedTx, mempool := bc.GetTx(tx.Txid)
 		// Tx is not exist, add to mempool from tx
 		if storedTx == nil && !mempool {
-			// Add tx to mempool
-			bc.AddMempoolTx(tx)
 			// add new tx
 			bc.UpdateIndex(tx)
+			// Add tx to mempool
+			bc.AddMempoolTx(tx)
 			log.Debugf("new tx came add to mempool %s witness %t", tx.Txid, tx.MsgTx.HasWitness())
 		}
 		// Tx is on the mempool and kv
@@ -150,7 +150,7 @@ func (bc *Blockchain) WatchBlock() {
 			continue
 		}
 		latest := bc.GetLatestBlock()
-		log.Infof("Get block -> #%d %s", latest.Height, latest.Hash)
+		log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
 	}
 }
 
@@ -160,7 +160,7 @@ func (bc *Blockchain) Start() {
 		log.Fatal(err)
 	}
 	latest := bc.GetLatestBlock()
-	log.Infof("Get block -> #%d %s", latest.Height, latest.Hash)
+	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
 	go bc.WatchBlock()
 	go bc.WatchTx()
 
@@ -198,17 +198,17 @@ func (bc *Blockchain) SyncBlocks() error {
 	}
 	// Latest block hash is checked same as the latest previous hash
 	if blocks[0].Previousblockhash != latestHash {
-		log.Warnf("Laest block hash is not match. search more blocks prevHash: %s", blocks[0].Previousblockhash)
-		allBlocks, err := bc.GetRemoteBlocks(5)
+		log.Warnf("Latest block may be orphan, hash does not match. search more blocks.. prevhash: %s", blocks[0].Previousblockhash)
+		allBlocks, err := bc.GetRemoteBlocks(8)
 		if err != nil {
-			log.Info(err)
+			log.Warn(err)
 			return err
 		}
 		blocks = allBlocks
 	}
 	for _, block := range blocks {
 		bc.blocks[block.Height] = block
-		log.Infof("Stored blocks -> %d", block.Height)
+		log.Infof("Stored new block -> %d", block.Height)
 	}
 	nowHash := bc.GetLatestBlock().Hash
 	// Add latest block hash
@@ -270,18 +270,8 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 	if end == 0 {
 		end = int64(^uint(0) >> 1)
 	}
-	// Seek all index
-	txidsAll := []string{}
-
-	if bc.index != nil {
-		txids := bc.index.GetTxIDs(addr, state)
-		for _, tx := range txids {
-			txidsAll = append(txidsAll, tx)
-		}
-	}
-
-	txs := bc.GetTxs(txidsAll)
-
+	txids := bc.index.GetTxIDs(addr, state)
+	txs := bc.GetTxs(txids)
 	res := []*Tx{}
 	for _, tx := range txs {
 		if tx.MinedTime == 0 && !mempool {
