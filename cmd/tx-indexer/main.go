@@ -114,8 +114,8 @@ func main() {
 			c.SendJSON(api.CreateMsgErrorWS(req.Params.Txid, "txid is not set"))
 			return
 		}
-		tx, err := bc.TxScore().GetTx(req.Params.Txid)
-		if err != nil {
+		tx, _ := bc.GetTx(req.Params.Txid)
+		if err == nil {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, err.Error()))
 			return
 		}
@@ -210,9 +210,9 @@ func main() {
 		// Add tx to inv
 		node.AddInvTx(txHash, tx.MsgTx())
 		for _, in := range tx.MsgTx().TxIn {
-			inTx, err := bc.TxScore().GetTx(in.PreviousOutPoint.Hash.String())
-			if err != nil {
-				log.Info(err)
+			inTx, _ := bc.GetTx(in.PreviousOutPoint.Hash.String())
+			if inTx == nil {
+				log.Info("tx is not exit")
 				continue
 			}
 			// Add inTx to inv

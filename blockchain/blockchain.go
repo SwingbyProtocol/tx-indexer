@@ -32,12 +32,13 @@ type BlockchainConfig struct {
 type Blockchain struct {
 	mu              *sync.RWMutex
 	resolver        *Resolver
-	index           map[int64]*Index // index is stored per block
-	txStore         *TxStore
+	index           *Index // index is stored per block
+	blocks          map[int64]*Block
+	mempool         map[string]*Tx
 	targetPrune     uint
-	targetHeight    int64
 	latestBlockHash string
-	txChan          chan *wire.MsgTx
+	msgTxChan       chan *wire.MsgTx
+	txChan          chan *Tx
 	blockChan       chan *wire.MsgBlock
 	pushMsgChan     chan *PushMsg
 }
@@ -46,35 +47,71 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	bc := &Blockchain{
 		mu:          new(sync.RWMutex),
 		resolver:    NewResolver(conf.TrustedNode),
-		index:       make(map[int64]*Index),
-		txStore:     NewTxStore(),
+		index:       NewIndex(),
+		blocks:      make(map[int64]*Block),
+		mempool:     make(map[string]*Tx),
 		targetPrune: conf.PruneSize,
-		txChan:      make(chan *wire.MsgTx),
+		msgTxChan:   make(chan *wire.MsgTx),
+		txChan:      make(chan *Tx, 10000),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *PushMsg),
 	}
 	log.Infof("Using trusted node: %s", conf.TrustedNode)
-	block, err := bc.GetRemoteBlock()
-	if err != nil {
-		log.Fatal(err)
-	}
+
 	//bc.index[block.Height] = NewIndex()
-	bc.FinalizeBlock(block)
+	//bc.FinalizeBlock(block)
 	return bc
 }
 
+func (bc *Blockchain) AddMempoolTx(tx *Tx) {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	bc.mempool[tx.Txid] = tx
+}
+
+func (bc *Blockchain) RemoveMempoolTx(tx *Tx) {
+	bc.mu.Lock()
+	defer bc.mu.Unlock()
+	delete(bc.mempool, tx.Txid)
+}
+
 func (bc *Blockchain) Start() {
+	err := bc.SyncBlocks()
+	if err != nil {
+		log.Fatal(err)
+	}
+	latest := bc.GetLatestBlock()
+	log.Infof("Get block -> #%d %s", latest.Height, latest.Hash)
 	go func() {
 		for {
-			msg := <-bc.txChan
-			_, err := bc.txStore.GetTx(msg.TxHash().String())
-			if err != nil {
-				tx := MsgTxToTx(msg)
-				bc.UpdateIndex(&tx)
-				// store the tx
-				bc.txStore.AddTx(&tx)
-				log.Debugf("new tx came %s witness %t", tx.Txid, msg.HasWitness())
+			tx := <-bc.txChan
+			storedTx, mempool := bc.GetTx(tx.Txid)
+			// Tx is not exist add to mempool
+			if storedTx == nil && tx.Confirms == 0 {
+				// add new tx
+				bc.UpdateIndex(tx)
+				// Add tx to mempool
+				bc.AddMempoolTx(tx)
+				log.Debugf("new tx came %s witness %t", tx.Txid, tx.MsgTx.HasWitness())
 			}
+			// Tx is on the kv
+			if storedTx != nil && !mempool {
+				if storedTx.Confirms != 0 {
+					continue
+				}
+				bc.UpdateIndex(tx)
+				// Remove Tx from mempool
+				bc.RemoveMempoolTx(tx)
+				log.Debugf("already tx exist on mempool %s", tx.Txid)
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			msg := <-bc.msgTxChan
+			tx := MsgTxToTx(msg)
+			bc.txChan <- &tx
 		}
 	}()
 
@@ -85,22 +122,94 @@ func (bc *Blockchain) Start() {
 			// block := MsgBlockToBlock(msg)
 
 			// Get block data from TrustedPeer for now
-			block, err := bc.GetRemoteBlock()
+			err := bc.SyncBlocks()
 			if err != nil {
-				if err.Error() == "Previousblockhash is not correct" {
-					log.Warn(err)
-				}
+				log.Info(err)
 				continue
 			}
-			log.Infof("Get block -> #%d %s", block.Height, bc.latestBlockHash)
-			// Add/Update txs from block
-			bc.UpdateBlockTxs(block)
-			// Finalize block
-			bc.FinalizeBlock(block)
-			// Remove old index
-			bc.RemoveOldIndex()
+			latest := bc.GetLatestBlock()
+			log.Infof("Get block -> #%d %s", latest.Height, latest.Hash)
 		}
 	}()
+}
+
+func (bc *Blockchain) GetLatestBlock() *Block {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	top := int64(0)
+	for height := range bc.blocks {
+		if height > top {
+			top = height
+		}
+	}
+	return bc.blocks[top]
+}
+
+func (bc *Blockchain) SyncBlocks() error {
+	// Check hash of prev block
+	blocks, err := bc.GetRemoteBlocks(1)
+	if err != nil {
+		return err
+	}
+	latestHash := bc.latestBlockHash
+	if blocks[0].Hash == latestHash {
+		return errors.New("height is latest")
+	}
+	// Latest block hash is checked same as the latest previous hash
+	if blocks[0].Previousblockhash != latestHash {
+		log.Infof("laest block hash is not match. search more blocks prevHash: %s", blocks[0].Previousblockhash)
+		allBlocks, err := bc.GetRemoteBlocks(5)
+		if err != nil {
+			log.Info(err)
+			return err
+		}
+		blocks = allBlocks
+	}
+	for _, block := range blocks {
+		bc.blocks[block.Height] = block
+	}
+	nowHash := bc.GetLatestBlock().Hash
+	// Add latest block hash
+	bc.latestBlockHash = nowHash
+	// Add txs to txChan
+	for _, block := range blocks {
+		for _, tx := range block.Txs {
+			tx.AddBlockData(block.Height, block.Time, block.Mediantime)
+			tx.Receivedtime = block.Time
+			bc.txChan <- tx
+		}
+	}
+	return nil
+}
+
+func (bc *Blockchain) GetTx(txid string) (*Tx, bool) {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	for _, block := range bc.blocks {
+		for _, tx := range block.Txs {
+			if tx.Txid == txid {
+				return tx, false
+			}
+		}
+	}
+	for key, tx := range bc.mempool {
+		if key == txid {
+			return tx, true
+		}
+	}
+	return nil, false
+}
+
+func (bc *Blockchain) GetTxs(txids []string) []*Tx {
+	txs := []*Tx{}
+	for _, txid := range txids {
+		tx, _ := bc.GetTx(txid)
+		if tx == nil {
+			continue
+		}
+		txs = append(txs, tx)
+	}
+	return txs
 }
 
 func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, state int, mempool bool) ([]*Tx, error) {
@@ -109,19 +218,16 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 	}
 	// Seek all index
 	txidsAll := []string{}
-	for height := range bc.index {
-		index := bc.index[height]
-		if index != nil {
-			txids := index.GetTxIDs(addr, state)
-			for _, tx := range txids {
-				txidsAll = append(txidsAll, tx)
-			}
+
+	if bc.index != nil {
+		txids := bc.index.GetTxIDs(addr, state)
+		for _, tx := range txids {
+			txidsAll = append(txidsAll, tx)
 		}
 	}
-	txs, err := bc.txStore.GetTxs(txidsAll)
-	if err != nil {
-		return nil, err
-	}
+
+	txs := bc.GetTxs(txidsAll)
+
 	res := []*Tx{}
 	for _, tx := range txs {
 		if tx.MinedTime == 0 && !mempool {
@@ -139,8 +245,8 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 	// Check tx input to update indexer storage
 	for _, in := range tx.Vin {
 		// Load a tx from storage
-		inTx, err := bc.txStore.GetTx(in.Txid)
-		if err != nil {
+		inTx, _ := bc.GetTx(in.Txid)
+		if inTx == nil {
 			// continue if spent tx is not exist
 			//log.Debug(err)
 			in.Value = "not exist"
@@ -158,7 +264,7 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 			// Add address of spent to in
 			in.Addresses = addrs
 			// Update index and the spent tx (spent)
-			bc.index[bc.targetHeight].Update(addrs[0], tx.Txid, Send)
+			bc.index.Update(addrs[0], tx.Txid, Send)
 			// Publish tx to notification handler
 			bc.pushMsgChan <- &PushMsg{Tx: tx, Addr: addrs[0], State: Send}
 		}
@@ -178,24 +284,66 @@ func (bc *Blockchain) UpdateIndex(tx *Tx) {
 	addrs := tx.GetOutsAddrs()
 	for _, addr := range addrs {
 		// Update index and the spent tx (unspent)
-		bc.index[bc.targetHeight].Update(addr, tx.Txid, Received)
+		bc.index.Update(addr, tx.Txid, Received)
 		// Publish tx to notification handler
 		bc.pushMsgChan <- &PushMsg{Tx: tx, Addr: addr, State: Received}
 	}
 }
 
-// RemoveOldIndex invoked when prune block is came
-func (bc *Blockchain) RemoveOldIndex() {
-	if len(bc.index) <= int(bc.targetPrune)+1 {
-		return
+func (bc *Blockchain) GetRemoteBlocks(depth int) ([]*Block, error) {
+	info := ChainInfo{}
+	err := bc.resolver.GetRequest("/rest/chaininfo.json", &info)
+	if err != nil {
+		return nil, err
 	}
-	target := bc.targetHeight - int64(bc.targetPrune) - 1
-	bc.mu.Lock()
-	delete(bc.index, target)
-	bc.mu.Unlock()
-	log.Infof("Remove index #%d", target)
+	newBlocks, err := bc.GetDepthBlocks(info.Bestblockhash, depth, []*Block{})
+	if err != nil {
+		return nil, err
+	}
+	return newBlocks, nil
 }
 
+func (bc *Blockchain) GetDepthBlocks(blockHash string, depth int, blocks []*Block) ([]*Block, error) {
+	block := Block{}
+	err := bc.resolver.GetRequest("/rest/block/"+blockHash+".json", &block)
+	if err != nil {
+		return nil, err
+	}
+	if block.Height == 0 {
+		return nil, errors.New("block height is zero")
+	}
+	blocks = append(blocks, &block)
+	if depth != 0 {
+		depth = depth - 1
+	}
+	if depth == 0 {
+		return blocks, nil
+	}
+	return bc.GetDepthBlocks(block.Previousblockhash, depth, blocks)
+}
+
+func (bc *Blockchain) TxChan() chan *wire.MsgTx {
+	return bc.msgTxChan
+}
+
+func (bc *Blockchain) BlockChan() chan *wire.MsgBlock {
+	return bc.blockChan
+}
+
+func (bc *Blockchain) PushMsgChan() chan *PushMsg {
+	return bc.pushMsgChan
+}
+
+/*
+func (bc *Blockchain) FinalizeBlock(block *Block) {
+	bc.mu.Lock()
+	newHeight := bc.commitHeight + 1
+	bc.index[newHeight] = NewIndex()
+	// Update curernt block height
+	bc.commitHeight = newHeight
+	log.Infof("now -> #%d", bc.commitHeight)
+	bc.mu.Unlock()
+}
 func (bc *Blockchain) UpdateBlockTxs(block *Block) {
 	for _, tx := range block.Txs {
 		// Adding tx data from block
@@ -215,78 +363,15 @@ func (bc *Blockchain) UpdateBlockTxs(block *Block) {
 	}
 }
 
-func (bc *Blockchain) FinalizeBlock(block *Block) {
+// RemoveOldIndex invoked when prune block is came
+func (bc *Blockchain) RemoveOldIndex() {
+	if len(bc.index) <= int(bc.targetPrune)+1 {
+		return
+	}
+	target := bc.commitHeight - int64(bc.targetPrune) - 1
 	bc.mu.Lock()
-	newHeight := bc.targetHeight + 1
-	bc.index[newHeight] = NewIndex()
-	// Update curernt block height
-	bc.targetHeight = newHeight
-	log.Infof("now -> #%d", bc.targetHeight)
+	delete(bc.index, target)
 	bc.mu.Unlock()
+	log.Infof("Remove index #%d", target)
 }
-
-func (bc *Blockchain) GetRemoteBlock() (*Block, error) {
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
-
-	info := ChainInfo{}
-	err := bc.resolver.GetRequest("/rest/chaininfo.json", &info)
-	if err != nil {
-		return nil, err
-	}
-	if bc.targetHeight == info.Blocks+1 {
-		return nil, errors.New("target height is latest")
-	}
-
-	if bc.latestBlockHash == "" {
-		// Initialize targetHeight
-		bc.targetHeight = info.Blocks
-	}
-	diff := info.Blocks - bc.targetHeight
-	if diff < 0 {
-		diff = 0
-	}
-	depthBlock, err := bc.GetDepthBlock(info.Bestblockhash, int(diff))
-	if err != nil {
-		return nil, err
-	}
-	if bc.latestBlockHash != "" && depthBlock.Previousblockhash != bc.latestBlockHash {
-		return nil, errors.New("Previousblockhash is not correct")
-	}
-	bc.latestBlockHash = depthBlock.Hash
-	return depthBlock, nil
-}
-
-func (bc *Blockchain) GetDepthBlock(blockHash string, depth int) (*Block, error) {
-	block := Block{}
-	err := bc.resolver.GetRequest("/rest/block/"+blockHash+".json", &block)
-	if err != nil {
-		return nil, err
-	}
-	if block.Height == 0 {
-		return nil, errors.New("block height is zero")
-	}
-	if depth != 0 {
-		depth = depth - 1
-	}
-	if depth == 0 {
-		return &block, nil
-	}
-	return bc.GetDepthBlock(block.Previousblockhash, depth)
-}
-
-func (bc *Blockchain) TxScore() *TxStore {
-	return bc.txStore
-}
-
-func (bc *Blockchain) TxChan() chan *wire.MsgTx {
-	return bc.txChan
-}
-
-func (bc *Blockchain) BlockChan() chan *wire.MsgBlock {
-	return bc.blockChan
-}
-
-func (bc *Blockchain) PushMsgChan() chan *PushMsg {
-	return bc.pushMsgChan
-}
+*/

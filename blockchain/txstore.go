@@ -7,14 +7,16 @@ import (
 )
 
 type TxStore struct {
-	mu  *sync.RWMutex
-	txs map[string]*Tx
+	mu        *sync.RWMutex
+	txs       map[string]*Tx
+	blockHash string
 }
 
-func NewTxStore() *TxStore {
+func NewTxStore(blockHash string) *TxStore {
 	store := &TxStore{
-		mu:  new(sync.RWMutex),
-		txs: make(map[string]*Tx),
+		mu:        new(sync.RWMutex),
+		txs:       make(map[string]*Tx),
+		blockHash: blockHash,
 	}
 	return store
 }

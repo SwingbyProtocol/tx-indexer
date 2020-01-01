@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -16,9 +17,9 @@ type ErrorResponse struct {
 func (bc *Blockchain) OnGetTx(w rest.ResponseWriter, r *rest.Request) {
 	// Get path params "txid"
 	txid := r.PathParam("txid")
-	tx, err := bc.txStore.GetTx(txid)
-	if err != nil {
-		res500(err, w)
+	tx, _ := bc.GetTx(txid)
+	if tx == nil {
+		res500(errors.New("tx is not exit"), w)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
