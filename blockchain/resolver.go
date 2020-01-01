@@ -1,4 +1,4 @@
-package resolver
+package blockchain
 
 import (
 	"bytes"
@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Resolver struct {
@@ -81,7 +79,6 @@ func (r *Resolver) PostRequest(uri string, jsonBody string, res interface{}) err
 	reqWithDeadline := req.WithContext(ctx)
 	resp, err := r.Client.Do(reqWithDeadline)
 	if err != nil {
-		log.Println("post err:", err)
 		return err
 	}
 	decoder := json.NewDecoder(resp.Body)

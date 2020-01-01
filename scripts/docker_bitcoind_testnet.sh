@@ -1,8 +1,8 @@
 #!/bin/bash
 
-docker run -v /var/bitcoind:/bitcoin -d \
+docker run --cpus=0.4 -v /var/bitcoind-test:/bitcoin -d \
     --restart=on-failure:10 \
-    --name=bitcoind-node \
+    --name=bitcoind-node-test \
     -p 0.0.0.0:18333:18333 \
     -p 0.0.0.0:18332:18332 \
     kylemanna/bitcoind \
@@ -13,5 +13,5 @@ docker run -v /var/bitcoind:/bitcoin -d \
     -minrelaytxfee=0 \
     -maxmempool=300 \
     -mempoolexpiry=72 \
-    -rpcworkqueue=100 \
+    -rpcworkqueue=200 \
     -testnet=1

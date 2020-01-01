@@ -1,6 +1,7 @@
 package pubsub
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -13,14 +14,6 @@ type PubSub struct {
 	Subscriptions map[string][]Subscription
 	Mu            sync.Mutex
 	Upgrader      websocket.Upgrader
-}
-
-type Message struct {
-	Action        string `json:"action"`
-	Address       string `json:"address"`
-	Type          string `json:"type"`
-	TimestampFrom int64  `json:"timestamp_from"`
-	TimestampTo   int64  `json:"timestamp_to"`
 }
 
 type Subscription struct {
@@ -43,14 +36,10 @@ func NewPubSub() *PubSub {
 func (ps *PubSub) AddClient(client Client) *PubSub {
 	ps.Clients = append(ps.Clients, client)
 	//fmt.Println("adding new client to the list", client.Id, len(ps.Clients))
-	msg := "Hello Client ID: " + client.ID
-	log.Info(msg)
-	payload := []byte(msg)
-	client.Connection.WriteMessage(1, payload)
 	return ps
 }
 
-func (ps *PubSub) RemoveClient(client Client) *PubSub {
+func (ps *PubSub) RemoveClient(client *Client) *PubSub {
 	ps.Mu.Lock()
 	delete(ps.Subscriptions, client.ID)
 	for index, cli := range ps.Clients {
@@ -84,37 +73,18 @@ func (ps *PubSub) GetClientSubs(topic string, client *Client) []Subscription {
 	return subscriptionList
 }
 
-func (ps *PubSub) Subscribe(client *Client, topic string) *PubSub {
+func (ps *PubSub) Subscribe(client *Client, topic string) error {
 	clientSubs := ps.GetClientSubs(topic, client)
 	if len(clientSubs) > 0 {
 		// client is subscribed this topic before
-		return ps
+		return errors.New("Error this subscribe is already exist")
 	}
 	newSubscription := Subscription{
 		Topic:  topic,
 		Client: client,
 	}
 	ps.Subscriptions[client.ID] = append(ps.Subscriptions[client.ID], newSubscription)
-	return ps
-}
-
-func (ps *PubSub) Publish(topic string, msg []byte, excludeClient *Client) {
-	subscriptions := ps.GetTopicSubs(topic, nil)
-	for _, sub := range subscriptions {
-		log.Infof("Sending to client id %s msg is %s \n", sub.Client.ID, msg[:30])
-		//sub.Client.Connection.WriteMessage(1, message)
-		sub.Client.Send(msg)
-	}
-}
-
-func (ps *PubSub) PublishPing(writeWait time.Duration) {
-	for _, subs := range ps.Subscriptions {
-		for _, sub := range subs {
-			log.Infof("Sending PING to client id: %s", sub.Client.ID)
-			//sub.Client.Connection.WriteMessage(1, message)
-			sub.Client.Ping(writeWait)
-		}
-	}
+	return nil
 }
 
 func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {
@@ -127,4 +97,32 @@ func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {
 		}
 	}
 	return ps
+}
+
+func (ps *PubSub) Publish(topic string, msg []byte) {
+	subscriptions := ps.GetTopicSubs(topic, nil)
+	for _, sub := range subscriptions {
+		log.Infof("Publish msg to client id %s msg is %s \n", sub.Client.ID, msg[:30])
+		//sub.Client.Connection.WriteMessage(1, message)
+		sub.Client.Send(msg)
+	}
+}
+
+func (ps *PubSub) PublishJSON(topic string, data interface{}) {
+	subscriptions := ps.GetTopicSubs(topic, nil)
+	for _, sub := range subscriptions {
+		log.Infof("Publish msg to client id %s \n", sub.Client.ID)
+		//sub.Client.Connection.WriteMessage(1, message)
+		sub.Client.SendJSON(data)
+	}
+}
+
+func (ps *PubSub) PublishPing(writeWait time.Duration) {
+	for _, subs := range ps.Subscriptions {
+		for _, sub := range subs {
+			log.Infof("Sending PING to client id: %s", sub.Client.ID)
+			//sub.Client.Connection.WriteMessage(1, message)
+			sub.Client.Ping(writeWait)
+		}
+	}
 }

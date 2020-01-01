@@ -19,8 +19,7 @@ RUN go mod download
 COPY . .
 
 # Build the Go app
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o index .
-
+RUN make build-linux-amd64
 
 ######## Start a new stage from scratch #######
 FROM alpine:latest
@@ -30,11 +29,10 @@ RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 
 # Copy the Pre-built binary file from the previous stage
-COPY --from=builder /app/index .
+COPY --from=builder /app/bin/tx-indexer-linux-amd64 .
 
-# Expose port 9096 to the outside world
-EXPOSE 9096
+# Expose port 9096 and 9099 to the outside world
+EXPOSE 9096 9099
 
 # Command to run the executable
-ENTRYPOINT ["./index"]
-CMD ["-bitcoind=http://192.168.1.230:8332", "-prune=12"]
+ENTRYPOINT ["./tx-indexer-linux-amd64"]
