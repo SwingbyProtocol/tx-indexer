@@ -147,7 +147,7 @@ func (bc *Blockchain) Start() {
 	// load data from files
 	err := bc.Load()
 	if err != nil {
-		log.Fatal(err)
+		log.Error(err)
 	}
 	// Once sync blocks
 	err = bc.syncBlocks()
