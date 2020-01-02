@@ -46,6 +46,7 @@ type Params struct {
 type MsgWsResponse struct {
 	Action  string      `json:"action"`
 	Result  bool        `json:"result"`
+	Height  int64       `json:"height"`
 	Message string      `json:"message"`
 	Txs     []*types.Tx `json:"txs"`
 }
@@ -122,7 +123,7 @@ func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
 	// Register pubsub client to pubsub manager
 	ws.pubsub.AddClient(client)
 	// Send Hello msg
-	client.SendJSON(CreateMsgSuccessWS("", "Websocket connection is succesful", []*types.Tx{}))
+	client.SendJSON(CreateMsgSuccessWS("", "Websocket connection is succesful", 0, []*types.Tx{}))
 	// Pubsub client
 	log.Info("New Client is connected, total: ", len(ws.pubsub.Clients))
 
@@ -176,11 +177,12 @@ func (ws *Websocket) onRemoved(c *pubsub.Client) {
 	log.Infof("Client removed %s", c.ID)
 }
 
-func CreateMsgSuccessWS(action string, message string, txs []*types.Tx) MsgWsResponse {
+func CreateMsgSuccessWS(action string, message string, height int64, txs []*types.Tx) MsgWsResponse {
 	msg := MsgWsResponse{
 		Action:  action,
 		Result:  true,
 		Message: message,
+		Height:  height,
 		Txs:     txs,
 	}
 	return msg
