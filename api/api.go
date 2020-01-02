@@ -1,8 +1,6 @@
 package api
 
-import (
-	"github.com/SwingbyProtocol/tx-indexer/blockchain"
-)
+import "github.com/SwingbyProtocol/tx-indexer/types"
 
 type API struct {
 	rest *RESTApi
@@ -13,7 +11,7 @@ type APIConfig struct {
 	RESTListen  string
 	WSListen    string
 	Listeners   *Listeners
-	PushMsgChan chan *blockchain.PushMsg
+	PushMsgChan chan *types.PushMsg
 }
 
 func NewAPI(conf *APIConfig) *API {

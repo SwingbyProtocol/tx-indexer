@@ -17,10 +17,6 @@ const (
 	DefaultConenctPeer = "http://192.168.1.230:8332"
 )
 
-var (
-	Set *Config
-)
-
 // Config is app of conig
 type Config struct {
 	// Network parameters. Set mainnet, testnet, or regtest using this.
@@ -37,7 +33,7 @@ type NodeConfig struct {
 }
 
 type P2PConfig struct {
-	Params         chaincfg.Params
+	Params         *chaincfg.Params
 	ConnAddr       string `mapstructure:"connect" json:"connect"`
 	TargetOutbound uint32 `mapstructure:"targetSize" json:"targetSize"`
 }
@@ -67,13 +63,10 @@ func init() {
 	})
 }
 
-func init() {
+func setupFlags() {
 	pflag.Bool("node.testnet", false, "Using testnet")
 	pflag.IntP("node.prune", "s", 12, "Proune block size of this app")
 	pflag.String("node.loglevel", "info", "The loglevel")
-}
-
-func init() {
 	// Bind rest flags
 	pflag.StringP("rest.connect", "c", DefaultConenctPeer, "The address for connect block finalizer")
 	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
@@ -86,23 +79,23 @@ func init() {
 
 // NewDefaultConfig is default config
 func NewDefaultConfig() (*Config, error) {
+	setupFlags()
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
 	viper.BindPFlags(pflag.CommandLine)
 	var config Config
-	Set = &config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, err
 	}
-	if Set.NodeConfig.Testnet {
-		Set.P2PConfig.Params = chaincfg.TestNet3Params
+	if config.NodeConfig.Testnet {
+		config.P2PConfig.Params = &chaincfg.TestNet3Params
 	} else {
-		Set.P2PConfig.Params = chaincfg.MainNetParams
+		config.P2PConfig.Params = &chaincfg.MainNetParams
 	}
 
 	loglevel := config.NodeConfig.LogLevel
 	if loglevel == "debug" {
 		log.SetLevel(log.DebugLevel)
 	}
-	return Set, nil
+	return &config, nil
 }

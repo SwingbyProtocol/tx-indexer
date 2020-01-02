@@ -57,13 +57,8 @@ func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) 
 	if spentFlag == "send" {
 		isSend = Send
 	}
-	txs, err := bc.GetIndexTxsWithTW(addr, start, end, isSend, mm)
-	if err != nil {
-		log.Info(err)
-		w.WriteHeader(http.StatusOK)
-		w.WriteJson([]*Tx{})
-		return
-	}
+	txs := bc.GetIndexTxsWithTW(addr, start, end, isSend, mm)
+
 	w.WriteHeader(http.StatusOK)
 	w.WriteJson(txs)
 	return

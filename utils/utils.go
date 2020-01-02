@@ -1,8 +1,12 @@
-package common
+package utils
 
 import (
 	"math/rand"
+
+	"github.com/btcsuite/btcd/wire"
 )
+
+const WitnessScaleFactor = 4
 
 func RandRange(min int, max int) int {
 	return rand.Intn(max-min) + min
@@ -40,4 +44,11 @@ func CheckExist(key string, array []string) bool {
 		}
 	}
 	return isexist
+}
+
+func GetTransactionWeight(msgTx *wire.MsgTx) int64 {
+	baseSize := msgTx.SerializeSizeStripped()
+	totalSize := msgTx.SerializeSize()
+	// (baseSize * 3) + totalSize
+	return int64((baseSize * (WitnessScaleFactor - 1)) + totalSize)
 }

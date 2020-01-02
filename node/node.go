@@ -9,9 +9,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/common"
+	"github.com/SwingbyProtocol/tx-indexer/types"
+	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/peer"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	log "github.com/sirupsen/logrus"
@@ -40,7 +42,7 @@ type NodeConfig struct {
 	// If this field is not nil the PeerManager will only connect to this address
 	TrustedPeer string
 	// Chan for Tx
-	TxChan chan *wire.MsgTx
+	TxChan chan *types.Tx
 	// Chan for Block
 	BlockChan chan *wire.MsgBlock
 }
@@ -53,9 +55,11 @@ type Node struct {
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
 	invtxs         map[string]*wire.MsgTx
+	sigCache       *txscript.SigCache
+	hashCache      *txscript.HashCache
 	trustedPeer    string
-	txChan         chan *wire.MsgTx
-	BlockChan      chan *wire.MsgBlock
+	txChan         chan *types.Tx
+	blockChan      chan *wire.MsgBlock
 }
 
 func NewNode(config *NodeConfig) *Node {
@@ -69,21 +73,24 @@ func NewNode(config *NodeConfig) *Node {
 		invtxs:         make(map[string]*wire.MsgTx),
 		trustedPeer:    config.TrustedPeer,
 		txChan:         config.TxChan,
-		BlockChan:      config.BlockChan,
+		blockChan:      config.BlockChan,
+		sigCache:       txscript.NewSigCache(1000),
+		hashCache:      txscript.NewHashCache(1000),
 	}
 	// Override node count times
 	if config.Params.Name == "testnet3" {
 		DefaultNodeAddTimes = 16
+		DefaultNodeRankSize = 100
 	}
 
 	listeners := &peer.MessageListeners{}
-	listeners.OnVersion = node.OnVersion
-	listeners.OnVerAck = node.OnVerack
-	listeners.OnInv = node.OnInv
-	listeners.OnTx = node.OnTx
-	listeners.OnBlock = node.OnBlock
-	listeners.OnReject = node.OnReject
-	listeners.OnGetData = node.OnGetData
+	listeners.OnVersion = node.onVersion
+	listeners.OnVerAck = node.onVerack
+	listeners.OnInv = node.onInv
+	listeners.OnTx = node.onTx
+	listeners.OnBlock = node.onBlock
+	listeners.OnReject = node.onReject
+	listeners.OnGetData = node.onGetData
 
 	node.peerConfig = &peer.Config{
 		UserAgentName:    config.UserAgentName,
@@ -93,6 +100,7 @@ func NewNode(config *NodeConfig) *Node {
 		TrickleInterval:  time.Second * 10,
 		Listeners:        *listeners,
 	}
+	log.Debugf("Using settings -> DefaultNodeAddTimes: %d DefaultNodeRankSize: %d", DefaultNodeAddTimes, DefaultNodeRankSize)
 	return node
 }
 
@@ -124,6 +132,18 @@ func (node *Node) Stop() {
 	}
 	node.connectedPeers = make(map[string]*peer.Peer)
 	wg.Wait()
+}
+
+func (node *Node) ValidateTx(tx *btcutil.Tx) error {
+	err := utils.CheckNonStandardTx(tx)
+	if err != nil {
+		return err
+	}
+	err = utils.OutputRejector(tx.MsgTx())
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (node *Node) DecodeToTx(hexStr string) (*btcutil.Tx, error) {
@@ -158,15 +178,15 @@ func (node *Node) GetInvTx(txid string) *wire.MsgTx {
 
 func (node *Node) RemoveInvTx(txid string) error {
 	node.mu.Lock()
+	defer node.mu.Unlock()
 	if node.invtxs[txid] == nil {
 		return errors.New("inv is not exist")
 	}
 	delete(node.invtxs, txid)
-	node.mu.Unlock()
 	return nil
 }
 
-func (node *Node) BroadcastTxInv(txid string) error {
+func (node *Node) BroadcastTxInv(txid string) {
 	// Get msgTx
 	msgTx := node.GetInvTx(txid)
 	// Add new tx to invtxs
@@ -175,17 +195,15 @@ func (node *Node) BroadcastTxInv(txid string) error {
 		invType = wire.InvTypeWitnessTx
 	} else {
 		invType = wire.InvTypeTx
-
 	}
 	hash := msgTx.TxHash()
 	iv := wire.NewInvVect(invType, &hash)
 	// Submit inv msg to network
 	node.sendBroadcastInv(iv)
 	log.Infof("Broadcast inv msg success: %s", txid)
-	return nil
 }
 
-func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
+func (node *Node) ConnectedPeer(addr string) *peer.Peer {
 	node.mu.RLock()
 	peer := node.connectedPeers[addr]
 	node.mu.RUnlock()
@@ -204,7 +222,7 @@ func (node *Node) ConnectedPeers() []*peer.Peer {
 
 func (node *Node) GetRank() (uint64, uint64, string, []string) {
 	node.mu.RLock()
-	top, min, topAddr, olders := common.GetMaxMin(node.connectedRanks)
+	top, min, topAddr, olders := utils.GetMaxMin(node.connectedRanks)
 	node.mu.RUnlock()
 	return top, min, topAddr, olders
 }
@@ -217,7 +235,7 @@ func (node *Node) AddPeer(conn net.Conn) {
 		return
 	}
 	addr := conn.RemoteAddr().String()
-	if node.GetConnectedPeer(addr) != nil {
+	if node.ConnectedPeer(addr) != nil {
 		log.Debugf("peer is already joined %s", addr)
 		conn.Close()
 		return
@@ -276,7 +294,7 @@ func (node *Node) addRandomNodes(count int, addrs []string) {
 		DefaultNodeAddTimes = count
 	}
 	for i := 0; i < DefaultNodeAddTimes; i++ {
-		key := common.RandRange(0, len(addrs)-1)
+		key := utils.RandRange(0, len(addrs)-1)
 		addr := addrs[key]
 		port, err := strconv.Atoi(node.peerConfig.ChainParams.DefaultPort)
 		if err != nil {

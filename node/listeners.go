@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
@@ -14,7 +15,7 @@ const (
 	SFNodeBitcoinCash wire.ServiceFlag = 1 << 5
 )
 
-func (node *Node) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
+func (node *Node) onVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
 	remoteAddr := p.NA()
 	remoteAddr.Services = msg.Services
 	// Ignore peers that have a protcol version that is too old.  The peer
@@ -52,16 +53,17 @@ func (node *Node) OnVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject 
 	return nil
 }
 
-func (node *Node) OnVerack(p *peer.Peer, msg *wire.MsgVerAck) {
+func (node *Node) onVerack(p *peer.Peer, msg *wire.MsgVerAck) {
 	// Check this peer offers bloom filtering services. If not dump them.
 	log.Debugf("Connected to %s - %s", p.Addr(), p.UserAgent())
 }
 
-func (node *Node) OnReject(p *peer.Peer, msg *wire.MsgReject) {
+func (node *Node) onReject(p *peer.Peer, msg *wire.MsgReject) {
+	//go node.queryDNSSeeds()
 	log.Warningf("Received reject msg from peer %s: Code: %s, tx: %s, Reason: %s", p.Addr(), msg.Code.String(), msg.Hash.String()[:4], msg.Reason)
 }
 
-func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
+func (node *Node) onInv(p *peer.Peer, msg *wire.MsgInv) {
 	invVects := msg.InvList
 	for i := len(invVects) - 1; i >= 0; i-- {
 		iv := invVects[i]
@@ -84,7 +86,7 @@ func (node *Node) OnInv(p *peer.Peer, msg *wire.MsgInv) {
 	}
 }
 
-func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
+func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
 	// Update node rank
 	node.updateRank(p)
 	// Get now ranks counts
@@ -94,7 +96,7 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 		// Remove end peers
 		if len(olders) > 2 {
 			for i := 0; i < 2; i++ {
-				peer := node.GetConnectedPeer(olders[i])
+				peer := node.ConnectedPeer(olders[i])
 				if peer != nil {
 					peer.Disconnect()
 				}
@@ -103,18 +105,20 @@ func (node *Node) OnTx(p *peer.Peer, msg *wire.MsgTx) {
 		// Finding new peer
 		go node.queryDNSSeeds()
 	}
+
+	tx := types.MsgTxToTx(msg, node.peerConfig.ChainParams)
 	go func() {
-		node.txChan <- msg
+		node.txChan <- &tx
 	}()
 }
 
-func (node *Node) OnBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
+func (node *Node) onBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	go func() {
-		node.BlockChan <- msg
+		node.blockChan <- msg
 	}()
 }
 
-func (node *Node) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
+func (node *Node) onGetData(p *peer.Peer, msg *wire.MsgGetData) {
 	for _, iv := range msg.InvList {
 		var err error
 		switch iv.Type {
@@ -127,7 +131,7 @@ func (node *Node) OnGetData(p *peer.Peer, msg *wire.MsgGetData) {
 			continue
 		}
 		if err != nil {
-			log.Info(err)
+			log.Debug(err)
 			continue
 		}
 		txid := iv.Hash.String()
@@ -154,6 +158,9 @@ func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.Message
 
 func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
 	peers := node.ConnectedPeers()
+	if len(peers) > 4 {
+		peers = peers[:3]
+	}
 	for _, peer := range peers {
 		peer.QueueInventory(iv)
 	}
