@@ -1,7 +1,10 @@
 package blockchain
 
 import (
+	"encoding/json"
 	"errors"
+	"io/ioutil"
+	"os"
 	"sync"
 )
 
@@ -13,30 +16,30 @@ const (
 
 type Index struct {
 	mu *sync.RWMutex
-	kv map[string]*Store
+	Kv map[string]*Store
 }
 
 type Store struct {
-	txs map[string]int
+	Txs map[string]int
 }
 
 func NewIndex() *Index {
 	index := &Index{
 		mu: new(sync.RWMutex),
-		kv: make(map[string]*Store),
+		Kv: make(map[string]*Store),
 	}
 	return index
 }
 
 func (in *Index) Update(addr string, txid string, state int) {
 	in.mu.Lock()
-	if in.kv[addr] == nil {
-		in.kv[addr] = &Store{txs: make(map[string]int)}
+	if in.Kv[addr] == nil {
+		in.Kv[addr] = &Store{Txs: make(map[string]int)}
 	}
-	if in.kv[addr].txs[txid] == Send && state == Received {
-		in.kv[addr].txs[txid] = Both
+	if in.Kv[addr].Txs[txid] == Send && state == Received {
+		in.Kv[addr].Txs[txid] = Both
 	} else {
-		in.kv[addr].txs[txid] = state
+		in.Kv[addr].Txs[txid] = state
 	}
 	in.mu.Unlock()
 }
@@ -44,10 +47,10 @@ func (in *Index) Update(addr string, txid string, state int) {
 func (in *Index) Remove(addr string, txid string) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
-	if in.kv[addr] == nil {
+	if in.Kv[addr] == nil {
 		return errors.New("tx is not exit")
 	}
-	delete(in.kv[addr].txs, txid)
+	delete(in.Kv[addr].Txs, txid)
 	return nil
 }
 
@@ -55,13 +58,45 @@ func (in *Index) GetTxIDs(addr string, state int) []string {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 	txids := []string{}
-	if in.kv[addr] == nil {
+	if in.Kv[addr] == nil {
 		return txids
 	}
-	for i, status := range in.kv[addr].txs {
+	for i, status := range in.Kv[addr].Txs {
 		if status == state || status == Both {
 			txids = append(txids, i)
 		}
 	}
 	return txids
+}
+
+func (in *Index) Backup() error {
+	str, err := json.Marshal(in.Kv)
+	if err != nil {
+		return err
+	}
+	f, err := os.Create("./.data/index.backup")
+	if err != nil {
+		err = os.MkdirAll("./.data", 0755)
+		if err != nil {
+			return err
+		}
+		return in.Backup()
+	}
+	_, err = f.Write(str)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (in *Index) Load() error {
+	data, err := ioutil.ReadFile("./.data/index.backup")
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(data, &in.Kv)
+	if err != nil {
+		return err
+	}
+	return nil
 }

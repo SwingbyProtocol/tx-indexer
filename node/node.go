@@ -80,7 +80,7 @@ func NewNode(config *NodeConfig) *Node {
 	// Override node count times
 	if config.Params.Name == "testnet3" {
 		DefaultNodeAddTimes = 16
-		DefaultNodeRankSize = 70
+		DefaultNodeRankSize = 100
 	}
 
 	listeners := &peer.MessageListeners{}
@@ -100,6 +100,7 @@ func NewNode(config *NodeConfig) *Node {
 		TrickleInterval:  time.Second * 10,
 		Listeners:        *listeners,
 	}
+	log.Debugf("Using settings -> DefaultNodeAddTimes: %d DefaultNodeRankSize: %d", DefaultNodeAddTimes, DefaultNodeRankSize)
 	return node
 }
 
@@ -133,7 +134,7 @@ func (node *Node) Stop() {
 	wg.Wait()
 }
 
-func (node *Node) CheckTx(tx *btcutil.Tx) error {
+func (node *Node) ValidateTx(tx *btcutil.Tx) error {
 	err := utils.CheckNonStandardTx(tx)
 	if err != nil {
 		return err
@@ -202,7 +203,7 @@ func (node *Node) BroadcastTxInv(txid string) {
 	log.Infof("Broadcast inv msg success: %s", txid)
 }
 
-func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
+func (node *Node) ConnectedPeer(addr string) *peer.Peer {
 	node.mu.RLock()
 	peer := node.connectedPeers[addr]
 	node.mu.RUnlock()
@@ -234,7 +235,7 @@ func (node *Node) AddPeer(conn net.Conn) {
 		return
 	}
 	addr := conn.RemoteAddr().String()
-	if node.GetConnectedPeer(addr) != nil {
+	if node.ConnectedPeer(addr) != nil {
 		log.Debugf("peer is already joined %s", addr)
 		conn.Close()
 		return

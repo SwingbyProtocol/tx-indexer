@@ -1,6 +1,10 @@
 package main
 
 import (
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
 	"github.com/SwingbyProtocol/tx-indexer/blockchain"
@@ -25,8 +29,6 @@ func main() {
 		TrustedNode: conf.RESTConfig.ConnAddr,
 		PruneSize:   conf.NodeConfig.PurneSize,
 	}
-	log.Infof("Start block syncing with pruneSize: %d", blockchianConfig.PruneSize)
-	log.Infof("Using trusted node: %s", conf.RESTConfig.ConnAddr)
 	// Create blockchain instance
 	bc := blockchain.NewBlockchain(blockchianConfig)
 	// Start blockchain service
@@ -245,6 +247,13 @@ func main() {
 
 	apiServer.Start()
 
-	select {}
-
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGSTOP)
+	s := <-c
+	// Backup operation
+	err = bc.Backup()
+	if err != nil {
+		log.Error(err)
+	}
+	log.Info(s)
 }

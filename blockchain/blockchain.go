@@ -23,8 +23,8 @@ type Blockchain struct {
 	mu              *sync.RWMutex
 	resolver        *api.Resolver
 	index           *Index // index is stored per block
-	blocks          map[int64]*types.Block
-	mempool         map[string]*types.Tx
+	Blocks          map[int64]*types.Block
+	Mempool         map[string]*types.Tx
 	targetPrune     uint
 	latestBlockHash string
 	txChan          chan *types.Tx
@@ -37,13 +37,15 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		mu:          new(sync.RWMutex),
 		resolver:    api.NewResolver(conf.TrustedNode),
 		index:       NewIndex(),
-		blocks:      make(map[int64]*types.Block),
-		mempool:     make(map[string]*types.Tx),
+		Blocks:      make(map[int64]*types.Block),
+		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
 		txChan:      make(chan *types.Tx, 70000),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
+	log.Infof("Start block syncing with pruneSize: %d", conf.PruneSize)
+	log.Infof("Using trusted node: %s", conf.TrustedNode)
 	return bc
 }
 
@@ -81,7 +83,7 @@ func (bc *Blockchain) WatchBlock() {
 		// block := MsgBlockToBlock(msg)
 
 		// Get block data from TrustedPeer for now
-		err := bc.SyncBlocks()
+		err := bc.syncBlocks()
 		if err != nil {
 			log.Debug(err)
 			continue
@@ -142,7 +144,13 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 }
 
 func (bc *Blockchain) Start() {
-	err := bc.SyncBlocks()
+	// load data from files
+	err := bc.Load()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Once sync blocks
+	err = bc.syncBlocks()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -156,15 +164,15 @@ func (bc *Blockchain) GetLatestBlock() *types.Block {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
 	top := int64(0)
-	for height := range bc.blocks {
+	for height := range bc.Blocks {
 		if height > top {
 			top = height
 		}
 	}
-	return bc.blocks[top]
+	return bc.Blocks[top]
 }
 
-func (bc *Blockchain) SyncBlocks() error {
+func (bc *Blockchain) syncBlocks() error {
 	// Check hash of prev block
 	blocks, err := bc.GetRemoteBlocks(1)
 	if err != nil {
@@ -185,7 +193,7 @@ func (bc *Blockchain) SyncBlocks() error {
 		blocks = allBlocks
 	}
 	for _, block := range blocks {
-		bc.blocks[block.Height] = block
+		bc.Blocks[block.Height] = block
 		log.Infof("Stored new block -> %d", block.Height)
 	}
 	nowHash := bc.GetLatestBlock().Hash
@@ -196,6 +204,7 @@ func (bc *Blockchain) SyncBlocks() error {
 		for _, tx := range block.Txs {
 			tx.AddBlockData(block.Height, block.Time, block.Mediantime)
 			tx.Receivedtime = block.Time
+			// Add tx to chan
 			bc.txChan <- tx
 		}
 	}
@@ -205,12 +214,12 @@ func (bc *Blockchain) SyncBlocks() error {
 func (bc *Blockchain) GetTx(txid string) (*types.Tx, bool) {
 	bc.mu.RLock()
 	defer bc.mu.RUnlock()
-	for key, tx := range bc.mempool {
+	for key, tx := range bc.Mempool {
 		if key == txid {
 			return tx, true
 		}
 	}
-	for _, block := range bc.blocks {
+	for _, block := range bc.Blocks {
 		for _, tx := range block.Txs {
 			if tx.Txid == txid {
 				return tx, false
@@ -235,13 +244,13 @@ func (bc *Blockchain) GetTxs(txids []string) []*types.Tx {
 func (bc *Blockchain) AddMempoolTx(tx *types.Tx) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
-	bc.mempool[tx.Txid] = tx
+	bc.Mempool[tx.Txid] = tx
 }
 
 func (bc *Blockchain) RemoveMempoolTx(tx *types.Tx) {
 	bc.mu.Lock()
 	defer bc.mu.Unlock()
-	delete(bc.mempool, tx.Txid)
+	delete(bc.Mempool, tx.Txid)
 }
 
 func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, state int, mempool bool) []*types.Tx {

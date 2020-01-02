@@ -96,7 +96,7 @@ func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
 		// Remove end peers
 		if len(olders) > 2 {
 			for i := 0; i < 2; i++ {
-				peer := node.GetConnectedPeer(olders[i])
+				peer := node.ConnectedPeer(olders[i])
 				if peer != nil {
 					peer.Disconnect()
 				}
