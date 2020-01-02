@@ -204,7 +204,7 @@ func main() {
 			return
 		}
 		// Validate tx
-		err = node.CheckTx(utilTx)
+		err = node.ValidateTx(utilTx)
 		if err != nil {
 			log.Info(err)
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, err.Error()))

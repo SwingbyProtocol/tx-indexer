@@ -48,7 +48,7 @@ func CheckNonStandardTx(tx *btcutil.Tx) error {
 	// almost as much to process as the sender fees, limit the maximum
 	// size of a transaction.  This also helps mitigate CPU exhaustion
 	// attacks.
-	txWeight := blockchain.GetTransactionWeight(tx)
+	txWeight := GetTransactionWeight(msgTx)
 	if txWeight > maxStandardTxWeight {
 		str := fmt.Sprintf("weight of transaction %v is larger than max "+
 			"allowed weight of %v", txWeight, maxStandardTxWeight)
