@@ -112,6 +112,21 @@ func main() {
 		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*types.Tx{}))
 	}
 
+	Publish := func(ps *pubsub.PubSub, msg *types.PushMsg) {
+		txs := []*types.Tx{}
+		txs = append(txs, msg.Tx)
+		if msg.State == blockchain.Send {
+			res := api.CreateMsgSuccessWS(api.WATCHTXS, Send, txs)
+			ps.PublishJSON(Send+"_"+msg.Addr, res)
+			return
+		}
+		if msg.State == blockchain.Received {
+			res := api.CreateMsgSuccessWS(api.WATCHTXS, Received, txs)
+			ps.PublishJSON(Received+"_"+msg.Addr, res)
+			return
+		}
+	}
+
 	onGetTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
 		if req.Params.Txid == "" {
 			c.SendJSON(api.CreateMsgErrorWS(req.Params.Txid, "txid is not set"))
@@ -165,21 +180,6 @@ func main() {
 		res := api.CreateMsgSuccessWS(api.GETTXS, "Get txs success only for "+req.Params.Type, txs)
 		c.SendJSON(res)
 		log.Infof("Get txs for %s with params from %11d to %11d type %10s mempool %6t txs %d", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool, len(res.Txs))
-	}
-
-	Publish := func(ps *pubsub.PubSub, msg *types.PushMsg) {
-		txs := []*types.Tx{}
-		txs = append(txs, msg.Tx)
-		if msg.State == blockchain.Send {
-			res := api.CreateMsgSuccessWS(api.WATCHTXS, Send, txs)
-			ps.PublishJSON(Send+"_"+msg.Addr, res)
-			return
-		}
-		if msg.State == blockchain.Received {
-			res := api.CreateMsgSuccessWS(api.WATCHTXS, Received, txs)
-			ps.PublishJSON(Received+"_"+msg.Addr, res)
-			return
-		}
 	}
 
 	onBroadcastTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
@@ -249,11 +249,11 @@ func main() {
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGSTOP)
-	s := <-c
+	signal := <-c
 	// Backup operation
 	err = bc.Backup()
 	if err != nil {
 		log.Error(err)
 	}
-	log.Info(s)
+	log.Info(signal)
 }

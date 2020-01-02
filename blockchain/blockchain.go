@@ -60,6 +60,7 @@ func (bc *Blockchain) WatchTx() {
 			// Add tx to mempool
 			bc.AddMempoolTx(tx)
 			log.Debugf("new tx came add to mempool %s witness %t", tx.Txid, tx.MsgTx.HasWitness())
+			continue
 		}
 		// Tx is on the mempool and kv
 		if storedTx != nil && mempool && tx.Confirms != 0 {
@@ -67,11 +68,13 @@ func (bc *Blockchain) WatchTx() {
 			// Remove Tx from mempool
 			bc.RemoveMempoolTx(tx)
 			log.Debugf("already tx exist on mempool removed %s", tx.Txid)
+			continue
 		}
 		// Tx is on the kv
 		if storedTx != nil && !mempool {
 			bc.UpdateIndex(tx)
 			log.Debugf("already tx exist on kv updated %s", tx.Txid)
+			continue
 		}
 	}
 }
@@ -148,6 +151,7 @@ func (bc *Blockchain) Start() {
 	err := bc.Load()
 	if err != nil {
 		log.Error(err)
+		log.Info("Skip load process...")
 	}
 	// Once sync blocks
 	err = bc.syncBlocks()
