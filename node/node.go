@@ -80,7 +80,7 @@ func NewNode(config *NodeConfig) *Node {
 	// Override node count times
 	if config.Params.Name == "testnet3" {
 		DefaultNodeAddTimes = 16
-		DefaultNodeRankSize = 100
+		DefaultNodeRankSize = 70
 	}
 
 	listeners := &peer.MessageListeners{}
