@@ -137,7 +137,7 @@ func main() {
 			return
 		}
 		if req.Params.Address == "" {
-			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Address is not correct"))
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Address is not correct"))
 			return
 		}
 		if !(req.Params.Type == "" || req.Params.Type == Received || req.Params.Type == Send) {
@@ -159,11 +159,7 @@ func main() {
 			log.Warn("Get txs call: time windows cannot enable mempool flag")
 			return
 		}
-		txs, err := bc.GetIndexTxsWithTW(req.Params.Address, timeFrom, timeTo, state, mempool)
-		if err != nil {
-			c.SendJSON(api.CreateMsgErrorWS(req.Action, "txs is not correct"))
-			return
-		}
+		txs := bc.GetIndexTxsWithTW(req.Params.Address, timeFrom, timeTo, state, mempool)
 		res := api.CreateMsgSuccessWS(api.GETTXS, "Get txs success only for "+req.Params.Type, txs)
 		c.SendJSON(res)
 		log.Infof("Get txs for %s with params from %11d to %11d type %10s mempool %6t txs %d", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool, len(res.Txs))
@@ -190,11 +186,11 @@ func main() {
 			return
 		}
 		if req.Params.Address != "" {
-			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Address is not correct"))
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Address should be null"))
 			return
 		}
 		if req.Params.Type != "" {
-			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Type is not correct"))
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Type should be null"))
 			return
 		}
 		if req.Params.Hex == "" {
@@ -204,29 +200,34 @@ func main() {
 		utilTx, err := node.DecodeToTx(req.Params.Hex)
 		if err != nil {
 			log.Info(err)
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, err.Error()))
+			return
 		}
-		txHash := utilTx.Hash().String()
+		// Validate tx
+		err = node.CheckTx(utilTx)
+		if err != nil {
+			log.Info(err)
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, err.Error()))
+			return
+		}
 		msgTx := utilTx.MsgTx()
 		// Add tx to store
 		tx := types.MsgTxToTx(msgTx, conf.P2PConfig.Params)
+		// Push to bc
 		bc.TxChan() <- &tx
 		// Add tx to inv
+		txHash := utilTx.Hash().String()
 		node.AddInvTx(txHash, msgTx)
 		for _, in := range msgTx.TxIn {
 			inTx, _ := bc.GetTx(in.PreviousOutPoint.Hash.String())
 			if inTx == nil {
-				log.Info("tx is not exit")
+				log.Debug("tx is not exit")
 				continue
 			}
 			// Add inTx to inv
 			node.AddInvTx(inTx.Txid, inTx.MsgTx)
 		}
-		err = node.BroadcastTxInv(txHash)
-		if err != nil {
-			log.Info(err)
-			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Tx data is not correct"))
-			return
-		}
+		node.BroadcastTxInv(txHash)
 		res := api.CreateMsgSuccessWS(api.BROADCAST, "Tx data broadcast success: "+txHash, []*types.Tx{})
 		c.SendJSON(res)
 	}

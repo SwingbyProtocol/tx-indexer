@@ -13,6 +13,7 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/peer"
+	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	log "github.com/sirupsen/logrus"
@@ -54,6 +55,8 @@ type Node struct {
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
 	invtxs         map[string]*wire.MsgTx
+	sigCache       *txscript.SigCache
+	hashCache      *txscript.HashCache
 	trustedPeer    string
 	txChan         chan *types.Tx
 	blockChan      chan *wire.MsgBlock
@@ -71,10 +74,13 @@ func NewNode(config *NodeConfig) *Node {
 		trustedPeer:    config.TrustedPeer,
 		txChan:         config.TxChan,
 		blockChan:      config.BlockChan,
+		sigCache:       txscript.NewSigCache(1000),
+		hashCache:      txscript.NewHashCache(1000),
 	}
 	// Override node count times
 	if config.Params.Name == "testnet3" {
 		DefaultNodeAddTimes = 16
+		DefaultNodeRankSize = 100
 	}
 
 	listeners := &peer.MessageListeners{}
@@ -127,6 +133,18 @@ func (node *Node) Stop() {
 	wg.Wait()
 }
 
+func (node *Node) CheckTx(tx *btcutil.Tx) error {
+	err := utils.CheckNonStandardTx(tx)
+	if err != nil {
+		return err
+	}
+	err = utils.OutputRejector(tx.MsgTx())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (node *Node) DecodeToTx(hexStr string) (*btcutil.Tx, error) {
 	if len(hexStr)%2 != 0 {
 		hexStr = "0" + hexStr
@@ -159,15 +177,15 @@ func (node *Node) GetInvTx(txid string) *wire.MsgTx {
 
 func (node *Node) RemoveInvTx(txid string) error {
 	node.mu.Lock()
+	defer node.mu.Unlock()
 	if node.invtxs[txid] == nil {
 		return errors.New("inv is not exist")
 	}
 	delete(node.invtxs, txid)
-	node.mu.Unlock()
 	return nil
 }
 
-func (node *Node) BroadcastTxInv(txid string) error {
+func (node *Node) BroadcastTxInv(txid string) {
 	// Get msgTx
 	msgTx := node.GetInvTx(txid)
 	// Add new tx to invtxs
@@ -176,14 +194,12 @@ func (node *Node) BroadcastTxInv(txid string) error {
 		invType = wire.InvTypeWitnessTx
 	} else {
 		invType = wire.InvTypeTx
-
 	}
 	hash := msgTx.TxHash()
 	iv := wire.NewInvVect(invType, &hash)
 	// Submit inv msg to network
 	node.sendBroadcastInv(iv)
 	log.Infof("Broadcast inv msg success: %s", txid)
-	return nil
 }
 
 func (node *Node) GetConnectedPeer(addr string) *peer.Peer {

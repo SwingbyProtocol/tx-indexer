@@ -244,7 +244,7 @@ func (bc *Blockchain) RemoveMempoolTx(tx *types.Tx) {
 	delete(bc.mempool, tx.Txid)
 }
 
-func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, state int, mempool bool) ([]*types.Tx, error) {
+func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, state int, mempool bool) []*types.Tx {
 	if end == 0 {
 		end = int64(^uint(0) >> 1)
 	}
@@ -260,7 +260,7 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 		}
 	}
 	sortTx(res)
-	return res, nil
+	return res
 }
 
 func (bc *Blockchain) GetRemoteBlocks(depth int) ([]*types.Block, error) {

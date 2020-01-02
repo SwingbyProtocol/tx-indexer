@@ -59,6 +59,7 @@ func (node *Node) onVerack(p *peer.Peer, msg *wire.MsgVerAck) {
 }
 
 func (node *Node) onReject(p *peer.Peer, msg *wire.MsgReject) {
+	//go node.queryDNSSeeds()
 	log.Warningf("Received reject msg from peer %s: Code: %s, tx: %s, Reason: %s", p.Addr(), msg.Code.String(), msg.Hash.String()[:4], msg.Reason)
 }
 
@@ -130,7 +131,7 @@ func (node *Node) onGetData(p *peer.Peer, msg *wire.MsgGetData) {
 			continue
 		}
 		if err != nil {
-			log.Info(err)
+			log.Debug(err)
 			continue
 		}
 		txid := iv.Hash.String()
@@ -157,6 +158,9 @@ func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.Message
 
 func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
 	peers := node.ConnectedPeers()
+	if len(peers) > 4 {
+		peers = peers[:3]
+	}
 	for _, peer := range peers {
 		peer.QueueInventory(iv)
 	}
