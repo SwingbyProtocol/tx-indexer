@@ -4,8 +4,9 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
 	"github.com/SwingbyProtocol/tx-indexer/blockchain"
-	"github.com/SwingbyProtocol/tx-indexer/common/config"
+	"github.com/SwingbyProtocol/tx-indexer/config"
 	"github.com/SwingbyProtocol/tx-indexer/node"
+	"github.com/SwingbyProtocol/tx-indexer/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,30 +16,30 @@ const (
 )
 
 func main() {
-	_, err := config.NewDefaultConfig()
+	conf, err := config.NewDefaultConfig()
 	if err != nil {
 		log.Info(err)
 	}
 	// Create Config
 	blockchianConfig := &blockchain.BlockchainConfig{
-		TrustedNode: config.Set.RESTConfig.ConnAddr,
-		PruneSize:   config.Set.NodeConfig.PurneSize,
+		TrustedNode: conf.RESTConfig.ConnAddr,
+		PruneSize:   conf.NodeConfig.PurneSize,
 	}
 	log.Infof("Start block syncing with pruneSize: %d", blockchianConfig.PruneSize)
+	log.Infof("Using trusted node: %s", conf.RESTConfig.ConnAddr)
 	// Create blockchain instance
 	bc := blockchain.NewBlockchain(blockchianConfig)
 	// Start blockchain service
 	bc.Start()
 
 	nodeConfig := &node.NodeConfig{
-		Params:           &config.Set.P2PConfig.Params,
-		TargetOutbound:   config.Set.P2PConfig.TargetOutbound,
+		Params:           conf.P2PConfig.Params,
+		TargetOutbound:   conf.P2PConfig.TargetOutbound,
 		UserAgentName:    "Tx-indexer",
 		UserAgentVersion: "1.0.0",
-		// Add trusted P2P Node
-		TrustedPeer: config.Set.P2PConfig.ConnAddr,
-		TxChan:      bc.TxChan(),
-		BlockChan:   bc.BlockChan(),
+		TrustedPeer:      conf.P2PConfig.ConnAddr,
+		TxChan:           bc.TxChan(),
+		BlockChan:        bc.BlockChan(),
 	}
 	log.Infof("Using network -> %s", nodeConfig.Params.Name)
 	// Node initialize
@@ -49,8 +50,8 @@ func main() {
 	// Define API config
 	// Define REST and WS api listener address
 	apiConfig := &api.APIConfig{
-		RESTListen:  config.Set.RESTConfig.ListenAddr,
-		WSListen:    config.Set.WSConfig.ListenAddr,
+		RESTListen:  conf.RESTConfig.ListenAddr,
+		WSListen:    conf.WSConfig.ListenAddr,
 		Listeners:   &api.Listeners{},
 		PushMsgChan: bc.PushMsgChan(),
 	}
@@ -82,7 +83,7 @@ func main() {
 		log.Infof("new subscription registered for : %s when %s by %s", req.Params.Address, req.Params.Type, c.ID)
 
 		msg := "watch success for " + req.Params.Address + " when " + req.Params.Type
-		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*blockchain.Tx{}))
+		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*types.Tx{}))
 	}
 
 	onUnWatchTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
@@ -106,7 +107,7 @@ func main() {
 		log.Infof("Client want to unsubscribe the Address: -> %s %s", req.Params.Address, c.ID)
 
 		msg := "unwatch success for " + req.Params.Address + " when " + req.Params.Type
-		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*blockchain.Tx{}))
+		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*types.Tx{}))
 	}
 
 	onGetTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
@@ -119,7 +120,7 @@ func main() {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, err.Error()))
 			return
 		}
-		txs := []*blockchain.Tx{}
+		txs := []*types.Tx{}
 		txs = append(txs, tx)
 		res := api.MsgWsResponse{
 			Action:  req.Action,
@@ -168,8 +169,8 @@ func main() {
 		log.Infof("Get txs for %s with params from %11d to %11d type %10s mempool %6t txs %d", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool, len(res.Txs))
 	}
 
-	Publish := func(ps *pubsub.PubSub, msg *blockchain.PushMsg) {
-		txs := []*blockchain.Tx{}
+	Publish := func(ps *pubsub.PubSub, msg *types.PushMsg) {
+		txs := []*types.Tx{}
 		txs = append(txs, msg.Tx)
 		if msg.State == blockchain.Send {
 			res := api.CreateMsgSuccessWS(api.WATCHTXS, Send, txs)
@@ -200,16 +201,18 @@ func main() {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Params.Hex is not correct"))
 			return
 		}
-		tx, err := node.DecodeToTx(req.Params.Hex)
+		utilTx, err := node.DecodeToTx(req.Params.Hex)
 		if err != nil {
 			log.Info(err)
 		}
-		txHash := tx.Hash().String()
+		txHash := utilTx.Hash().String()
+		msgTx := utilTx.MsgTx()
 		// Add tx to store
-		bc.TxChan() <- tx.MsgTx()
+		tx := types.MsgTxToTx(msgTx, conf.P2PConfig.Params)
+		bc.TxChan() <- &tx
 		// Add tx to inv
-		node.AddInvTx(txHash, tx.MsgTx())
-		for _, in := range tx.MsgTx().TxIn {
+		node.AddInvTx(txHash, msgTx)
+		for _, in := range msgTx.TxIn {
 			inTx, _ := bc.GetTx(in.PreviousOutPoint.Hash.String())
 			if inTx == nil {
 				log.Info("tx is not exit")
@@ -224,7 +227,7 @@ func main() {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, "Tx data is not correct"))
 			return
 		}
-		res := api.CreateMsgSuccessWS(api.BROADCAST, "Tx data broadcast success: "+txHash, []*blockchain.Tx{})
+		res := api.CreateMsgSuccessWS(api.BROADCAST, "Tx data broadcast success: "+txHash, []*types.Tx{})
 		c.SendJSON(res)
 	}
 	// Add handler for WS

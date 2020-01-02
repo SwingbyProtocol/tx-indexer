@@ -1,10 +1,10 @@
-package blockchain
+package utils
 
 import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/SwingbyProtocol/tx-indexer/common/config"
+	"github.com/SwingbyProtocol/tx-indexer/config"
 	"github.com/btcsuite/btcd/txscript"
 )
 
@@ -22,7 +22,7 @@ func TestScriptToPubkeyInfo(t *testing.T) {
 
 	script, _ := hex.DecodeString(testPubKeyHash)
 
-	spi, _ := ScriptToPubkeyInfo(script, &conf.P2PConfig.Params)
+	spi, _ := ScriptToPubkeyInfo(script, conf.P2PConfig.Params)
 
 	// TODO: support ASM
 	if spi.Asm != "" {

@@ -9,7 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/common"
+	"github.com/SwingbyProtocol/tx-indexer/types"
+	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
@@ -40,7 +41,7 @@ type NodeConfig struct {
 	// If this field is not nil the PeerManager will only connect to this address
 	TrustedPeer string
 	// Chan for Tx
-	TxChan chan *wire.MsgTx
+	TxChan chan *types.Tx
 	// Chan for Block
 	BlockChan chan *wire.MsgBlock
 }
@@ -54,8 +55,8 @@ type Node struct {
 	connectedPeers map[string]*peer.Peer
 	invtxs         map[string]*wire.MsgTx
 	trustedPeer    string
-	txChan         chan *wire.MsgTx
-	BlockChan      chan *wire.MsgBlock
+	txChan         chan *types.Tx
+	blockChan      chan *wire.MsgBlock
 }
 
 func NewNode(config *NodeConfig) *Node {
@@ -69,7 +70,7 @@ func NewNode(config *NodeConfig) *Node {
 		invtxs:         make(map[string]*wire.MsgTx),
 		trustedPeer:    config.TrustedPeer,
 		txChan:         config.TxChan,
-		BlockChan:      config.BlockChan,
+		blockChan:      config.BlockChan,
 	}
 	// Override node count times
 	if config.Params.Name == "testnet3" {
@@ -77,13 +78,13 @@ func NewNode(config *NodeConfig) *Node {
 	}
 
 	listeners := &peer.MessageListeners{}
-	listeners.OnVersion = node.OnVersion
-	listeners.OnVerAck = node.OnVerack
-	listeners.OnInv = node.OnInv
-	listeners.OnTx = node.OnTx
-	listeners.OnBlock = node.OnBlock
-	listeners.OnReject = node.OnReject
-	listeners.OnGetData = node.OnGetData
+	listeners.OnVersion = node.onVersion
+	listeners.OnVerAck = node.onVerack
+	listeners.OnInv = node.onInv
+	listeners.OnTx = node.onTx
+	listeners.OnBlock = node.onBlock
+	listeners.OnReject = node.onReject
+	listeners.OnGetData = node.onGetData
 
 	node.peerConfig = &peer.Config{
 		UserAgentName:    config.UserAgentName,
@@ -204,7 +205,7 @@ func (node *Node) ConnectedPeers() []*peer.Peer {
 
 func (node *Node) GetRank() (uint64, uint64, string, []string) {
 	node.mu.RLock()
-	top, min, topAddr, olders := common.GetMaxMin(node.connectedRanks)
+	top, min, topAddr, olders := utils.GetMaxMin(node.connectedRanks)
 	node.mu.RUnlock()
 	return top, min, topAddr, olders
 }
@@ -276,7 +277,7 @@ func (node *Node) addRandomNodes(count int, addrs []string) {
 		DefaultNodeAddTimes = count
 	}
 	for i := 0; i < DefaultNodeAddTimes; i++ {
-		key := common.RandRange(0, len(addrs)-1)
+		key := utils.RandRange(0, len(addrs)-1)
 		addr := addrs[key]
 		port, err := strconv.Atoi(node.peerConfig.ChainParams.DefaultPort)
 		if err != nil {

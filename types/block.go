@@ -1,4 +1,4 @@
-package blockchain
+package types
 
 type Block struct {
 	Hash              string `json:"hash"`

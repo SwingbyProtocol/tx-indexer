@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/ant0ine/go-json-rest/rest"
 	log "github.com/sirupsen/logrus"
 )
@@ -61,7 +62,7 @@ func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) 
 	if err != nil {
 		log.Info(err)
 		w.WriteHeader(http.StatusOK)
-		w.WriteJson([]*Tx{})
+		w.WriteJson([]*types.Tx{})
 		return
 	}
 	w.WriteHeader(http.StatusOK)

@@ -2,7 +2,7 @@ package api
 
 import (
 	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
-	"github.com/SwingbyProtocol/tx-indexer/blockchain"
+	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/ant0ine/go-json-rest/rest"
 )
 
@@ -24,5 +24,5 @@ type Listeners struct {
 	// Broadcast
 	OnBroadcastTxWS func(c *pubsub.Client, req *MsgWsReqest)
 	// Publish is invoked when new tx is stored to index.
-	Publish func(ps *pubsub.PubSub, tx *blockchain.PushMsg)
+	Publish func(ps *pubsub.PubSub, tx *types.PushMsg)
 }
