@@ -225,7 +225,6 @@ func (bc *Blockchain) GetTx(txid string) (*types.Tx, bool) {
 			return tx, true
 		}
 	}
-	log.Info(bc.Blocks)
 	for _, block := range bc.Blocks {
 		for _, tx := range block.Txs {
 			if tx.Txid == txid {
