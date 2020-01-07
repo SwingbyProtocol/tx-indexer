@@ -39,13 +39,15 @@ func (bc *Blockchain) Load() error {
 }
 
 func (bc *Blockchain) backupBlocks() error {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	data, err := json.Marshal(bc.Blocks)
 	if err != nil {
 		return err
 	}
-	f, err := os.Create("./.data/blocks.backup")
+	f, err := os.Create("./data/blocks.backup")
 	if err != nil {
-		err = os.MkdirAll("./.data", 0755)
+		err = os.MkdirAll("./data", 0755)
 		if err != nil {
 			return err
 		}
@@ -59,7 +61,7 @@ func (bc *Blockchain) backupBlocks() error {
 }
 
 func (bc *Blockchain) loadBlocks() error {
-	data, err := ioutil.ReadFile("./.data/blocks.backup")
+	data, err := ioutil.ReadFile("./data/blocks.backup")
 	if err != nil {
 		return err
 	}
@@ -71,13 +73,15 @@ func (bc *Blockchain) loadBlocks() error {
 }
 
 func (bc *Blockchain) backupMempool() error {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
 	data, err := json.Marshal(bc.Mempool)
 	if err != nil {
 		return err
 	}
-	f, err := os.Create("./.data/mempool.backup")
+	f, err := os.Create("./data/mempool.backup")
 	if err != nil {
-		err = os.MkdirAll("./.data", 0755)
+		err = os.MkdirAll("./data", 0755)
 		if err != nil {
 			return err
 		}
@@ -91,7 +95,7 @@ func (bc *Blockchain) backupMempool() error {
 }
 
 func (bc *Blockchain) loadMempool() error {
-	data, err := ioutil.ReadFile("./.data/mempool.backup")
+	data, err := ioutil.ReadFile("./data/mempool.backup")
 	if err != nil {
 		return err
 	}

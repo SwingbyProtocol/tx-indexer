@@ -197,7 +197,9 @@ func (bc *Blockchain) syncBlocks() error {
 		blocks = allBlocks
 	}
 	for _, block := range blocks {
+		bc.mu.Lock()
 		bc.Blocks[block.Height] = block
+		bc.mu.Unlock()
 		log.Infof("Stored new block -> %d", block.Height)
 	}
 	nowHash := bc.GetLatestBlock().Hash
@@ -223,6 +225,7 @@ func (bc *Blockchain) GetTx(txid string) (*types.Tx, bool) {
 			return tx, true
 		}
 	}
+	log.Info(bc.Blocks)
 	for _, block := range bc.Blocks {
 		for _, tx := range block.Txs {
 			if tx.Txid == txid {
