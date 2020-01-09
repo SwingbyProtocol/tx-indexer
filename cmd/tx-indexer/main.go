@@ -212,7 +212,8 @@ func main() {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, err.Error()))
 			return
 		}
-		log.Infof("hash: %s hex: %s", utilTx.Hash().String(), req.Params.Hex)
+		addr := c.Connection.RemoteAddr().String()
+		log.Infof("client: %s hash: %s hex: %s", addr, utilTx.Hash().String(), req.Params.Hex)
 		msgTx := utilTx.MsgTx()
 		// Add tx to store
 		tx := types.MsgTxToTx(msgTx, conf.P2PConfig.Params)
