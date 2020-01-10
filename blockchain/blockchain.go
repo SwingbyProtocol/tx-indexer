@@ -23,7 +23,6 @@ type Blockchain struct {
 	mu              *sync.RWMutex
 	resolver        *api.Resolver
 	index           *Index // index is stored per block
-	txMap           map[string]int64
 	Blocks          map[int64]*types.Block
 	Mempool         map[string]*types.Tx
 	targetPrune     uint
@@ -38,11 +37,10 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		mu:          new(sync.RWMutex),
 		resolver:    api.NewResolver(conf.TrustedNode),
 		index:       NewIndex(),
-		txMap:       make(map[string]int64),
 		Blocks:      make(map[int64]*types.Block),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
-		txChan:      make(chan *types.Tx, 70000),
+		txChan:      make(chan *types.Tx, 100000),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
@@ -166,15 +164,15 @@ func (bc *Blockchain) Start() {
 		log.Error(err)
 		log.Info("Skip load process...")
 	}
+	go bc.WatchBlock()
+	go bc.WatchTx()
 	// Once sync blocks
-	err = bc.syncBlocks(15000)
+	err = bc.syncBlocks(3000)
 	if err != nil {
 		log.Fatal(err)
 	}
 	latest := bc.GetLatestBlock()
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
-	go bc.WatchBlock()
-	go bc.WatchTx()
 }
 
 func (bc *Blockchain) GetLatestBlock() *types.Block {
@@ -219,10 +217,10 @@ func (bc *Blockchain) syncBlocks(depth int) error {
 	// Add latest block hash
 	bc.latestBlockHash = nowHash
 	// Add txs to txChan
-	for _, block := range blocks {
-		for _, tx := range block.Txs {
-			tx.AddBlockData(block.Height, block.Time, block.Mediantime)
-			tx.Receivedtime = block.Time
+	for i := len(blocks) - 1; i >= 0; i-- {
+		for _, tx := range blocks[i].Txs {
+			tx.AddBlockData(blocks[i].Height, blocks[i].Time, blocks[i].Mediantime)
+			tx.Receivedtime = blocks[i].Time
 			// Add tx to chan
 			bc.txChan <- tx
 		}

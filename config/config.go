@@ -47,7 +47,7 @@ type WSConfig struct {
 	ListenAddr string `mapstructure:"listen" json:"listen"`
 }
 
-func init() {
+func setupLogger() {
 	log.SetOutput(os.Stdout)
 	log.SetReportCaller(true)
 	log.SetFormatter(&log.TextFormatter{
@@ -79,6 +79,7 @@ func setupFlags() {
 
 // NewDefaultConfig is default config
 func NewDefaultConfig() (*Config, error) {
+	setupLogger()
 	setupFlags()
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
