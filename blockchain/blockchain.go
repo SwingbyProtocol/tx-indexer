@@ -23,6 +23,7 @@ type Blockchain struct {
 	mu              *sync.RWMutex
 	resolver        *api.Resolver
 	index           *Index // index is stored per block
+	txMap           map[string]int64
 	Blocks          map[int64]*types.Block
 	Mempool         map[string]*types.Tx
 	targetPrune     uint
@@ -37,6 +38,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		mu:          new(sync.RWMutex),
 		resolver:    api.NewResolver(conf.TrustedNode),
 		index:       NewIndex(),
+		txMap:       make(map[string]int64),
 		Blocks:      make(map[int64]*types.Block),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
@@ -86,7 +88,7 @@ func (bc *Blockchain) WatchBlock() {
 		// block := MsgBlockToBlock(msg)
 
 		// Get block data from TrustedPeer for now
-		err := bc.syncBlocks()
+		err := bc.syncBlocks(8)
 		if err != nil {
 			log.Debug(err)
 			continue
@@ -103,9 +105,20 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		inTx, _ := bc.GetTx(in.Txid)
 		if inTx == nil {
 			// continue if spent tx is not exist
-			//log.Debug(err)
-			in.Value = "not exist"
-			in.Addresses = []string{"not exist"}
+			// check coinbase
+			if in.Txid == "" {
+				in.Value = "coinbase"
+				in.Addresses = []string{"coinbase"}
+				continue
+			}
+			utxo, err := bc.GetUTXOData(in.Txid, int(in.Vout))
+			if err != nil {
+				in.Value = "not exist"
+				in.Addresses = []string{"not exist"}
+				continue
+			}
+			in.Value = strconv.FormatFloat(utxo[0].Value.(float64), 'f', -1, 64)
+			in.Addresses = utxo[0].Scriptpubkey.Addresses
 			continue
 		}
 		targetOutput := inTx.Vout[in.Vout]
@@ -154,7 +167,7 @@ func (bc *Blockchain) Start() {
 		log.Info("Skip load process...")
 	}
 	// Once sync blocks
-	err = bc.syncBlocks()
+	err = bc.syncBlocks(15000)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -176,7 +189,7 @@ func (bc *Blockchain) GetLatestBlock() *types.Block {
 	return bc.Blocks[top]
 }
 
-func (bc *Blockchain) syncBlocks() error {
+func (bc *Blockchain) syncBlocks(depth int) error {
 	// Check hash of prev block
 	blocks, err := bc.GetRemoteBlocks(1)
 	if err != nil {
@@ -189,7 +202,7 @@ func (bc *Blockchain) syncBlocks() error {
 	// Latest block hash is checked same as the latest previous hash
 	if blocks[0].Previousblockhash != latestHash {
 		log.Warnf("Latest block may be orphan, hash does not match. search more blocks.. prevhash: %s", blocks[0].Previousblockhash)
-		allBlocks, err := bc.GetRemoteBlocks(8)
+		allBlocks, err := bc.GetRemoteBlocks(depth)
 		if err != nil {
 			log.Warn(err)
 			return err
@@ -276,6 +289,18 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 	}
 	sortTx(res)
 	return res
+}
+
+func (bc *Blockchain) GetUTXOData(txhash string, vout int) ([]*types.UTXO, error) {
+	utxos := types.UTXOs{}
+	err := bc.resolver.GetRequest("/rest/getutxos/checkmempool/"+txhash+"-"+strconv.Itoa(vout)+".json", &utxos)
+	if err != nil {
+		return nil, err
+	}
+	if len(utxos.Utxos) == 0 {
+		return nil, errors.New("utxo is not exist")
+	}
+	return utxos.Utxos, nil
 }
 
 func (bc *Blockchain) GetRemoteBlocks(depth int) ([]*types.Block, error) {
