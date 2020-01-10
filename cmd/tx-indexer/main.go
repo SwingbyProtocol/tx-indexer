@@ -1,8 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
@@ -19,10 +22,31 @@ const (
 	Send     = "send"
 )
 
+func init() {
+	log.SetReportCaller(true)
+	log.SetFormatter(&log.TextFormatter{
+		ForceColors:   true,
+		FullTimestamp: true,
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			s := strings.Split(f.Function, ".")
+			funcname := s[len(s)-1]
+			//_, filename := path.Split(f.File)
+			paddedFuncname := fmt.Sprintf(" %-20v", funcname+"()")
+			//paddedFilename := fmt.Sprintf("%17v", filename)
+			return paddedFuncname, ""
+		},
+	})
+	log.SetOutput(os.Stdout)
+}
+
 func main() {
 	conf, err := config.NewDefaultConfig()
 	if err != nil {
 		log.Info(err)
+	}
+	loglevel := conf.NodeConfig.LogLevel
+	if loglevel == "debug" {
+		log.SetLevel(log.DebugLevel)
 	}
 	// Create Config
 	blockchianConfig := &blockchain.BlockchainConfig{

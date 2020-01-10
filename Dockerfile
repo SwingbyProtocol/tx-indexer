@@ -26,7 +26,7 @@ FROM alpine:latest
 
 RUN apk --no-cache add ca-certificates
 
-WORKDIR /root/
+WORKDIR /var/app
 
 # Copy the Pre-built binary file from the previous stage
 COPY --from=builder /app/bin/tx-indexer-linux-amd64 .
@@ -35,4 +35,4 @@ COPY --from=builder /app/bin/tx-indexer-linux-amd64 .
 EXPOSE 9096 9099
 
 # Command to run the executable
-ENTRYPOINT ["./tx-indexer-linux-amd64"]
+ENTRYPOINT ["/var/app/tx-indexer-linux-amd64"]
