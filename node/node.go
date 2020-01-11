@@ -326,8 +326,8 @@ func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.Message
 
 func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
 	peers := node.ConnectedPeers()
-	if len(peers) > 4 {
-		peers = peers[:3]
+	if len(peers) > 14 {
+		peers = peers[:13]
 	}
 	for _, peer := range peers {
 		peer.QueueInventory(iv)
