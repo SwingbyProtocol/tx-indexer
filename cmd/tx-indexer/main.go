@@ -203,7 +203,7 @@ func main() {
 		txs := bc.GetIndexTxsWithTW(req.Params.Address, timeFrom, timeTo, state, mempool)
 		res := api.CreateMsgSuccessWS(api.GETTXS, "Get txs success only for "+req.Params.Type, bc.GetLatestBlock().Height, txs)
 		c.SendJSON(res)
-		log.Infof("Get txs for %s with params from %11d to %11d type %10s mempool %6t txs %d", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool, len(res.Txs))
+		log.Infof("Get txs for %50s with params from %11d to %11d type %10s mempool %6t txs %d", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool, len(res.Txs))
 	}
 
 	onBroadcastTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
