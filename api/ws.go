@@ -174,7 +174,7 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 
 func (ws *Websocket) onRemoved(c *pubsub.Client) {
 	ws.pubsub.RemoveClient(c)
-	log.Infof("Client removed %s", c.ID)
+	log.Infof("Client removed %s %s", c.ID, c.Connection.RemoteAddr().String())
 }
 
 func CreateMsgSuccessWS(action string, message string, height int64, txs []*types.Tx) MsgWsResponse {
