@@ -325,6 +325,27 @@ func (bc *Blockchain) GetTxs(txids []string) []*types.Tx {
 		if tx == nil {
 			continue
 		}
+		for _, in := range tx.Vin {
+			if in.Value == "not exist" {
+				targetHash := bc.txmap[in.Txid]
+				if targetHash == "" {
+					continue
+				}
+				getBlock, err := bc.NewBlock(targetHash)
+				if err != nil {
+					in.Value = "not exist"
+					in.Addresses = []string{"not exist"}
+					continue
+				}
+				for _, btx := range getBlock.Txs {
+					if btx.Txid == in.Txid {
+						vout := btx.Vout[in.Vout]
+						in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+						in.Addresses = vout.Scriptpubkey.Addresses
+					}
+				}
+			}
+		}
 		txs = append(txs, tx)
 	}
 	return txs
