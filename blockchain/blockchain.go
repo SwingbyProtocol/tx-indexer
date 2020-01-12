@@ -67,6 +67,9 @@ func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
 	if err != nil {
 		return err
 	}
+	if block.Height == 0 {
+		return errors.New("block is zero")
+	}
 	for _, txid := range block.Txs {
 		bc.mu.Lock()
 		bc.txmap[txid] = block.Hash
@@ -138,17 +141,15 @@ func (bc *Blockchain) Start() {
 		log.Fatal(err)
 	}
 	latest := bc.GetLatestBlock()
-	c := make(chan string, 7)
-	count := 0
+	c := make(chan int64, 1300)
 	limit := 0
 	go func() {
 		for {
 			wg := new(sync.WaitGroup)
-			<-c
-			count = count + 1
+			height := <-c
 			wg.Add(1)
 			go func() {
-				err := bc.AddTxMap(latest.Height-int64(count), wg)
+				err := bc.AddTxMap(height, wg)
 				if err != nil {
 					log.Info(err)
 				}
@@ -161,7 +162,7 @@ func (bc *Blockchain) Start() {
 		}
 	}()
 	for i := 0; i < 50000; i++ {
-		c <- " "
+		c <- latest.Height - int64(i)
 	}
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
 }
