@@ -24,6 +24,7 @@ type Blockchain struct {
 	resolver        *api.Resolver
 	index           *Index // index is stored per block
 	Blocks          map[int64]*types.Block
+	txmap           map[string]string
 	Mempool         map[string]*types.Tx
 	targetPrune     uint
 	latestBlockHash string
@@ -32,12 +33,17 @@ type Blockchain struct {
 	pushMsgChan     chan *types.PushMsg
 }
 
+type HeighHash struct {
+	BlockHash string `json:"blockhash"`
+}
+
 func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	bc := &Blockchain{
 		mu:          new(sync.RWMutex),
 		resolver:    api.NewResolver(conf.TrustedNode),
 		index:       NewIndex(),
 		Blocks:      make(map[int64]*types.Block),
+		txmap:       make(map[string]string),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
 		txChan:      make(chan *types.Tx, 100000),
@@ -47,6 +53,27 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	log.Infof("Start block syncing with pruneSize: %d", conf.PruneSize)
 	log.Infof("Using trusted node: %s", conf.TrustedNode)
 	return bc
+}
+
+func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
+	defer wg.Done()
+	bh := HeighHash{}
+	err := bc.resolver.GetRequest("/rest/blockhashbyheight/"+strconv.Itoa(int(height))+".json", &bh)
+	if err != nil {
+		return err
+	}
+	block := types.BlockTxs{}
+	err = bc.resolver.GetRequest("/rest/block/notxdetails/"+bh.BlockHash+".json", &block)
+	if err != nil {
+		return err
+	}
+	for _, txid := range block.Txs {
+		bc.mu.Lock()
+		bc.txmap[txid] = block.Hash
+		bc.mu.Unlock()
+		log.Info("stored ", txid, " ", block.Height)
+	}
+	return nil
 }
 
 func (bc *Blockchain) WatchTx() {
@@ -96,6 +123,49 @@ func (bc *Blockchain) WatchBlock() {
 	}
 }
 
+func (bc *Blockchain) Start() {
+	// load data from files
+	err := bc.Load()
+	if err != nil {
+		log.Error(err)
+		log.Info("Skip load process...")
+	}
+	go bc.WatchBlock()
+	go bc.WatchTx()
+	// Once sync blocks
+	err = bc.syncBlocks(20)
+	if err != nil {
+		log.Fatal(err)
+	}
+	latest := bc.GetLatestBlock()
+	c := make(chan string, 7)
+	count := 0
+	limit := 0
+	go func() {
+		for {
+			wg := new(sync.WaitGroup)
+			<-c
+			count = count + 1
+			wg.Add(1)
+			go func() {
+				err := bc.AddTxMap(latest.Height-int64(count), wg)
+				if err != nil {
+					log.Info(err)
+				}
+			}()
+			if limit >= 100 {
+				wg.Wait()
+				limit = 0
+			}
+			limit++
+		}
+	}()
+	for i := 0; i < 50000; i++ {
+		c <- " "
+	}
+	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
+}
+
 func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 	// Check tx input to update indexer storage
 	for _, in := range tx.Vin {
@@ -109,14 +179,25 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 				in.Addresses = []string{"coinbase"}
 				continue
 			}
-			utxo, err := bc.GetUTXOData(in.Txid, int(in.Vout))
+			targetHash := bc.txmap[in.Txid]
+			if targetHash == "" {
+				in.Value = "not exist"
+				in.Addresses = []string{"not exist"}
+				continue
+			}
+			getBlock, err := bc.NewBlock(targetHash)
 			if err != nil {
 				in.Value = "not exist"
 				in.Addresses = []string{"not exist"}
 				continue
 			}
-			in.Value = strconv.FormatFloat(utxo[0].Value.(float64), 'f', -1, 64)
-			in.Addresses = utxo[0].Scriptpubkey.Addresses
+			for _, btx := range getBlock.Txs {
+				if btx.Txid == in.Txid {
+					vout := btx.Vout[in.Vout]
+					in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+					in.Addresses = vout.Scriptpubkey.Addresses
+				}
+			}
 			continue
 		}
 		targetOutput := inTx.Vout[in.Vout]
@@ -157,22 +238,13 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 	}
 }
 
-func (bc *Blockchain) Start() {
-	// load data from files
-	err := bc.Load()
+func (bc *Blockchain) NewBlock(hash string) (*types.Block, error) {
+	block := types.Block{}
+	err := bc.resolver.GetRequest("/rest/block/"+hash+".json", &block)
 	if err != nil {
-		log.Error(err)
-		log.Info("Skip load process...")
+		return nil, err
 	}
-	go bc.WatchBlock()
-	go bc.WatchTx()
-	// Once sync blocks
-	err = bc.syncBlocks(2000)
-	if err != nil {
-		log.Fatal(err)
-	}
-	latest := bc.GetLatestBlock()
-	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
+	return &block, nil
 }
 
 func (bc *Blockchain) GetLatestBlock() *types.Block {
