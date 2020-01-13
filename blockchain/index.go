@@ -70,13 +70,15 @@ func (in *Index) GetTxIDs(addr string, state int) []string {
 }
 
 func (in *Index) Backup() error {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
 	str, err := json.Marshal(in.Kv)
 	if err != nil {
 		return err
 	}
-	f, err := os.Create("./.data/index.backup")
+	f, err := os.Create("./data/index.backup")
 	if err != nil {
-		err = os.MkdirAll("./.data", 0755)
+		err = os.MkdirAll("./data", 0755)
 		if err != nil {
 			return err
 		}
@@ -90,7 +92,7 @@ func (in *Index) Backup() error {
 }
 
 func (in *Index) Load() error {
-	data, err := ioutil.ReadFile("./.data/index.backup")
+	data, err := ioutil.ReadFile("./data/index.backup")
 	if err != nil {
 		return err
 	}

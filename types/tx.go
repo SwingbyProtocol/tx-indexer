@@ -40,6 +40,16 @@ type Vout struct {
 	Scriptpubkey *utils.ScriptPubkeyInfo `json:"scriptPubkey"`
 }
 
+type UTXOs struct {
+	Utxos []*UTXO `json:"utxos"`
+}
+
+type UTXO struct {
+	Height       int64                   `json:"height"`
+	Value        interface{}             `json:"value"`
+	Scriptpubkey *utils.ScriptPubkeyInfo `json:"scriptPubkey"`
+}
+
 func (tx *Tx) GetTxID() string {
 	return tx.Txid
 }

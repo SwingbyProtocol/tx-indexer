@@ -24,6 +24,7 @@ type Blockchain struct {
 	resolver        *api.Resolver
 	index           *Index // index is stored per block
 	Blocks          map[int64]*types.Block
+	txmap           map[string]string
 	Mempool         map[string]*types.Tx
 	targetPrune     uint
 	latestBlockHash string
@@ -32,21 +33,50 @@ type Blockchain struct {
 	pushMsgChan     chan *types.PushMsg
 }
 
+type HeighHash struct {
+	BlockHash string `json:"blockhash"`
+}
+
 func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	bc := &Blockchain{
 		mu:          new(sync.RWMutex),
 		resolver:    api.NewResolver(conf.TrustedNode),
 		index:       NewIndex(),
 		Blocks:      make(map[int64]*types.Block),
+		txmap:       make(map[string]string),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
-		txChan:      make(chan *types.Tx, 70000),
+		txChan:      make(chan *types.Tx, 100000),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
 	log.Infof("Start block syncing with pruneSize: %d", conf.PruneSize)
 	log.Infof("Using trusted node: %s", conf.TrustedNode)
 	return bc
+}
+
+func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
+	defer wg.Done()
+	bh := HeighHash{}
+	err := bc.resolver.GetRequest("/rest/blockhashbyheight/"+strconv.Itoa(int(height))+".json", &bh)
+	if err != nil {
+		return err
+	}
+	block := types.BlockTxs{}
+	err = bc.resolver.GetRequest("/rest/block/notxdetails/"+bh.BlockHash+".json", &block)
+	if err != nil {
+		return err
+	}
+	if block.Height == 0 {
+		return errors.New("block is zero")
+	}
+	for _, txid := range block.Txs {
+		bc.mu.Lock()
+		bc.txmap[txid] = block.Hash
+		bc.mu.Unlock()
+		log.Info("stored ", txid, " ", block.Height)
+	}
+	return nil
 }
 
 func (bc *Blockchain) WatchTx() {
@@ -86,7 +116,7 @@ func (bc *Blockchain) WatchBlock() {
 		// block := MsgBlockToBlock(msg)
 
 		// Get block data from TrustedPeer for now
-		err := bc.syncBlocks()
+		err := bc.syncBlocks(8)
 		if err != nil {
 			log.Debug(err)
 			continue
@@ -96,6 +126,47 @@ func (bc *Blockchain) WatchBlock() {
 	}
 }
 
+func (bc *Blockchain) Start() {
+	// load data from files
+	err := bc.Load()
+	if err != nil {
+		log.Error(err)
+		log.Info("Skip load process...")
+	}
+	go bc.WatchBlock()
+	go bc.WatchTx()
+	// Once sync blocks
+	err = bc.syncBlocks(20)
+	if err != nil {
+		log.Fatal(err)
+	}
+	latest := bc.GetLatestBlock()
+	c := make(chan int64, 1300)
+	limit := 0
+	go func() {
+		for {
+			wg := new(sync.WaitGroup)
+			height := <-c
+			wg.Add(1)
+			go func() {
+				err := bc.AddTxMap(height, wg)
+				if err != nil {
+					log.Info(err)
+				}
+			}()
+			if limit >= 100 {
+				wg.Wait()
+				limit = 0
+			}
+			limit++
+		}
+	}()
+	for i := 0; i < 50000; i++ {
+		c <- latest.Height - int64(i)
+	}
+	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
+}
+
 func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 	// Check tx input to update indexer storage
 	for _, in := range tx.Vin {
@@ -103,9 +174,31 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		inTx, _ := bc.GetTx(in.Txid)
 		if inTx == nil {
 			// continue if spent tx is not exist
-			//log.Debug(err)
-			in.Value = "not exist"
-			in.Addresses = []string{"not exist"}
+			// check coinbase
+			if in.Txid == "" {
+				in.Value = "coinbase"
+				in.Addresses = []string{"coinbase"}
+				continue
+			}
+			targetHash := bc.txmap[in.Txid]
+			if targetHash == "" {
+				in.Value = "not exist"
+				in.Addresses = []string{"not exist"}
+				continue
+			}
+			getBlock, err := bc.NewBlock(targetHash)
+			if err != nil {
+				in.Value = "not exist"
+				in.Addresses = []string{"not exist"}
+				continue
+			}
+			for _, btx := range getBlock.Txs {
+				if btx.Txid == in.Txid {
+					vout := btx.Vout[in.Vout]
+					in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+					in.Addresses = vout.Scriptpubkey.Addresses
+				}
+			}
 			continue
 		}
 		targetOutput := inTx.Vout[in.Vout]
@@ -146,22 +239,13 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 	}
 }
 
-func (bc *Blockchain) Start() {
-	// load data from files
-	err := bc.Load()
+func (bc *Blockchain) NewBlock(hash string) (*types.Block, error) {
+	block := types.Block{}
+	err := bc.resolver.GetRequest("/rest/block/"+hash+".json", &block)
 	if err != nil {
-		log.Error(err)
-		log.Info("Skip load process...")
+		return nil, err
 	}
-	// Once sync blocks
-	err = bc.syncBlocks()
-	if err != nil {
-		log.Fatal(err)
-	}
-	latest := bc.GetLatestBlock()
-	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
-	go bc.WatchBlock()
-	go bc.WatchTx()
+	return &block, nil
 }
 
 func (bc *Blockchain) GetLatestBlock() *types.Block {
@@ -176,7 +260,7 @@ func (bc *Blockchain) GetLatestBlock() *types.Block {
 	return bc.Blocks[top]
 }
 
-func (bc *Blockchain) syncBlocks() error {
+func (bc *Blockchain) syncBlocks(depth int) error {
 	// Check hash of prev block
 	blocks, err := bc.GetRemoteBlocks(1)
 	if err != nil {
@@ -189,7 +273,7 @@ func (bc *Blockchain) syncBlocks() error {
 	// Latest block hash is checked same as the latest previous hash
 	if blocks[0].Previousblockhash != latestHash {
 		log.Warnf("Latest block may be orphan, hash does not match. search more blocks.. prevhash: %s", blocks[0].Previousblockhash)
-		allBlocks, err := bc.GetRemoteBlocks(8)
+		allBlocks, err := bc.GetRemoteBlocks(depth)
 		if err != nil {
 			log.Warn(err)
 			return err
@@ -197,17 +281,19 @@ func (bc *Blockchain) syncBlocks() error {
 		blocks = allBlocks
 	}
 	for _, block := range blocks {
+		bc.mu.Lock()
 		bc.Blocks[block.Height] = block
+		bc.mu.Unlock()
 		log.Infof("Stored new block -> %d", block.Height)
 	}
 	nowHash := bc.GetLatestBlock().Hash
 	// Add latest block hash
 	bc.latestBlockHash = nowHash
 	// Add txs to txChan
-	for _, block := range blocks {
-		for _, tx := range block.Txs {
-			tx.AddBlockData(block.Height, block.Time, block.Mediantime)
-			tx.Receivedtime = block.Time
+	for i := len(blocks) - 1; i >= 0; i-- {
+		for _, tx := range blocks[i].Txs {
+			tx.AddBlockData(blocks[i].Height, blocks[i].Time, blocks[i].Mediantime)
+			tx.Receivedtime = blocks[i].Time
 			// Add tx to chan
 			bc.txChan <- tx
 		}
@@ -239,6 +325,27 @@ func (bc *Blockchain) GetTxs(txids []string) []*types.Tx {
 		tx, _ := bc.GetTx(txid)
 		if tx == nil {
 			continue
+		}
+		for _, in := range tx.Vin {
+			if in.Value == "not exist" {
+				targetHash := bc.txmap[in.Txid]
+				if targetHash == "" {
+					continue
+				}
+				getBlock, err := bc.NewBlock(targetHash)
+				if err != nil {
+					in.Value = "not exist"
+					in.Addresses = []string{"not exist"}
+					continue
+				}
+				for _, btx := range getBlock.Txs {
+					if btx.Txid == in.Txid {
+						vout := btx.Vout[in.Vout]
+						in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+						in.Addresses = vout.Scriptpubkey.Addresses
+					}
+				}
+			}
 		}
 		txs = append(txs, tx)
 	}
@@ -274,6 +381,18 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 	}
 	sortTx(res)
 	return res
+}
+
+func (bc *Blockchain) GetUTXOData(txhash string, vout int) ([]*types.UTXO, error) {
+	utxos := types.UTXOs{}
+	err := bc.resolver.GetRequest("/rest/getutxos/checkmempool/"+txhash+"-"+strconv.Itoa(vout)+".json", &utxos)
+	if err != nil {
+		return nil, err
+	}
+	if len(utxos.Utxos) == 0 {
+		return nil, errors.New("utxo is not exist")
+	}
+	return utxos.Utxos, nil
 }
 
 func (bc *Blockchain) GetRemoteBlocks(depth int) ([]*types.Block, error) {

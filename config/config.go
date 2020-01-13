@@ -2,13 +2,8 @@ package config
 
 import (
 	"flag"
-	"fmt"
-	"os"
-	"runtime"
-	"strings"
 
 	"github.com/btcsuite/btcd/chaincfg"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -48,22 +43,6 @@ type WSConfig struct {
 }
 
 func init() {
-	log.SetOutput(os.Stdout)
-	log.SetReportCaller(true)
-	log.SetFormatter(&log.TextFormatter{
-		FullTimestamp: true,
-		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
-			s := strings.Split(f.Function, ".")
-			funcname := s[len(s)-1]
-			//_, filename := path.Split(f.File)
-			paddedFuncname := fmt.Sprintf(" %-20v", funcname+"()")
-			//paddedFilename := fmt.Sprintf("%17v", filename)
-			return paddedFuncname, ""
-		},
-	})
-}
-
-func setupFlags() {
 	pflag.Bool("node.testnet", false, "Using testnet")
 	pflag.IntP("node.prune", "s", 12, "Proune block size of this app")
 	pflag.String("node.loglevel", "info", "The loglevel")
@@ -79,7 +58,6 @@ func setupFlags() {
 
 // NewDefaultConfig is default config
 func NewDefaultConfig() (*Config, error) {
-	setupFlags()
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
 	viper.BindPFlags(pflag.CommandLine)
@@ -91,11 +69,6 @@ func NewDefaultConfig() (*Config, error) {
 		config.P2PConfig.Params = &chaincfg.TestNet3Params
 	} else {
 		config.P2PConfig.Params = &chaincfg.MainNetParams
-	}
-
-	loglevel := config.NodeConfig.LogLevel
-	if loglevel == "debug" {
-		log.SetLevel(log.DebugLevel)
 	}
 	return &config, nil
 }

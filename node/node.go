@@ -12,6 +12,7 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
@@ -50,7 +51,7 @@ type NodeConfig struct {
 type Node struct {
 	peerConfig     *peer.Config
 	mu             *sync.RWMutex
-	received       map[string]bool
+	receivedTxs    map[string]bool
 	targetOutbound uint32
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
@@ -66,7 +67,7 @@ func NewNode(config *NodeConfig) *Node {
 
 	node := &Node{
 		mu:             new(sync.RWMutex),
-		received:       make(map[string]bool),
+		receivedTxs:    make(map[string]bool),
 		targetOutbound: config.TargetOutbound,
 		connectedRanks: make(map[string]uint64),
 		connectedPeers: make(map[string]*peer.Peer),
@@ -287,6 +288,7 @@ func (node *Node) queryDNSSeeds() {
 	}
 	wg.Wait()
 	log.Infof("Conncted peers -> %d", len(node.ConnectedPeers()))
+	log.Infof("Using network --> %s", node.peerConfig.ChainParams.Name)
 }
 
 func (node *Node) addRandomNodes(count int, addrs []string) {
@@ -312,6 +314,26 @@ func (node *Node) addRandomNodes(count int, addrs []string) {
 	}
 }
 
+func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.MessageEncoding) error {
+	msgTx := node.GetInvTx(hash.String())
+	if msgTx == nil {
+		return errors.New("Unable to fetch tx from invtxs")
+	}
+	p.QueueMessageWithEncoding(msgTx, nil, enc)
+	log.Infof("Broadcast success txhash: %s peer: %s", hash.String(), p.Addr())
+	return nil
+}
+
+func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
+	peers := node.ConnectedPeers()
+	if len(peers) > 14 {
+		peers = peers[:12]
+	}
+	for _, peer := range peers {
+		peer.QueueInventory(iv)
+	}
+}
+
 func (node *Node) updateRank(p *peer.Peer) {
 	node.mu.Lock()
 	node.connectedRanks[p.Addr()]++
@@ -320,4 +342,21 @@ func (node *Node) updateRank(p *peer.Peer) {
 
 func (node *Node) resetConnectedRank() {
 	node.connectedRanks = make(map[string]uint64)
+}
+
+func (node *Node) addReceived(hash string) {
+	node.receivedTxs[hash] = true
+	go func() {
+		time.Sleep(4 * time.Minute)
+		node.mu.Lock()
+		delete(node.receivedTxs, hash)
+		node.mu.Unlock()
+	}()
+}
+
+func (node *Node) isReceived(hash string) bool {
+	if node.receivedTxs[hash] {
+		return true
+	}
+	return false
 }

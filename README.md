@@ -27,7 +27,7 @@ $ make build-linux-amd64
 ```
 ## API reffecrence
 
-- [Websocket sample code](./examples/websocket_sample/websocket_sample.go)
+- [Websocket client sample code](./examples/websocket_sample/websocket_sample.go)
 
 ### Build Docker container
 ```

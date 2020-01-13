@@ -11,6 +11,12 @@ type Block struct {
 	Previousblockhash string `json:"previousblockhash"`
 }
 
+type BlockTxs struct {
+	Hash   string   `json:"hash"`
+	Height int64    `json:"height"`
+	Txs    []string `json:"tx"`
+}
+
 func (block *Block) GetTxIDs() []string {
 	ids := []string{}
 	for _, tx := range block.Txs {

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
@@ -19,10 +22,31 @@ const (
 	Send     = "send"
 )
 
+func init() {
+	log.SetReportCaller(true)
+	log.SetFormatter(&log.TextFormatter{
+		ForceColors:   true,
+		FullTimestamp: true,
+		CallerPrettyfier: func(f *runtime.Frame) (string, string) {
+			s := strings.Split(f.Function, ".")
+			funcname := s[len(s)-1]
+			//_, filename := path.Split(f.File)
+			paddedFuncname := fmt.Sprintf(" %-20v", funcname+"()")
+			//paddedFilename := fmt.Sprintf("%17v", filename)
+			return paddedFuncname, ""
+		},
+	})
+	log.SetOutput(os.Stdout)
+}
+
 func main() {
 	conf, err := config.NewDefaultConfig()
 	if err != nil {
 		log.Info(err)
+	}
+	loglevel := conf.NodeConfig.LogLevel
+	if loglevel == "debug" {
+		log.SetLevel(log.DebugLevel)
 	}
 	// Create Config
 	blockchianConfig := &blockchain.BlockchainConfig{
@@ -85,7 +109,7 @@ func main() {
 		log.Infof("new subscription registered for : %s when %s by %s", req.Params.Address, req.Params.Type, c.ID)
 
 		msg := "watch success for " + req.Params.Address + " when " + req.Params.Type
-		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*types.Tx{}))
+		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, bc.GetLatestBlock().Height, []*types.Tx{}))
 	}
 
 	onUnWatchTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
@@ -109,19 +133,19 @@ func main() {
 		log.Infof("Client want to unsubscribe the Address: -> %s %s", req.Params.Address, c.ID)
 
 		msg := "unwatch success for " + req.Params.Address + " when " + req.Params.Type
-		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, []*types.Tx{}))
+		c.SendJSON(api.CreateMsgSuccessWS(req.Action, msg, bc.GetLatestBlock().Height, []*types.Tx{}))
 	}
 
 	Publish := func(ps *pubsub.PubSub, msg *types.PushMsg) {
 		txs := []*types.Tx{}
 		txs = append(txs, msg.Tx)
 		if msg.State == blockchain.Send {
-			res := api.CreateMsgSuccessWS(api.WATCHTXS, Send, txs)
+			res := api.CreateMsgSuccessWS(api.WATCHTXS, Send, bc.GetLatestBlock().Height, txs)
 			ps.PublishJSON(Send+"_"+msg.Addr, res)
 			return
 		}
 		if msg.State == blockchain.Received {
-			res := api.CreateMsgSuccessWS(api.WATCHTXS, Received, txs)
+			res := api.CreateMsgSuccessWS(api.WATCHTXS, Received, bc.GetLatestBlock().Height, txs)
 			ps.PublishJSON(Received+"_"+msg.Addr, res)
 			return
 		}
@@ -177,9 +201,9 @@ func main() {
 			return
 		}
 		txs := bc.GetIndexTxsWithTW(req.Params.Address, timeFrom, timeTo, state, mempool)
-		res := api.CreateMsgSuccessWS(api.GETTXS, "Get txs success only for "+req.Params.Type, txs)
+		res := api.CreateMsgSuccessWS(api.GETTXS, "Get txs success only for "+req.Params.Type, bc.GetLatestBlock().Height, txs)
 		c.SendJSON(res)
-		log.Infof("Get txs for %s with params from %11d to %11d type %10s mempool %6t txs %d", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool, len(res.Txs))
+		log.Infof("Get txs for %50s with params from %11d to %11d type %10s mempool %6t txs %d", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool, len(res.Txs))
 	}
 
 	onBroadcastTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
@@ -212,7 +236,8 @@ func main() {
 			c.SendJSON(api.CreateMsgErrorWS(req.Action, err.Error()))
 			return
 		}
-		log.Infof("hex: %s", req.Params.Hex)
+		addr := c.Connection.RemoteAddr().String()
+		log.Infof("client: %s hash: %s hex: %s", addr, utilTx.Hash().String(), req.Params.Hex)
 		msgTx := utilTx.MsgTx()
 		// Add tx to store
 		tx := types.MsgTxToTx(msgTx, conf.P2PConfig.Params)
@@ -231,16 +256,17 @@ func main() {
 			node.AddInvTx(inTx.Txid, inTx.MsgTx)
 		}
 		node.BroadcastTxInv(txHash)
-		res := api.CreateMsgSuccessWS(api.BROADCAST, "Tx data broadcast success: "+txHash, []*types.Tx{})
+		res := api.CreateMsgSuccessWS(api.BROADCAST, "Tx data broadcast success: "+txHash, bc.GetLatestBlock().Height, []*types.Tx{})
 		c.SendJSON(res)
 	}
-	// Add handler for WS
+	// Add handler for WS realtime
 	apiConfig.Listeners.OnWatchTxWS = onWatchTxWS
 	apiConfig.Listeners.OnUnWatchTxWS = onUnWatchTxWS
+	apiConfig.Listeners.Publish = Publish
+	// Add handler for WS
 	apiConfig.Listeners.OnGetTxWS = onGetTxWS
 	apiConfig.Listeners.OnGetIndexTxsWS = onGetIndexTxsWS
 	apiConfig.Listeners.OnBroadcastTxWS = onBroadcastTxWS
-	apiConfig.Listeners.Publish = Publish
 	// Add handler for REST
 	apiConfig.Listeners.OnGetTx = bc.OnGetTx
 	apiConfig.Listeners.OnGetAddressIndex = bc.OnGetAddressIndex

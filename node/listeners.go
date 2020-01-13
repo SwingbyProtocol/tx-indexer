@@ -1,11 +1,9 @@
 package node
 
 import (
-	"errors"
 	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/types"
-	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
@@ -105,7 +103,11 @@ func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
 		// Finding new peer
 		go node.queryDNSSeeds()
 	}
-
+	txHash := msg.TxHash().String()
+	if node.isReceived(txHash) {
+		return
+	}
+	node.addReceived(txHash)
 	tx := types.MsgTxToTx(msg, node.peerConfig.ChainParams)
 	go func() {
 		node.txChan <- &tx
@@ -143,25 +145,5 @@ func (node *Node) onGetData(p *peer.Peer, msg *wire.MsgGetData) {
 				log.Infof("Remove inv txs %s", txid)
 			}
 		}()
-	}
-}
-
-func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.MessageEncoding) error {
-	msgTx := node.GetInvTx(hash.String())
-	if msgTx == nil {
-		return errors.New("Unable to fetch tx from invtxs")
-	}
-	p.QueueMessageWithEncoding(msgTx, nil, enc)
-	log.Infof("Broadcast success txhash: %s peer: %s", hash.String(), p.Addr())
-	return nil
-}
-
-func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
-	peers := node.ConnectedPeers()
-	if len(peers) > 4 {
-		peers = peers[:3]
-	}
-	for _, peer := range peers {
-		peer.QueueInventory(iv)
 	}
 }
