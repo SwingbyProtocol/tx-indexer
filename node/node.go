@@ -345,7 +345,9 @@ func (node *Node) resetConnectedRank() {
 }
 
 func (node *Node) addReceived(hash string) {
+	node.mu.Lock()
 	node.receivedTxs[hash] = true
+	node.mu.Unlock()
 	go func() {
 		time.Sleep(4 * time.Minute)
 		node.mu.Lock()
