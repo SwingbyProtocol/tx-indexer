@@ -1,22 +1,17 @@
 package node
 
 import (
-	"bytes"
-	"encoding/hex"
 	"errors"
 	"net"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/peer"
-	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,12 +35,10 @@ type NodeConfig struct {
 	// is highly recommended to specify this value and that it follows the
 	// form "major.minor.revision" e.g. "2.6.41".
 	UserAgentVersion string
-	// If this field is not nil the PeerManager will only connect to this address
-	TrustedPeer string
 	// Chan for Tx
-	TxChan chan *types.Tx
+	TxChan chan *wire.MsgTx
 	// Chan for Block
-	BlockChan chan *wire.MsgBlock
+	BChan chan *wire.MsgBlock
 }
 
 type Node struct {
@@ -56,11 +49,8 @@ type Node struct {
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
 	invtxs         map[string]*wire.MsgTx
-	sigCache       *txscript.SigCache
-	hashCache      *txscript.HashCache
-	trustedPeer    string
-	txChan         chan *types.Tx
-	blockChan      chan *wire.MsgBlock
+	txChan         chan *wire.MsgTx
+	bChan          chan *wire.MsgBlock
 }
 
 func NewNode(config *NodeConfig) *Node {
@@ -68,15 +58,12 @@ func NewNode(config *NodeConfig) *Node {
 	node := &Node{
 		mu:             new(sync.RWMutex),
 		receivedTxs:    make(map[string]bool),
-		targetOutbound: config.TargetOutbound,
+		invtxs:         make(map[string]*wire.MsgTx),
 		connectedRanks: make(map[string]uint64),
 		connectedPeers: make(map[string]*peer.Peer),
-		invtxs:         make(map[string]*wire.MsgTx),
-		trustedPeer:    config.TrustedPeer,
+		targetOutbound: config.TargetOutbound,
 		txChan:         config.TxChan,
-		blockChan:      config.BlockChan,
-		sigCache:       txscript.NewSigCache(1000),
-		hashCache:      txscript.NewHashCache(1000),
+		bChan:          config.BChan,
 	}
 	// Override node count times
 	if config.Params.Name == "testnet3" {
@@ -106,14 +93,6 @@ func NewNode(config *NodeConfig) *Node {
 }
 
 func (node *Node) Start() {
-	if node.trustedPeer != "" {
-		conn, err := net.Dial("tcp", node.trustedPeer)
-		if err != nil {
-			log.Fatal("net.Dial: error %v\n", err)
-			return
-		}
-		node.AddPeer(conn)
-	}
 	go node.queryDNSSeeds()
 }
 
@@ -133,35 +112,6 @@ func (node *Node) Stop() {
 	}
 	node.connectedPeers = make(map[string]*peer.Peer)
 	wg.Wait()
-}
-
-func (node *Node) ValidateTx(tx *btcutil.Tx) error {
-	err := utils.CheckNonStandardTx(tx)
-	if err != nil {
-		return err
-	}
-	err = utils.OutputRejector(tx.MsgTx())
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (node *Node) DecodeToTx(hexStr string) (*btcutil.Tx, error) {
-	if len(hexStr)%2 != 0 {
-		hexStr = "0" + hexStr
-	}
-	serializedTx, err := hex.DecodeString(hexStr)
-	if err != nil {
-		return nil, err
-	}
-	var msgTx wire.MsgTx
-	err = msgTx.Deserialize(bytes.NewReader(serializedTx))
-	if err != nil {
-		return nil, err
-	}
-	tx := btcutil.NewTx(&msgTx)
-	return tx, nil
 }
 
 func (node *Node) AddInvTx(txid string, msgTx *wire.MsgTx) {
@@ -202,6 +152,16 @@ func (node *Node) BroadcastTxInv(txid string) {
 	// Submit inv msg to network
 	node.sendBroadcastInv(iv)
 	log.Infof("Broadcast inv msg success: %s", txid)
+}
+
+func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
+	peers := node.ConnectedPeers()
+	if len(peers) > 14 {
+		peers = peers[:12]
+	}
+	for _, peer := range peers {
+		peer.QueueInventory(iv)
+	}
 }
 
 func (node *Node) ConnectedPeer(addr string) *peer.Peer {
@@ -324,16 +284,6 @@ func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.Message
 	return nil
 }
 
-func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
-	peers := node.ConnectedPeers()
-	if len(peers) > 14 {
-		peers = peers[:12]
-	}
-	for _, peer := range peers {
-		peer.QueueInventory(iv)
-	}
-}
-
 func (node *Node) updateRank(p *peer.Peer) {
 	node.mu.Lock()
 	node.connectedRanks[p.Addr()]++
@@ -345,9 +295,12 @@ func (node *Node) resetConnectedRank() {
 }
 
 func (node *Node) addReceived(hash string) {
+	node.mu.Lock()
 	node.receivedTxs[hash] = true
+	node.mu.Unlock()
 	go func() {
-		time.Sleep(4 * time.Minute)
+		// Delete after 10 min
+		time.Sleep(10 * time.Minute)
 		node.mu.Lock()
 		delete(node.receivedTxs, hash)
 		node.mu.Unlock()
@@ -355,6 +308,8 @@ func (node *Node) addReceived(hash string) {
 }
 
 func (node *Node) isReceived(hash string) bool {
+	node.mu.RLock()
+	defer node.mu.RUnlock()
 	if node.receivedTxs[hash] {
 		return true
 	}

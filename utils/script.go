@@ -4,31 +4,24 @@ import (
 	"encoding/hex"
 	"errors"
 
+	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 )
 
-type ScriptPubkeyInfo struct {
-	Asm         string   `json:"asm"`
-	Hex         string   `json:"hex"`
-	Reqsigs     int      `json:"reqSigs"`
-	ScriptClass string   `json:"type"`
-	Addresses   []string `json:"addresses"`
-}
-
-func ScriptToPubkeyInfo(script []byte, params *chaincfg.Params) (ScriptPubkeyInfo, error) {
+func ScriptToPubkeyInfo(script []byte, params *chaincfg.Params) (types.ScriptPubkeyInfo, error) {
 	scriptClass, addrs, reqSig, err := txscript.ExtractPkScriptAddrs(script, params)
 	if err != nil {
-		return ScriptPubkeyInfo{}, err
+		return types.ScriptPubkeyInfo{}, err
 	}
 	if len(addrs) == 0 {
-		return ScriptPubkeyInfo{}, errors.New("unknown script")
+		return types.ScriptPubkeyInfo{}, errors.New("unknown script")
 	}
 	addresses := []string{}
 	for _, addr := range addrs {
 		addresses = append(addresses, addr.String())
 	}
-	spi := ScriptPubkeyInfo{
+	spi := types.ScriptPubkeyInfo{
 		// TODO: enable asm
 		Asm:         "",
 		Hex:         hex.EncodeToString(script),

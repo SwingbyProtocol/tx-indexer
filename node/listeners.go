@@ -3,7 +3,6 @@ package node
 import (
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
@@ -108,15 +107,14 @@ func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
 		return
 	}
 	node.addReceived(txHash)
-	tx := types.MsgTxToTx(msg, node.peerConfig.ChainParams)
 	go func() {
-		node.txChan <- &tx
+		node.txChan <- msg
 	}()
 }
 
 func (node *Node) onBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	go func() {
-		node.blockChan <- msg
+		node.bChan <- msg
 	}()
 }
 

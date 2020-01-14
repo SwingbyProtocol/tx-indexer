@@ -1,4 +1,4 @@
-package pubsub
+package api
 
 import (
 	"errors"
@@ -10,15 +10,15 @@ import (
 )
 
 type PubSub struct {
-	Clients       []Client
-	Subscriptions map[string][]Subscription
-	Mu            sync.Mutex
-	Upgrader      websocket.Upgrader
+	clients       []*Client
+	subscriptions map[string][]*Subscription
+	mu            sync.Mutex
+	upgrader      websocket.Upgrader
 }
 
 type Subscription struct {
-	Topic  string
-	Client *Client
+	topic  string
+	client *Client
 }
 
 func NewPubSub() *PubSub {
@@ -27,35 +27,35 @@ func NewPubSub() *PubSub {
 		WriteBufferSize: 1024,
 	}
 	ps := &PubSub{
-		Subscriptions: make(map[string][]Subscription),
-		Upgrader:      upgrader,
+		subscriptions: make(map[string][]*Subscription),
+		upgrader:      upgrader,
 	}
 	return ps
 }
 
-func (ps *PubSub) AddClient(client Client) *PubSub {
-	ps.Clients = append(ps.Clients, client)
+func (ps *PubSub) AddClient(c *Client) *PubSub {
+	ps.clients = append(ps.clients, c)
 	//fmt.Println("adding new client to the list", client.Id, len(ps.Clients))
 	return ps
 }
 
 func (ps *PubSub) RemoveClient(client *Client) *PubSub {
-	ps.Mu.Lock()
-	delete(ps.Subscriptions, client.ID)
-	for index, cli := range ps.Clients {
-		if cli.ID == client.ID {
-			ps.Clients = append(ps.Clients[:index], ps.Clients[index+1:]...)
+	ps.mu.Lock()
+	delete(ps.subscriptions, client.id)
+	for index, cli := range ps.clients {
+		if cli.id == client.id {
+			ps.clients = append(ps.clients[:index], ps.clients[index+1:]...)
 		}
 	}
-	ps.Mu.Unlock()
+	ps.mu.Unlock()
 	return ps
 }
 
-func (ps *PubSub) GetTopicSubs(topic string, client *Client) []Subscription {
-	var subscriptionList []Subscription
-	for _, subs := range ps.Subscriptions {
+func (ps *PubSub) GetTopicSubs(topic string, client *Client) []*Subscription {
+	var subscriptionList []*Subscription
+	for _, subs := range ps.subscriptions {
 		for _, sub := range subs {
-			if sub.Topic == topic {
+			if sub.topic == topic {
 				subscriptionList = append(subscriptionList, sub)
 			}
 		}
@@ -63,10 +63,10 @@ func (ps *PubSub) GetTopicSubs(topic string, client *Client) []Subscription {
 	return subscriptionList
 }
 
-func (ps *PubSub) GetClientSubs(topic string, client *Client) []Subscription {
-	var subscriptionList []Subscription
-	for _, sub := range ps.Subscriptions[client.ID] {
-		if sub.Client.ID == client.ID && sub.Topic == topic {
+func (ps *PubSub) GetClientSubs(topic string, client *Client) []*Subscription {
+	var subscriptionList []*Subscription
+	for _, sub := range ps.subscriptions[client.id] {
+		if sub.client.id == client.id && sub.topic == topic {
 			subscriptionList = append(subscriptionList, sub)
 		}
 	}
@@ -79,20 +79,20 @@ func (ps *PubSub) Subscribe(client *Client, topic string) error {
 		// client is subscribed this topic before
 		return errors.New("Error this subscribe is already exist")
 	}
-	newSubscription := Subscription{
-		Topic:  topic,
-		Client: client,
+	newSubscription := &Subscription{
+		topic:  topic,
+		client: client,
 	}
-	ps.Subscriptions[client.ID] = append(ps.Subscriptions[client.ID], newSubscription)
+	ps.subscriptions[client.id] = append(ps.subscriptions[client.id], newSubscription)
 	return nil
 }
 
 func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {
 	//clientSubscriptions := ps.GetSubscriptions(topic, client)
-	for _, subs := range ps.Subscriptions {
+	for _, subs := range ps.subscriptions {
 		for index, sub := range subs {
-			if sub.Client.ID == client.ID && sub.Topic == topic {
-				ps.Subscriptions[client.ID] = append(ps.Subscriptions[client.ID][:index], ps.Subscriptions[client.ID][index+1:]...)
+			if sub.client.id == client.id && sub.topic == topic {
+				ps.subscriptions[client.id] = append(ps.subscriptions[client.id][:index], ps.subscriptions[client.id][index+1:]...)
 			}
 		}
 	}
@@ -102,27 +102,27 @@ func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {
 func (ps *PubSub) Publish(topic string, msg []byte) {
 	subscriptions := ps.GetTopicSubs(topic, nil)
 	for _, sub := range subscriptions {
-		log.Infof("Publish msg to client id %s msg is %s \n", sub.Client.ID, msg[:30])
+		log.Infof("Sending to client id %s msg is %s \n", sub.client.id, msg[:30])
 		//sub.Client.Connection.WriteMessage(1, message)
-		sub.Client.Send(msg)
+		sub.client.Send(msg)
 	}
 }
 
 func (ps *PubSub) PublishJSON(topic string, data interface{}) {
 	subscriptions := ps.GetTopicSubs(topic, nil)
 	for _, sub := range subscriptions {
-		log.Infof("Publish msg to client id %s \n", sub.Client.ID)
+		log.Infof("Sending to client id %s \n", sub.client.id)
 		//sub.Client.Connection.WriteMessage(1, message)
-		sub.Client.SendJSON(data)
+		sub.client.SendJSON(data)
 	}
 }
 
 func (ps *PubSub) PublishPing(writeWait time.Duration) {
-	for _, subs := range ps.Subscriptions {
+	for _, subs := range ps.subscriptions {
 		for _, sub := range subs {
-			log.Infof("Sending PING to client id: %s", sub.Client.ID)
+			log.Infof("Sending PING to client id: %s", sub.client.id)
 			//sub.Client.Connection.WriteMessage(1, message)
-			sub.Client.Ping(writeWait)
+			sub.client.Ping(writeWait)
 		}
 	}
 }

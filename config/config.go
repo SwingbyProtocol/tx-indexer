@@ -8,10 +8,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-const (
-	DefaultConenctPeer = "http://192.168.1.230:8332"
-)
-
 // Config is app of conig
 type Config struct {
 	// Network parameters. Set mainnet, testnet, or regtest using this.
@@ -29,12 +25,11 @@ type NodeConfig struct {
 
 type P2PConfig struct {
 	Params         *chaincfg.Params
-	ConnAddr       string `mapstructure:"connect" json:"connect"`
 	TargetOutbound uint32 `mapstructure:"targetSize" json:"targetSize"`
 }
 
 type RESTConfig struct {
-	ConnAddr   string `mapstructure:"connect" json:"connect"`
+	Finalizer  string `mapstructure:"finalizer" json:"finalizer"`
 	ListenAddr string `mapstructure:"listen" json:"listen"`
 }
 
@@ -44,13 +39,11 @@ type WSConfig struct {
 
 func init() {
 	pflag.Bool("node.testnet", false, "Using testnet")
-	pflag.IntP("node.prune", "s", 12, "Proune block size of this app")
 	pflag.String("node.loglevel", "info", "The loglevel")
 	// Bind rest flags
-	pflag.StringP("rest.connect", "c", DefaultConenctPeer, "The address for connect block finalizer")
+	pflag.StringP("rest.finalizer", "c", "http://192.168.1.230:8332", "The address for finalizer")
 	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
 	// Bind p2p flags
-	pflag.String("p2p.connect", "", "The address for connect p2p network")
 	pflag.Int("p2p.targetSize", 25, "The maximum node count for connect p2p")
 	// Bind ws flags
 	pflag.StringP("ws.listen", "w", "0.0.0.0:9099", "The listen address for Websocket API")

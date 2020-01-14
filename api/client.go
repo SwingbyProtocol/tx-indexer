@@ -1,4 +1,4 @@
-package pubsub
+package api
 
 import (
 	"encoding/json"
@@ -10,9 +10,9 @@ import (
 )
 
 type Client struct {
-	ID         string
-	Connection *websocket.Conn
-	Mu         *sync.Mutex
+	id         string
+	connection *websocket.Conn
+	mu         *sync.Mutex
 }
 
 func (client *Client) SendJSON(message interface{}) error {
@@ -26,14 +26,14 @@ func (client *Client) SendJSON(message interface{}) error {
 
 func (client *Client) Send(message []byte) error {
 	// protect concurrent write
-	client.Mu.Lock()
-	defer client.Mu.Unlock()
-	return client.Connection.WriteMessage(1, message)
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	return client.connection.WriteMessage(1, message)
 }
 
 func (client *Client) Ping(writeWait time.Duration) error {
-	client.Connection.SetWriteDeadline(time.Now().Add(writeWait))
-	err := client.Connection.WriteMessage(websocket.PingMessage, []byte("Ping"))
+	client.connection.SetWriteDeadline(time.Now().Add(writeWait))
+	err := client.connection.WriteMessage(websocket.PingMessage, []byte("Ping"))
 	if err != nil {
 		return err
 	}
@@ -43,7 +43,7 @@ func (client *Client) Ping(writeWait time.Duration) error {
 func (client *Client) SetMsgHandlers(handler func(c *Client, msg []byte), onError func(c *Client)) {
 	go func() {
 		for {
-			_, message, err := client.Connection.ReadMessage()
+			_, message, err := client.connection.ReadMessage()
 			if err != nil {
 				onError(client)
 				break
@@ -51,4 +51,12 @@ func (client *Client) SetMsgHandlers(handler func(c *Client, msg []byte), onErro
 			handler(client, message)
 		}
 	}()
+}
+
+func (client *Client) ID() string {
+	return client.id
+}
+
+func (client *Client) Conn() *websocket.Conn {
+	return client.connection
 }

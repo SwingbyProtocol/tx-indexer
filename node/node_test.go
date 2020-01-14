@@ -13,7 +13,6 @@ func TestNode(t *testing.T) {
 		TargetOutbound:   38,
 		UserAgentName:    "test",
 		UserAgentVersion: "0.1.0",
-		TrustedPeer:      "192.168.1.230:8333",
 	}
 	node := NewNode(config)
 

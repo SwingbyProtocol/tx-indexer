@@ -16,7 +16,7 @@ const (
 
 type Index struct {
 	mu *sync.RWMutex
-	Kv map[string]*Store
+	kv map[string]*Store `json:"kv"`
 }
 
 type Store struct {
@@ -26,20 +26,20 @@ type Store struct {
 func NewIndex() *Index {
 	index := &Index{
 		mu: new(sync.RWMutex),
-		Kv: make(map[string]*Store),
+		kv: make(map[string]*Store),
 	}
 	return index
 }
 
 func (in *Index) Update(addr string, txid string, state int) {
 	in.mu.Lock()
-	if in.Kv[addr] == nil {
-		in.Kv[addr] = &Store{Txs: make(map[string]int)}
+	if in.kv[addr] == nil {
+		in.kv[addr] = &Store{Txs: make(map[string]int)}
 	}
-	if in.Kv[addr].Txs[txid] == Send && state == Received {
-		in.Kv[addr].Txs[txid] = Both
+	if in.kv[addr].Txs[txid] == Send && state == Received {
+		in.kv[addr].Txs[txid] = Both
 	} else {
-		in.Kv[addr].Txs[txid] = state
+		in.kv[addr].Txs[txid] = state
 	}
 	in.mu.Unlock()
 }
@@ -47,10 +47,10 @@ func (in *Index) Update(addr string, txid string, state int) {
 func (in *Index) Remove(addr string, txid string) error {
 	in.mu.Lock()
 	defer in.mu.Unlock()
-	if in.Kv[addr] == nil {
+	if in.kv[addr] == nil {
 		return errors.New("tx is not exit")
 	}
-	delete(in.Kv[addr].Txs, txid)
+	delete(in.kv[addr].Txs, txid)
 	return nil
 }
 
@@ -58,10 +58,10 @@ func (in *Index) GetTxIDs(addr string, state int) []string {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 	txids := []string{}
-	if in.Kv[addr] == nil {
+	if in.kv[addr] == nil {
 		return txids
 	}
-	for i, status := range in.Kv[addr].Txs {
+	for i, status := range in.kv[addr].Txs {
 		if status == state || status == Both {
 			txids = append(txids, i)
 		}
@@ -72,7 +72,7 @@ func (in *Index) GetTxIDs(addr string, state int) []string {
 func (in *Index) Backup() error {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
-	str, err := json.Marshal(in.Kv)
+	str, err := json.Marshal(in.kv)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (in *Index) Load() error {
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(data, &in.Kv)
+	err = json.Unmarshal(data, &in.kv)
 	if err != nil {
 		return err
 	}
