@@ -65,6 +65,7 @@ func (t *TxMap) Start() error {
 	go func() {
 		for {
 			<-done
+			log.Info("block tx map loaded")
 			break
 		}
 	}()
