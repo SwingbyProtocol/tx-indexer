@@ -322,15 +322,10 @@ func (bc *Blockchain) GetTx(txid string) (*types.Tx, bool) {
 func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 	txs := []*types.Tx{}
 	for _, txid := range txids {
-		tx, isMem := bc.GetTx(txid)
+		tx, _ := bc.GetTx(txid)
 		if tx == nil {
 			continue
 		}
-		if mem && isMem {
-			txs = append(txs, tx)
-			continue
-		}
-
 		for _, in := range tx.Vin {
 			if in.Value == "not exist" {
 				targetHash := bc.txmap[in.Txid]
@@ -385,9 +380,6 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 		}
 	}
 	sortTx(res)
-	if len(res) >= 20 && mempool {
-		res = res[:20]
-	}
 	return res
 }
 
