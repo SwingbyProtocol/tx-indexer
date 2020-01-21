@@ -319,13 +319,18 @@ func (bc *Blockchain) GetTx(txid string) (*types.Tx, bool) {
 	return nil, false
 }
 
-func (bc *Blockchain) GetTxs(txids []string) []*types.Tx {
+func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 	txs := []*types.Tx{}
 	for _, txid := range txids {
-		tx, _ := bc.GetTx(txid)
+		tx, isMem := bc.GetTx(txid)
 		if tx == nil {
 			continue
 		}
+		if mem && isMem {
+			txs = append(txs, tx)
+			continue
+		}
+
 		for _, in := range tx.Vin {
 			if in.Value == "not exist" {
 				targetHash := bc.txmap[in.Txid]
@@ -369,7 +374,7 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 		end = int64(^uint(0) >> 1)
 	}
 	txids := bc.index.GetTxIDs(addr, state)
-	txs := bc.GetTxs(txids)
+	txs := bc.GetTxs(txids, mempool)
 	res := []*types.Tx{}
 	for _, tx := range txs {
 		if tx.MinedTime == 0 && !mempool {
