@@ -380,6 +380,7 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 				continue
 			}
 			res = append(res, tx)
+			continue
 		}
 		if tx.MinedTime >= start && tx.MinedTime <= end {
 			res = append(res, tx)
