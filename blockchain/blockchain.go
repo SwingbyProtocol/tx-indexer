@@ -380,6 +380,9 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 		}
 	}
 	sortTx(res)
+	if len(res) >= 20 && mempool {
+		res = res[:20]
+	}
 	return res
 }
 
