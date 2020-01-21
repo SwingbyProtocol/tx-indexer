@@ -369,6 +369,7 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 		end = int64(^uint(0) >> 1)
 	}
 	txids := bc.index.GetTxIDs(addr, state)
+	log.Info(txids)
 	txs := bc.GetTxs(txids, mempool)
 	res := []*types.Tx{}
 	for _, tx := range txs {
