@@ -93,7 +93,7 @@ func (bc *Blockchain) WatchTx() {
 			continue
 		}
 		// Tx is on the mempool and kv
-		if storedTx != nil && mempool && tx.Confirms != 0 {
+		if storedTx != nil && mempool && tx.Height != 0 {
 			bc.UpdateIndex(tx)
 			// Remove Tx from mempool
 			bc.RemoveMempoolTx(tx)

@@ -11,7 +11,7 @@ import (
 type Tx struct {
 	Txid         string      `json:"txid"`
 	WitnessID    string      `json:"hash"`
-	Confirms     int64       `json:"confirms"`
+	Height       int64       `json:"height"`
 	Receivedtime int64       `json:"receivedtime"`
 	MinedTime    int64       `json:"minedtime"`
 	Mediantime   int64       `json:"mediantime"`
