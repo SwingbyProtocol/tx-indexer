@@ -17,6 +17,7 @@ const (
 	GETTXS     = "getTxs"
 	GETTX      = "getTx"
 	BROADCAST  = "broadcast"
+	KEEP       = "keep"
 )
 
 type Websocket struct {
@@ -27,8 +28,9 @@ type Websocket struct {
 }
 
 type MsgWsReqest struct {
-	Action string  `json:"action"`
-	Params *Params `json:"params"`
+	Action    string  `json:"action"`
+	RequestID string  `json:"reqid"`
+	Params    *Params `json:"params"`
 }
 
 type Params struct {
@@ -44,11 +46,12 @@ type Params struct {
 }
 
 type MsgWsResponse struct {
-	Action  string      `json:"action"`
-	Result  bool        `json:"result"`
-	Height  int64       `json:"height"`
-	Message string      `json:"message"`
-	Txs     []*types.Tx `json:"txs"`
+	Action    string      `json:"action"`
+	RequestID string      `json:"reqid"`
+	Result    bool        `json:"result"`
+	Height    int64       `json:"height"`
+	Message   string      `json:"message"`
+	Txs       []*types.Tx `json:"txs"`
 }
 
 func NewWebsocket(conf *APIConfig) *Websocket {
@@ -123,7 +126,7 @@ func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
 	// Register pubsub client to pubsub manager
 	ws.pubsub.AddClient(client)
 	// Send Hello msg
-	client.SendJSON(CreateMsgSuccessWS("", "Websocket connection is succesful", 0, []*types.Tx{}))
+	client.SendJSON(CreateMsgSuccessWS("", "", "Websocket connection is succesful", 0, []*types.Tx{}))
 	// Pubsub client
 	log.Info("New Client is connected, total: ", len(ws.pubsub.Clients))
 
@@ -148,10 +151,13 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 	req := MsgWsReqest{}
 	err := json.Unmarshal(msg, &req)
 	if err != nil {
-		c.SendJSON(CreateMsgErrorWS("", err.Error()))
+		c.SendJSON(CreateMsgErrorWS("", "", err.Error()))
 		return
 	}
 	switch req.Action {
+	case KEEP:
+		ws.listeners.OnKeepWS(c, &req)
+		break
 	case WATCHTXS:
 		ws.listeners.OnWatchTxWS(c, &req)
 		break
@@ -168,7 +174,7 @@ func (ws *Websocket) onAction(c *pubsub.Client, msg []byte) {
 		ws.listeners.OnBroadcastTxWS(c, &req)
 		break
 	default:
-		c.SendJSON(CreateMsgErrorWS("", "action is not correct"))
+		c.SendJSON(CreateMsgErrorWS("", "", "action is not correct"))
 	}
 }
 
@@ -177,23 +183,25 @@ func (ws *Websocket) onRemoved(c *pubsub.Client) {
 	log.Infof("Client removed %s %s", c.ID, c.Connection.RemoteAddr().String())
 }
 
-func CreateMsgSuccessWS(action string, message string, height int64, txs []*types.Tx) MsgWsResponse {
+func CreateMsgSuccessWS(action string, reqid string, message string, height int64, txs []*types.Tx) MsgWsResponse {
 	msg := MsgWsResponse{
-		Action:  action,
-		Result:  true,
-		Message: message,
-		Height:  height,
-		Txs:     txs,
+		Action:    action,
+		RequestID: reqid,
+		Result:    true,
+		Message:   message,
+		Height:    height,
+		Txs:       txs,
 	}
 	return msg
 }
 
-func CreateMsgErrorWS(action string, errMsg string) MsgWsResponse {
+func CreateMsgErrorWS(action string, reqid string, errMsg string) MsgWsResponse {
 	msg := MsgWsResponse{
-		Action:  action,
-		Result:  false,
-		Message: errMsg,
-		Txs:     []*types.Tx{},
+		Action:    action,
+		RequestID: reqid,
+		Result:    false,
+		Message:   errMsg,
+		Txs:       []*types.Tx{},
 	}
 	return msg
 }

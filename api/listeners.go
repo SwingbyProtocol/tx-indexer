@@ -13,6 +13,8 @@ type Listeners struct {
 	OnGetAddressIndex func(w rest.ResponseWriter, r *rest.Request)
 	// OnAddr is invoked when a peer receives an addr bitcoin message.
 	OnGetTx func(w rest.ResponseWriter, r *rest.Request)
+	// Keep
+	OnKeepWS func(c *pubsub.Client, req *MsgWsReqest)
 	// OnGetWatchTxWS is invoked when api get address watch messsage.
 	OnWatchTxWS func(c *pubsub.Client, req *MsgWsReqest)
 	// OnGetWatchTxWS is invoked when api get address watch messsage.
