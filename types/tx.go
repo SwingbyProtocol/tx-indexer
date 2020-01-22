@@ -59,7 +59,7 @@ func (tx *Tx) GetWitnessID() string {
 }
 
 func (tx *Tx) AddBlockData(height int64, minedtime int64, medianTime int64) *Tx {
-	tx.Confirms = height
+	tx.Height = height
 	tx.MinedTime = minedtime
 	tx.Mediantime = medianTime
 	return tx
