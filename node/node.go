@@ -80,7 +80,7 @@ func NewNode(config *NodeConfig) *Node {
 	}
 	// Override node count times
 	if config.Params.Name == "testnet3" {
-		DefaultNodeAddTimes = 16
+		DefaultNodeAddTimes = 18
 		DefaultNodeRankSize = 100
 	}
 

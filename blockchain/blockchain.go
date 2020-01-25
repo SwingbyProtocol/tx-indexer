@@ -5,6 +5,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/SwingbyProtocol/tx-indexer/types"
@@ -354,8 +355,14 @@ func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 
 func (bc *Blockchain) AddMempoolTx(tx *types.Tx) {
 	bc.mu.Lock()
-	defer bc.mu.Unlock()
 	bc.Mempool[tx.Txid] = tx
+	bc.mu.Unlock()
+	go func() {
+		time.Sleep(40 * time.Minute)
+		bc.mu.Lock()
+		delete(bc.Mempool, tx.Txid)
+		bc.mu.Unlock()
+	}()
 }
 
 func (bc *Blockchain) RemoveMempoolTx(tx *types.Tx) {
