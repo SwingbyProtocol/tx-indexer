@@ -104,6 +104,8 @@ func (bc *Blockchain) WatchTx() {
 		// Tx is on the kv
 		if storedTx != nil && !mempool {
 			bc.UpdateIndex(tx)
+			// Remove Tx from mempool
+			bc.RemoveMempoolTx(tx)
 			log.Debugf("already tx exist on kv updated %s", tx.Txid)
 			continue
 		}
@@ -367,8 +369,8 @@ func (bc *Blockchain) AddMempoolTx(tx *types.Tx) {
 
 func (bc *Blockchain) RemoveMempoolTx(tx *types.Tx) {
 	bc.mu.Lock()
-	defer bc.mu.Unlock()
 	delete(bc.Mempool, tx.Txid)
+	bc.mu.Unlock()
 }
 
 func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, state int, mempool bool) []*types.Tx {
