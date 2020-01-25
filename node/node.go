@@ -357,6 +357,8 @@ func (node *Node) addReceived(hash string) {
 }
 
 func (node *Node) isReceived(hash string) bool {
+	node.mu.RLock()
+	defer node.mu.RUnlock()
 	if node.receivedTxs[hash] {
 		return true
 	}
