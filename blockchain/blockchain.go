@@ -157,7 +157,7 @@ func (bc *Blockchain) Start() {
 					log.Info(err)
 				}
 			}()
-			if limit >= 100 {
+			if limit >= 80 {
 				wg.Wait()
 				limit = 0
 			}
