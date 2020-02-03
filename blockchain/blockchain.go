@@ -144,8 +144,9 @@ func (bc *Blockchain) Start() {
 		log.Fatal(err)
 	}
 	latest := bc.GetLatestBlock()
-	c := make(chan int64, 130000)
+	c := make(chan int64, 1300)
 	limit := 0
+	log.Info("start load")
 	go func() {
 		for {
 			wg := new(sync.WaitGroup)
