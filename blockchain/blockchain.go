@@ -90,7 +90,7 @@ func (bc *Blockchain) WatchTx() {
 			bc.UpdateIndex(tx)
 			// Add tx to mempool
 			bc.AddMempoolTx(tx)
-			log.Debugf("new tx came add to mempool %s witness %t", tx.Txid, tx.MsgTx.HasWitness())
+			log.Debugf("new tx came add to mempool %s", tx.Txid)
 			continue
 		}
 		// Tx is on the mempool and kv
@@ -144,7 +144,7 @@ func (bc *Blockchain) Start() {
 		log.Fatal(err)
 	}
 	latest := bc.GetLatestBlock()
-	c := make(chan int64, 1300)
+	c := make(chan int64, 130000)
 	limit := 0
 	go func() {
 		for {
