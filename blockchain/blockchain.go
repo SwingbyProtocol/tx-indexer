@@ -47,7 +47,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		txmap:       make(map[string]string),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
-		txChan:      make(chan *types.Tx, 100000),
+		txChan:      make(chan *types.Tx, 10000000),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
@@ -139,14 +139,14 @@ func (bc *Blockchain) Start() {
 	go bc.WatchBlock()
 	go bc.WatchTx()
 	// Once sync blocks
-	err = bc.syncBlocks(1000)
+	err = bc.syncBlocks(900)
 	if err != nil {
 		log.Fatal(err)
 	}
 	latest := bc.GetLatestBlock()
+	log.Info(latest)
 	c := make(chan int64, 1300)
 	limit := 0
-	log.Info("start load")
 	go func() {
 		for {
 			wg := new(sync.WaitGroup)
@@ -261,7 +261,8 @@ func (bc *Blockchain) GetLatestBlock() *types.Block {
 			top = height
 		}
 	}
-	return bc.Blocks[top]
+	latest := bc.Blocks[top]
+	return latest
 }
 
 func (bc *Blockchain) syncBlocks(depth int) error {
