@@ -53,7 +53,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
-	db, err := leveldb.OpenFile("./leveldb", nil)
+	db, err := leveldb.OpenFile("./data/leveldb", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -79,9 +79,7 @@ func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
 		return errors.New("block is zero")
 	}
 	for _, txid := range block.Txs {
-		bc.mu.Lock()
 		bc.db.Put([]byte(txid), []byte(block.Hash), nil)
-		bc.mu.Unlock()
 		log.Info("stored ", txid, " ", block.Height)
 	}
 	return nil
@@ -171,7 +169,7 @@ func (bc *Blockchain) Start() {
 			limit++
 		}
 	}()
-	for i := 0; i < 50000; i++ {
+	for i := 0; i < 40000; i++ {
 		c <- latest.Height - int64(i)
 	}
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
