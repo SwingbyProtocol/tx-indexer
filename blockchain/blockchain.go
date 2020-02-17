@@ -247,6 +247,7 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		// Publish tx to notification handler
 		bc.pushMsgChan <- &types.PushMsg{Tx: tx, Addr: addr, State: Received}
 	}
+	log.Info("latest -> ", len(bc.txChan))
 }
 
 func (bc *Blockchain) NewBlock(hash string) (*types.Block, error) {
@@ -292,11 +293,20 @@ func (bc *Blockchain) syncBlocks(depth int) error {
 		blocks = allBlocks
 	}
 	for _, block := range blocks {
+		for _, tx := range block.Txs {
+			for _, vout := range tx.Vout {
+				vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+				vout.Addresses = vout.Scriptpubkey.Addresses
+			}
+		}
+	}
+	for _, block := range blocks {
 		bc.mu.Lock()
 		bc.Blocks[block.Height] = block
 		bc.mu.Unlock()
 		log.Infof("Stored new block -> %d", block.Height)
 	}
+
 	nowHash := bc.GetLatestBlock().Hash
 	// Add latest block hash
 	bc.latestBlockHash = nowHash
