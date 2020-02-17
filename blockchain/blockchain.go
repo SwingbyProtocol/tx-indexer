@@ -229,6 +229,12 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		// Remove tx that all consumed output
 		//bc.txStore.RemoveAllSpentTx(inTx)
 	}
+
+	for _, vout := range tx.Vout {
+		vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+		vout.Addresses = vout.Scriptpubkey.Addresses
+		vout.Txs = []string{}
+	}
 	// Check tx output to update indexer storage
 	addrs := tx.GetOutsAddrs()
 	for _, addr := range addrs {
@@ -285,7 +291,6 @@ func (bc *Blockchain) syncBlocks(depth int) error {
 	for _, block := range blocks {
 		for _, tx := range block.Txs {
 			for _, vout := range tx.Vout {
-				vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
 				vout.Addresses = vout.Scriptpubkey.Addresses
 				vout.Txs = []string{}
 			}
