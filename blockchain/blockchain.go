@@ -63,8 +63,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	return bc
 }
 
-func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
-	defer wg.Done()
+func (bc *Blockchain) AddTxMap(height int64) error {
 	bh := HeighHash{}
 	err := bc.resolver.GetRequest("/rest/blockhashbyheight/"+strconv.Itoa(int(height))+".json", &bh)
 	if err != nil {
@@ -79,9 +78,10 @@ func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
 		return errors.New("block is zero")
 	}
 	for _, txid := range block.Txs {
-		bc.mu.Lock()
-		bc.txmap[txid] = block.Hash
-		bc.mu.Unlock()
+		//bc.mu.Lock()
+		//bc.txmap[txid] = block.Hash
+		//bc.mu.Unlock()
+		bc.db.Put([]byte(txid), []byte(block.Hash), nil)
 		log.Info("stored ", txid, " ", block.Height)
 	}
 	return nil
@@ -143,38 +143,24 @@ func (bc *Blockchain) Start() {
 		log.Error(err)
 		log.Info("Skip load process...")
 	}
-	go bc.WatchBlock()
-	go bc.WatchTx()
 	// Once sync blocks
-	err = bc.syncBlocks(1000)
+	err = bc.syncBlocks(1)
 	if err != nil {
 		log.Fatal(err)
 	}
 	latest := bc.GetLatestBlock()
-	c := make(chan int64, 1300)
-	limit := 0
-	go func() {
-		for {
-			wg := new(sync.WaitGroup)
-			height := <-c
-			wg.Add(1)
-			go func() {
-				err := bc.AddTxMap(height, wg)
-				if err != nil {
-					log.Info(err)
-				}
-			}()
-			if limit >= 100 {
-				wg.Wait()
-				limit = 0
-			}
-			limit++
-		}
-	}()
+
 	for i := 0; i < 40000; i++ {
-		c <- latest.Height - int64(i)
+		height := latest.Height - int64(i)
+		err := bc.AddTxMap(height)
+		if err != nil {
+			log.Info(err)
+		}
 	}
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
+
+	go bc.WatchBlock()
+	go bc.WatchTx()
 }
 
 func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
