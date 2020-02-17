@@ -139,7 +139,7 @@ func (bc *Blockchain) Start() {
 	go bc.WatchBlock()
 	go bc.WatchTx()
 	// Once sync blocks
-	err = bc.syncBlocks(900)
+	err = bc.syncBlocks(2000)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -332,7 +332,7 @@ func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 			continue
 		}
 		for _, in := range tx.Vin {
-			if in.Value == "not exist" {
+			if in.Value == "not exist" || in.Value == nil {
 				targetHash := bc.txmap[in.Txid]
 				if targetHash == "" {
 					continue
@@ -428,7 +428,9 @@ func (bc *Blockchain) GetRemoteBlocks(depth int) ([]*types.Block, error) {
 
 func (bc *Blockchain) GetDepthBlocks(blockHash string, depth int, blocks []*types.Block) ([]*types.Block, error) {
 	block := types.Block{}
-	err := bc.resolver.GetRequest("/rest/block/"+blockHash+".json", &block)
+	uri := "/rest/block/" + blockHash + ".json"
+	log.Info(uri)
+	err := bc.resolver.GetRequest(uri, &block)
 	if err != nil {
 		return nil, err
 	}
