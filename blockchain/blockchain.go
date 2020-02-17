@@ -229,16 +229,6 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		// Remove tx that all consumed output
 		//bc.txStore.RemoveAllSpentTx(inTx)
 	}
-	for _, out := range tx.Vout {
-		valueStr := strconv.FormatFloat(out.Value.(float64), 'f', -1, 64)
-		out.Value = valueStr
-		out.Txs = []string{}
-		if len(out.Scriptpubkey.Addresses) != 0 {
-			out.Addresses = out.Scriptpubkey.Addresses
-		} else {
-			out.Addresses = []string{}
-		}
-	}
 	// Check tx output to update indexer storage
 	addrs := tx.GetOutsAddrs()
 	for _, addr := range addrs {
@@ -247,7 +237,7 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		// Publish tx to notification handler
 		bc.pushMsgChan <- &types.PushMsg{Tx: tx, Addr: addr, State: Received}
 	}
-	log.Info("latest -> ", len(bc.txChan))
+	log.Info("latest count -> ", len(bc.txChan))
 }
 
 func (bc *Blockchain) NewBlock(hash string) (*types.Block, error) {
