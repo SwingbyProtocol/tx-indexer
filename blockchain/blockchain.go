@@ -79,7 +79,9 @@ func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
 		return errors.New("block is zero")
 	}
 	for _, txid := range block.Txs {
-		bc.db.Put([]byte(txid), []byte(block.Hash), nil)
+		bc.mu.Lock()
+		bc.txmap[txid] = block.Hash
+		bc.mu.Unlock()
 		log.Info("stored ", txid, " ", block.Height)
 	}
 	return nil
@@ -162,7 +164,7 @@ func (bc *Blockchain) Start() {
 					log.Info(err)
 				}
 			}()
-			if limit >= 80 {
+			if limit >= 100 {
 				wg.Wait()
 				limit = 0
 			}
@@ -188,11 +190,7 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 				in.Addresses = []string{"coinbase"}
 				continue
 			}
-			str, err := bc.db.Get([]byte(in.Txid), nil)
-			if err != nil {
-				continue
-			}
-			targetHash := string(str)
+			targetHash := bc.txmap[in.Txid]
 			if targetHash == "" {
 				in.Value = "not exist"
 				in.Addresses = []string{"not exist"}
@@ -341,12 +339,9 @@ func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 		}
 		for _, in := range tx.Vin {
 			if in.Value == "not exist" || in.Value == nil {
-				str, err := bc.db.Get([]byte(in.Txid), nil)
-				if err != nil {
-					continue
-				}
-				targetHash := string(str)
+				targetHash := bc.txmap[in.Txid]
 				if targetHash == "" {
+					log.Info(targetHash)
 					continue
 				}
 				getBlock, err := bc.NewBlock(targetHash)
@@ -364,6 +359,7 @@ func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 				}
 			}
 		}
+
 		txs = append(txs, tx)
 	}
 	return txs
