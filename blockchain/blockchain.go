@@ -11,6 +11,7 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type BlockchainConfig struct {
@@ -26,6 +27,7 @@ type Blockchain struct {
 	index           *Index // index is stored per block
 	Blocks          map[int64]*types.Block
 	txmap           map[string]string
+	db              *leveldb.DB
 	Mempool         map[string]*types.Tx
 	targetPrune     uint
 	latestBlockHash string
@@ -51,6 +53,11 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
+	db, err := leveldb.OpenFile("./leveldb", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	bc.db = db
 	log.Infof("Start block syncing with pruneSize: %d", conf.PruneSize)
 	log.Infof("Using trusted node: %s", conf.TrustedNode)
 	return bc
@@ -73,7 +80,7 @@ func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
 	}
 	for _, txid := range block.Txs {
 		bc.mu.Lock()
-		bc.txmap[txid] = block.Hash
+		bc.db.Put([]byte(txid), []byte(block.Hash), nil)
 		bc.mu.Unlock()
 		log.Info("stored ", txid, " ", block.Height)
 	}
@@ -139,12 +146,11 @@ func (bc *Blockchain) Start() {
 	go bc.WatchBlock()
 	go bc.WatchTx()
 	// Once sync blocks
-	err = bc.syncBlocks(2000)
+	err = bc.syncBlocks(1000)
 	if err != nil {
 		log.Fatal(err)
 	}
 	latest := bc.GetLatestBlock()
-	log.Info(latest)
 	c := make(chan int64, 1300)
 	limit := 0
 	go func() {
@@ -184,7 +190,11 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 				in.Addresses = []string{"coinbase"}
 				continue
 			}
-			targetHash := bc.txmap[in.Txid]
+			str, err := bc.db.Get([]byte(in.Txid), nil)
+			if err != nil {
+				continue
+			}
+			targetHash := string(str)
 			if targetHash == "" {
 				in.Value = "not exist"
 				in.Addresses = []string{"not exist"}
@@ -333,7 +343,11 @@ func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 		}
 		for _, in := range tx.Vin {
 			if in.Value == "not exist" || in.Value == nil {
-				targetHash := bc.txmap[in.Txid]
+				str, err := bc.db.Get([]byte(in.Txid), nil)
+				if err != nil {
+					continue
+				}
+				targetHash := string(str)
 				if targetHash == "" {
 					continue
 				}
