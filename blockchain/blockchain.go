@@ -287,6 +287,7 @@ func (bc *Blockchain) syncBlocks(depth int) error {
 			for _, vout := range tx.Vout {
 				vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
 				vout.Addresses = vout.Scriptpubkey.Addresses
+				vout.Txs = []string{}
 			}
 		}
 	}
