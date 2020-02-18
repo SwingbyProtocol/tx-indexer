@@ -165,10 +165,13 @@ func (bc *Blockchain) Start() {
 		log.Info("Skip load process...")
 	}
 	// Once sync blocks
-	err = bc.syncBlocks(300)
+	err = bc.syncBlocks(320)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	go bc.WatchBlock()
+	go bc.WatchTx()
 
 	latest := bc.GetLatestBlock()
 
@@ -184,8 +187,7 @@ func (bc *Blockchain) Start() {
 	close(jobs)
 	time.Sleep(6 * time.Second)
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
-	go bc.WatchBlock()
-	go bc.WatchTx()
+
 }
 
 func (bc *Blockchain) SyncWork(id int, jobs chan int64) {
