@@ -49,7 +49,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		txmap:       make(map[string]string),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
-		txChan:      make(chan *types.Tx, 200000),
+		txChan:      make(chan *types.Tx, 120000000),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
