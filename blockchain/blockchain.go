@@ -166,7 +166,7 @@ func (bc *Blockchain) Start() {
 		log.Info("Skip load process...")
 	}
 	// Once sync blocks
-	err = bc.syncBlocks(2000)
+	err = bc.syncBlocks(800)
 	if err != nil {
 		log.Fatal(err)
 	}
