@@ -110,14 +110,6 @@ func (bc *Blockchain) WatchTx() {
 	for {
 		tx := <-bc.txChan
 
-		for _, vout := range tx.Vout {
-			if len(vout.Addresses) == 0 {
-				vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
-				vout.Addresses = vout.Scriptpubkey.Addresses
-				vout.Txs = []string{}
-			}
-		}
-
 		storedTx, mempool := bc.GetTx(tx.Txid)
 		// Tx is not exist, add to mempool from tx
 		if storedTx == nil && !mempool {
