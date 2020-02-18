@@ -63,7 +63,8 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	return bc
 }
 
-func (bc *Blockchain) AddTxMap(height int64) error {
+func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
+	defer wg.Done()
 	bh := HeighHash{}
 	err := bc.resolver.GetRequest("/rest/blockhashbyheight/"+strconv.Itoa(int(height))+".json", &bh)
 	if err != nil {
@@ -158,22 +159,35 @@ func (bc *Blockchain) Start() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	latest := bc.GetLatestBlock()
-
-	for i := 0; i < 3000; i++ {
-		height := latest.Height - int64(i)
-		go func() {
-			err := bc.AddTxMap(height)
-			if err != nil {
-				log.Info(err)
-			}
-		}()
-		time.Sleep(100 * time.Millisecond)
-	}
-	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
 
 	go bc.WatchBlock()
 	go bc.WatchTx()
+
+	latest := bc.GetLatestBlock()
+	c := make(chan int64, 1300)
+	limit := 0
+	go func() {
+		for {
+			wg := new(sync.WaitGroup)
+			height := <-c
+			wg.Add(1)
+			go func() {
+				err := bc.AddTxMap(height, wg)
+				if err != nil {
+					log.Info(err)
+				}
+			}()
+			if limit >= 80 {
+				wg.Wait()
+				limit = 0
+			}
+			limit++
+		}
+	}()
+	for i := 0; i < 40000; i++ {
+		c <- latest.Height - int64(i)
+	}
+	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
 }
 
 func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
@@ -236,7 +250,7 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		// Publish tx to notification handler
 		bc.pushMsgChan <- &types.PushMsg{Tx: tx, Addr: addr, State: Received}
 	}
-	log.Info("latest count -> ", len(bc.txChan))
+	log.Info("remaining sync count -> ", len(bc.txChan))
 }
 
 func (bc *Blockchain) NewBlock(hash string) (*types.Block, error) {
