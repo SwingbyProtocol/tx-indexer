@@ -49,7 +49,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		txmap:       make(map[string]string),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
-		txChan:      make(chan *types.Tx, 100000000),
+		txChan:      make(chan *types.Tx),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
@@ -165,7 +165,7 @@ func (bc *Blockchain) Start() {
 		log.Info("Skip load process...")
 	}
 	// Once sync blocks
-	err = bc.syncBlocks(500)
+	err = bc.syncBlocks(300)
 	if err != nil {
 		log.Fatal(err)
 	}
