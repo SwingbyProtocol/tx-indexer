@@ -49,7 +49,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		txmap:       make(map[string]string),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
-		txChan:      make(chan *types.Tx),
+		txChan:      make(chan *types.Tx, 200000),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
@@ -84,7 +84,7 @@ func (bc *Blockchain) AddTxMap(height int64) error {
 		//bc.txmap[txid] = block.Hash
 		//bc.mu.Unlock()
 		bc.StoreData(txid, block.Hash)
-		//log.Info("stored ", txid, " ", block.Height)
+		log.Info("stored ", txid, " ", block.Height)
 	}
 	return nil
 }
@@ -136,7 +136,7 @@ func (bc *Blockchain) WatchTx() {
 			log.Debugf("already tx exist on kv updated %s", tx.Txid)
 			continue
 		}
-		log.Info("remaining sync count -> ", len(bc.txChan))
+		//log.Info("remaining sync count -> ", len(bc.txChan))
 	}
 }
 
@@ -165,7 +165,7 @@ func (bc *Blockchain) Start() {
 		log.Info("Skip load process...")
 	}
 	// Once sync blocks
-	err = bc.syncBlocks(320)
+	err = bc.syncBlocks(400)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -184,8 +184,6 @@ func (bc *Blockchain) Start() {
 		jobs <- latest.Height - int64(i)
 	}
 
-	close(jobs)
-	time.Sleep(6 * time.Second)
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
 
 }
