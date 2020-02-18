@@ -108,7 +108,7 @@ func (bc *Blockchain) WatchTx() {
 			bc.UpdateIndex(tx)
 			// Add tx to mempool
 			bc.AddMempoolTx(tx)
-			log.Debugf("new tx came add to mempool %s", tx.Txid)
+			log.Info("new tx came add to mempool %s", tx.Txid)
 			continue
 		}
 		// Tx is on the mempool and kv
@@ -155,7 +155,7 @@ func (bc *Blockchain) Start() {
 		log.Info("Skip load process...")
 	}
 	// Once sync blocks
-	err = bc.syncBlocks(1)
+	err = bc.syncBlocks(2)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -181,7 +181,6 @@ func (bc *Blockchain) Start() {
 				wg.Wait()
 				limit = 0
 			}
-			limit++
 		}
 	}()
 	for i := 0; i < 40000; i++ {
@@ -203,6 +202,10 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 				in.Addresses = []string{"coinbase"}
 				continue
 			}
+			//data, err := bc.db.Get([]byte(in.Txid), nil)
+			//if err != nil {
+			//	continue
+			//}
 			targetHash := bc.txmap[in.Txid]
 			if targetHash == "" {
 				in.Value = "not exist"
@@ -353,9 +356,13 @@ func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 		}
 		for _, in := range tx.Vin {
 			if in.Value == "not exist" || in.Value == nil {
+				//txhash, err := bc.db.Get([]byte(in.Txid), nil)
+				//if err != nil {
+				//	continue
+				//}
 				targetHash := bc.txmap[in.Txid]
+				log.Info(targetHash)
 				if targetHash == "" {
-					log.Info(targetHash)
 					continue
 				}
 				getBlock, err := bc.NewBlock(targetHash)
