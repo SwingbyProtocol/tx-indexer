@@ -49,7 +49,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		txmap:       make(map[string]string),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
-		txChan:      make(chan *types.Tx, 10000000),
+		txChan:      make(chan *types.Tx),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
@@ -136,6 +136,8 @@ func (bc *Blockchain) WatchTx() {
 			log.Debugf("already tx exist on kv updated %s", tx.Txid)
 			continue
 		}
+		log.Info("remaining sync count -> ", len(bc.txChan))
+
 	}
 }
 
@@ -164,13 +166,10 @@ func (bc *Blockchain) Start() {
 		log.Info("Skip load process...")
 	}
 	// Once sync blocks
-	err = bc.syncBlocks(1)
+	err = bc.syncBlocks(2000)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	go bc.WatchBlock()
-	go bc.WatchTx()
 
 	latest := bc.GetLatestBlock()
 
@@ -182,7 +181,12 @@ func (bc *Blockchain) Start() {
 	for i := 0; i < 40000; i++ {
 		jobs <- latest.Height - int64(i)
 	}
+
+	close(jobs)
+	time.Sleep(6 * time.Second)
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
+	go bc.WatchBlock()
+	go bc.WatchTx()
 }
 
 func (bc *Blockchain) SyncWork(id int, jobs chan int64) {
@@ -262,7 +266,6 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		// Publish tx to notification handler
 		bc.pushMsgChan <- &types.PushMsg{Tx: tx, Addr: addr, State: Received}
 	}
-	log.Info("remaining sync count -> ", len(bc.txChan))
 }
 
 func (bc *Blockchain) NewBlock(hash string) (*types.Block, error) {
