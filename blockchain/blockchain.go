@@ -111,8 +111,7 @@ func (bc *Blockchain) WatchTx() {
 		tx := <-bc.txChan
 
 		for _, vout := range tx.Vout {
-			_, err := strconv.ParseFloat(vout.Value.(string), 32)
-			if err != nil {
+			if len(vout.Addresses) == 0 {
 				vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
 				vout.Addresses = vout.Scriptpubkey.Addresses
 				vout.Txs = []string{}
