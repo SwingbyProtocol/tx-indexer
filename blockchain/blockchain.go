@@ -83,7 +83,7 @@ func (bc *Blockchain) AddTxMap(height int64) error {
 		//bc.mu.Lock()
 		//bc.txmap[txid] = block.Hash
 		//bc.mu.Unlock()
-		bc.db.Put([]byte(txid), []byte(block.Hash), nil)
+		bc.StoreData(txid, block.Hash)
 		log.Info("stored ", txid, " ", block.Height)
 	}
 	return nil
@@ -117,7 +117,7 @@ func (bc *Blockchain) WatchTx() {
 			bc.UpdateIndex(tx)
 			// Add tx to mempool
 			bc.AddMempoolTx(tx)
-			log.Info("new tx came add to mempool %s", tx.Txid)
+			log.Infof("new tx came add to mempool %s", tx.Txid)
 			continue
 		}
 		// Tx is on the mempool and kv
@@ -212,7 +212,10 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 			//if err != nil {
 			//	continue
 			//}
-			targetHash := bc.txmap[in.Txid]
+			targetHash, err := bc.GetData(in.Txid)
+			if err != nil {
+				continue
+			}
 			if targetHash == "" {
 				in.Value = "not exist"
 				in.Addresses = []string{"not exist"}
@@ -366,9 +369,8 @@ func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 				//if err != nil {
 				//	continue
 				//}
-				targetHash := bc.txmap[in.Txid]
-				log.Info(targetHash)
-				if targetHash == "" {
+				targetHash, err := bc.GetData(in.Txid)
+				if err != nil {
 					continue
 				}
 				getBlock, err := bc.NewBlock(targetHash)
