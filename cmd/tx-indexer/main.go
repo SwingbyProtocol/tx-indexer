@@ -197,6 +197,7 @@ func main() {
 			Message: "success",
 			Txs:     txs,
 		}
+		log.Info(res)
 		c.SendJSON(res)
 	}
 

@@ -63,8 +63,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	return bc
 }
 
-func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
-	defer wg.Done()
+func (bc *Blockchain) AddTxMap(height int64) error {
 	bh := HeighHash{}
 	err := bc.resolver.GetRequest("/rest/blockhashbyheight/"+strconv.Itoa(int(height))+".json", &bh)
 	if err != nil {
@@ -73,19 +72,38 @@ func (bc *Blockchain) AddTxMap(height int64, wg *sync.WaitGroup) error {
 	block := types.BlockTxs{}
 	err = bc.resolver.GetRequest("/rest/block/notxdetails/"+bh.BlockHash+".json", &block)
 	if err != nil {
+		log.Info("error ", height)
 		return err
 	}
 	if block.Height == 0 {
+		log.Info("error ", height)
 		return errors.New("block is zero")
 	}
 	for _, txid := range block.Txs {
-		bc.mu.Lock()
-		bc.txmap[txid] = block.Hash
-		bc.mu.Unlock()
-		//bc.db.Put([]byte(txid), []byte(block.Hash), nil)
+		//bc.mu.Lock()
+		//bc.txmap[txid] = block.Hash
+		//bc.mu.Unlock()
+		bc.db.Put([]byte(txid), []byte(block.Hash), nil)
 		log.Info("stored ", txid, " ", block.Height)
 	}
 	return nil
+}
+
+func (bc *Blockchain) GetData(key string) (string, error) {
+	txhash, err := bc.db.Get([]byte(key), nil)
+	if err != nil {
+		return "", err
+	}
+	return string(txhash), nil
+}
+
+func (bc *Blockchain) StoreData(key string, data string) error {
+	_, err := bc.GetData(data)
+	if err != nil {
+		bc.db.Put([]byte(key), []byte(data), nil)
+		return nil
+	}
+	return errors.New("tx map is already exist")
 }
 
 func (bc *Blockchain) WatchTx() {
@@ -155,7 +173,7 @@ func (bc *Blockchain) Start() {
 		log.Info("Skip load process...")
 	}
 	// Once sync blocks
-	err = bc.syncBlocks(2)
+	err = bc.syncBlocks(1)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -164,30 +182,26 @@ func (bc *Blockchain) Start() {
 	go bc.WatchTx()
 
 	latest := bc.GetLatestBlock()
-	c := make(chan int64, 1300)
-	limit := 0
-	go func() {
-		for {
-			wg := new(sync.WaitGroup)
-			height := <-c
-			wg.Add(1)
-			go func() {
-				err := bc.AddTxMap(height, wg)
-				if err != nil {
-					log.Info(err)
-				}
-			}()
-			if limit >= 80 {
-				wg.Wait()
-				limit = 0
-			}
-			limit++
-		}
-	}()
+
+	jobs := make(chan int64, 500)
+
+	for i := 0; i < 160; i++ {
+		go bc.SyncWork(i, jobs)
+	}
 	for i := 0; i < 40000; i++ {
-		c <- latest.Height - int64(i)
+		jobs <- latest.Height - int64(i)
 	}
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
+}
+
+func (bc *Blockchain) SyncWork(id int, jobs chan int64) {
+	for height := range jobs {
+		err := bc.AddTxMap(height)
+		if err != nil {
+			log.Info(err)
+			jobs <- height
+		}
+	}
 }
 
 func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
