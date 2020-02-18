@@ -181,6 +181,7 @@ func (bc *Blockchain) Start() {
 				wg.Wait()
 				limit = 0
 			}
+			limit++
 		}
 	}()
 	for i := 0; i < 40000; i++ {
