@@ -176,6 +176,10 @@ func main() {
 	}
 
 	onGetTxWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
+		if req.Params == nil {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, req.RequestID, "Params is not correct"))
+			return
+		}
 		if req.Params.Txid == "" {
 			c.SendJSON(api.CreateMsgErrorWS(req.Params.Txid, req.RequestID, "txid is not set"))
 			return
