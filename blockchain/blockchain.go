@@ -49,7 +49,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		txmap:       make(map[string]string),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
-		txChan:      make(chan *types.Tx, 10000000),
+		txChan:      make(chan *types.Tx, 100000000),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
@@ -84,7 +84,7 @@ func (bc *Blockchain) AddTxMap(height int64) error {
 		//bc.txmap[txid] = block.Hash
 		//bc.mu.Unlock()
 		bc.StoreData(txid, block.Hash)
-		log.Info("stored ", txid, " ", block.Height)
+		//log.Info("stored ", txid, " ", block.Height)
 	}
 	return nil
 }
@@ -137,7 +137,6 @@ func (bc *Blockchain) WatchTx() {
 			continue
 		}
 		log.Info("remaining sync count -> ", len(bc.txChan))
-
 	}
 }
 
@@ -166,7 +165,7 @@ func (bc *Blockchain) Start() {
 		log.Info("Skip load process...")
 	}
 	// Once sync blocks
-	err = bc.syncBlocks(800)
+	err = bc.syncBlocks(500)
 	if err != nil {
 		log.Fatal(err)
 	}
