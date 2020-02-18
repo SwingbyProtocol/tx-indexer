@@ -1,6 +1,7 @@
 package types
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/utils"
@@ -106,10 +107,13 @@ func MsgTxToTx(msgTx *wire.MsgTx, params *chaincfg.Params) Tx {
 		// for his change and we don't want to fail in that case.
 		spi, _ := utils.ScriptToPubkeyInfo(txout.PkScript, params)
 		value := float64(txout.Value) / 100000000
+		valueStr := strconv.FormatFloat(value, 'f', -1, 64)
+
 		newVout := &Vout{
-			Value:        value,
+			Value:        valueStr,
 			Spent:        false,
 			Txs:          []string{},
+			Addresses:    spi.Addresses,
 			N:            i,
 			Scriptpubkey: &spi,
 		}
