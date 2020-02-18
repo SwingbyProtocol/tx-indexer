@@ -78,10 +78,10 @@ func (bc *Blockchain) AddTxMap(height int64) error {
 		return errors.New("block is zero")
 	}
 	for _, txid := range block.Txs {
-		//bc.mu.Lock()
-		//bc.txmap[txid] = block.Hash
-		//bc.mu.Unlock()
-		bc.db.Put([]byte(txid), []byte(block.Hash), nil)
+		bc.mu.Lock()
+		bc.txmap[txid] = block.Hash
+		bc.mu.Unlock()
+		//bc.db.Put([]byte(txid), []byte(block.Hash), nil)
 		log.Info("stored ", txid, " ", block.Height)
 	}
 	return nil
@@ -90,6 +90,16 @@ func (bc *Blockchain) AddTxMap(height int64) error {
 func (bc *Blockchain) WatchTx() {
 	for {
 		tx := <-bc.txChan
+
+		for _, vout := range tx.Vout {
+			_, err := strconv.ParseFloat(vout.Value.(string), 32)
+			if err != nil {
+				vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+				vout.Addresses = vout.Scriptpubkey.Addresses
+				vout.Txs = []string{}
+			}
+		}
+
 		storedTx, mempool := bc.GetTx(tx.Txid)
 		// Tx is not exist, add to mempool from tx
 		if storedTx == nil && !mempool {
@@ -150,12 +160,15 @@ func (bc *Blockchain) Start() {
 	}
 	latest := bc.GetLatestBlock()
 
-	for i := 0; i < 40000; i++ {
+	for i := 0; i < 3000; i++ {
 		height := latest.Height - int64(i)
-		err := bc.AddTxMap(height)
-		if err != nil {
-			log.Info(err)
-		}
+		go func() {
+			err := bc.AddTxMap(height)
+			if err != nil {
+				log.Info(err)
+			}
+		}()
+		time.Sleep(100 * time.Millisecond)
 	}
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
 
@@ -215,12 +228,6 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		// Remove tx that all consumed output
 		//bc.txStore.RemoveAllSpentTx(inTx)
 	}
-
-	for _, vout := range tx.Vout {
-		vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
-		vout.Addresses = vout.Scriptpubkey.Addresses
-		vout.Txs = []string{}
-	}
 	// Check tx output to update indexer storage
 	addrs := tx.GetOutsAddrs()
 	for _, addr := range addrs {
@@ -277,6 +284,7 @@ func (bc *Blockchain) syncBlocks(depth int) error {
 	for _, block := range blocks {
 		for _, tx := range block.Txs {
 			for _, vout := range tx.Vout {
+				vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
 				vout.Addresses = vout.Scriptpubkey.Addresses
 				vout.Txs = []string{}
 			}

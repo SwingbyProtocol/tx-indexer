@@ -181,8 +181,8 @@ func main() {
 			return
 		}
 		tx, _ := bc.GetTx(req.Params.Txid)
-		if err == nil {
-			c.SendJSON(api.CreateMsgErrorWS(req.Action, req.RequestID, err.Error()))
+		if tx == nil {
+			c.SendJSON(api.CreateMsgErrorWS(req.Action, req.RequestID, "tx is not exist"))
 			return
 		}
 		txs := []*types.Tx{}
