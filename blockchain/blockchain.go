@@ -107,9 +107,10 @@ func (bc *Blockchain) StoreData(key string, data string) error {
 }
 
 func (bc *Blockchain) WatchTx() {
+
 	for {
 		tx := <-bc.txChan
-
+		log.Infof("remain tx %d", len(bc.txChan))
 		storedTx, mempool := bc.GetTx(tx.Txid)
 		// Tx is not exist, add to mempool from tx
 		if storedTx == nil && !mempool {
@@ -158,14 +159,8 @@ func (bc *Blockchain) WatchBlock() {
 }
 
 func (bc *Blockchain) Start() {
-	// load data from files
-	err := bc.Load()
-	if err != nil {
-		log.Error(err)
-		log.Info("Skip load process...")
-	}
 	// Once sync blocks
-	err = bc.syncBlocks(400)
+	err := bc.syncBlocks(300)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -183,6 +178,8 @@ func (bc *Blockchain) Start() {
 	for i := 0; i < 40000; i++ {
 		jobs <- latest.Height - int64(i)
 	}
+
+	close(jobs)
 
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
 
@@ -204,39 +201,6 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		// Load a tx from storage
 		inTx, _ := bc.GetTx(in.Txid)
 		if inTx == nil {
-			// continue if spent tx is not exist
-			// check coinbase
-			if in.Txid == "" {
-				in.Value = "coinbase"
-				in.Addresses = []string{"coinbase"}
-				continue
-			}
-			//data, err := bc.db.Get([]byte(in.Txid), nil)
-			//if err != nil {
-			//	continue
-			//}
-			targetHash, err := bc.GetData(in.Txid)
-			if err != nil {
-				continue
-			}
-			if targetHash == "" {
-				in.Value = "not exist"
-				in.Addresses = []string{"not exist"}
-				continue
-			}
-			getBlock, err := bc.NewBlock(targetHash)
-			if err != nil {
-				in.Value = "not exist"
-				in.Addresses = []string{"not exist"}
-				continue
-			}
-			for _, btx := range getBlock.Txs {
-				if btx.Txid == in.Txid {
-					vout := btx.Vout[in.Vout]
-					in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
-					in.Addresses = vout.Scriptpubkey.Addresses
-				}
-			}
 			continue
 		}
 		targetOutput := inTx.Vout[in.Vout]

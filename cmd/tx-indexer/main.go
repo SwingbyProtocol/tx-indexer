@@ -315,9 +315,5 @@ func main() {
 	signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGSTOP)
 	signal := <-c
 	// Backup operation
-	err = bc.Backup()
-	if err != nil {
-		log.Error(err)
-	}
 	log.Info(signal)
 }
