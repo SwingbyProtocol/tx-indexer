@@ -23,8 +23,8 @@ type Subscription struct {
 
 func NewPubSub() *PubSub {
 	upgrader := websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 9064,
+		ReadBufferSize:  11024,
+		WriteBufferSize: 19064,
 	}
 	ps := &PubSub{
 		Subscriptions: make(map[string][]Subscription),

@@ -49,7 +49,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		txmap:       make(map[string]string),
 		Mempool:     make(map[string]*types.Tx),
 		targetPrune: conf.PruneSize,
-		txChan:      make(chan *types.Tx, 120000000),
+		txChan:      make(chan *types.Tx, 10000000),
 		blockChan:   make(chan *wire.MsgBlock),
 		pushMsgChan: make(chan *types.PushMsg),
 	}
@@ -350,6 +350,7 @@ func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 						vout := btx.Vout[in.Vout]
 						in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
 						in.Addresses = vout.Scriptpubkey.Addresses
+						log.Info("loaded from block ", btx.Txid)
 					}
 				}
 			}
