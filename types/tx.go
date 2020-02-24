@@ -103,14 +103,8 @@ func MsgTxToTx(msgTx *wire.MsgTx, params *chaincfg.Params) Tx {
 	}
 
 	for i, txout := range msgTx.TxOut {
-		// Ignore the error here because the sender could have used and exotic script
-		// for his change and we don't want to fail in that case.
-		spi, _ := utils.ScriptToPubkeyInfo(txout.PkScript, params)
-		value := float64(txout.Value) / 100000000
-		valueStr := strconv.FormatFloat(value, 'f', -1, 64)
-
 		newVout := &Vout{
-			Value:        valueStr,
+			Value:        txout.Value,
 			Spent:        false,
 			Txs:          []string{},
 			Addresses:    spi.Addresses,
