@@ -276,7 +276,7 @@ func (bc *Blockchain) syncBlocks(depth int) error {
 	for _, block := range blocks {
 		for _, tx := range block.Txs {
 			for _, vout := range tx.Vout {
-				vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+				//vout.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
 				vout.Addresses = vout.Scriptpubkey.Addresses
 				vout.Txs = []string{}
 			}
@@ -348,7 +348,8 @@ func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 				for _, btx := range getBlock.Txs {
 					if btx.Txid == in.Txid {
 						vout := btx.Vout[in.Vout]
-						in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+						//in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+						in.Value = vout.Value
 						in.Addresses = vout.Scriptpubkey.Addresses
 						log.Info("loaded from block ", btx.Txid)
 					}

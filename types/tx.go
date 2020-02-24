@@ -1,7 +1,6 @@
 package types
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/utils"
@@ -103,6 +102,7 @@ func MsgTxToTx(msgTx *wire.MsgTx, params *chaincfg.Params) Tx {
 	}
 
 	for i, txout := range msgTx.TxOut {
+		spi, _ := utils.ScriptToPubkeyInfo(txout.PkScript, params)
 		newVout := &Vout{
 			Value:        txout.Value,
 			Spent:        false,
