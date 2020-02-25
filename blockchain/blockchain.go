@@ -9,6 +9,7 @@ import (
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/SwingbyProtocol/tx-indexer/types"
+	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -276,8 +277,11 @@ func (bc *Blockchain) syncBlocks(depth int) error {
 	for _, block := range blocks {
 		for _, tx := range block.Txs {
 			for _, vout := range tx.Vout {
-				vout.Value = vout.Value.(float64) * 100000000
+				vout.Value = utils.ValueSat(vout.Value)
 				vout.Addresses = vout.Scriptpubkey.Addresses
+				if vout.Addresses == nil {
+					vout.Addresses = []string{"OP_RETURN"}
+				}
 				vout.Txs = []string{}
 			}
 		}

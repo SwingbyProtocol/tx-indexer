@@ -43,6 +43,7 @@ type Params struct {
 	HeightTo   int64  `json:"height_to"`
 	TimeFrom   int64  `json:"time_from"`
 	TimeTo     int64  `json:"time_to"`
+	NoDetails  bool   `json:"nodetails"`
 }
 
 type MsgWsResponse struct {

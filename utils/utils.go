@@ -4,6 +4,7 @@ import (
 	"math/rand"
 
 	"github.com/btcsuite/btcd/wire"
+	"github.com/shopspring/decimal"
 )
 
 const WitnessScaleFactor = 4
@@ -51,4 +52,11 @@ func GetTransactionWeight(msgTx *wire.MsgTx) int64 {
 	totalSize := msgTx.SerializeSize()
 	// (baseSize * 3) + totalSize
 	return int64((baseSize * (WitnessScaleFactor - 1)) + totalSize)
+}
+
+func ValueSat(value interface{}) float64 {
+	x := decimal.NewFromFloat(value.(float64))
+	y := decimal.NewFromFloat(100000000)
+	sat, _ := x.Mul(y).Float64()
+	return sat
 }

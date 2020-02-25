@@ -15,6 +15,7 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/config"
 	"github.com/SwingbyProtocol/tx-indexer/node"
 	"github.com/SwingbyProtocol/tx-indexer/types"
+	"github.com/SwingbyProtocol/tx-indexer/utils"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -194,7 +195,11 @@ func main() {
 		txins := []string{}
 		for _, tx := range txs {
 			for _, in := range tx.Vin {
-				if in.Value == nil {
+				if in.Coinbase != "" {
+					in.Addresses = []string{}
+					in.Value = 0
+				}
+				if in.Value == nil && in.Coinbase == "" {
 					txins = append(txins, in.Txid)
 				}
 			}
@@ -207,19 +212,18 @@ func main() {
 				tx := getTx(nodes, txid, 0)
 				loaded[txid] = tx
 			}
-
 			for _, tx := range txs {
 				for _, in := range tx.Vin {
-					if in.Value == nil {
+					if in.Value == nil && in.Coinbase == "" {
 						tx := loaded[in.Txid]
 						vout := tx.Vout[in.Vout]
-						in.Value = vout.Value.(float64) * 100000000
+						in.Value = utils.ValueSat(vout.Value)
 						in.Addresses = vout.Scriptpubkey.Addresses
 					}
 				}
 			}
 		}
-		res := api.CreateMsgSuccessWS(api.GETTX, req.RequestID, "Get tx success only for "+req.Params.Type, bc.GetLatestBlock().Height, txs)
+		res := api.CreateMsgSuccessWS(api.GETTX, req.RequestID, "Get tx success", bc.GetLatestBlock().Height, txs)
 		c.SendJSON(res)
 		log.Infof("Get txs for %50s with params type %10s txs %d", req.Params.Txid, req.Params.Type, len(res.Txs))
 	}
@@ -262,7 +266,11 @@ func main() {
 		txins := []string{}
 		for _, tx := range txs {
 			for _, in := range tx.Vin {
-				if in.Value == nil {
+				if in.Coinbase != "" {
+					in.Addresses = []string{}
+					in.Value = 0
+				}
+				if in.Value == nil && in.Coinbase == "" {
 					txins = append(txins, in.Txid)
 				}
 			}
@@ -275,16 +283,20 @@ func main() {
 				tx := getTx(nodes, txid, 0)
 				loaded[txid] = tx
 			}
-
 			for _, tx := range txs {
 				for _, in := range tx.Vin {
-					if in.Value == nil {
+					if in.Value == nil && in.Coinbase == "" {
 						tx := loaded[in.Txid]
 						vout := tx.Vout[in.Vout]
-						in.Value = vout.Value.(float64) * 100000000
+						in.Value = utils.ValueSat(vout.Value)
 						in.Addresses = vout.Scriptpubkey.Addresses
 					}
 				}
+			}
+		}
+		if req.Params.NoDetails {
+			for i, tx := range txs {
+				txs[i] = &types.Tx{Txid: tx.Txid}
 			}
 		}
 		res := api.CreateMsgSuccessWS(api.GETTXS, req.RequestID, "Get txs success only for "+req.Params.Type, bc.GetLatestBlock().Height, txs)

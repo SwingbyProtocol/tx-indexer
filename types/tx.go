@@ -10,21 +10,22 @@ import (
 
 type Tx struct {
 	Txid         string      `json:"txid"`
-	WitnessID    string      `json:"hash"`
-	Height       int64       `json:"height"`
-	Receivedtime int64       `json:"receivedtime"`
-	MinedTime    int64       `json:"minedtime"`
-	Mediantime   int64       `json:"mediantime"`
-	Version      int32       `json:"version"`
-	Weight       int64       `json:"weight"`
-	Locktime     uint32      `json:"locktime"`
-	Vin          []*Vin      `json:"vin"`
-	Vout         []*Vout     `json:"vout"`
+	WitnessID    string      `json:"hash,omitempty"`
+	Height       int64       `json:"height,omitempty"`
+	Receivedtime int64       `json:"receivedtime,omitempty"`
+	MinedTime    int64       `json:"minedtime,omitempty"`
+	Mediantime   int64       `json:"mediantime,omitempty"`
+	Version      int32       `json:"version,omitempty"`
+	Weight       int64       `json:"weight,omitempty"`
+	Locktime     uint32      `json:"locktime,omitempty"`
+	Vin          []*Vin      `json:"vin,omitempty"`
+	Vout         []*Vout     `json:"vout,omitempty"`
 	MsgTx        *wire.MsgTx `json:"-"`
 }
 
 type Vin struct {
 	Txid      string      `json:"txid"`
+	Coinbase  string      `json:"coinbase,omitempty"`
 	Vout      uint32      `json:"vout"`
 	Addresses []string    `json:"addresses"`
 	Value     interface{} `json:"value"`
