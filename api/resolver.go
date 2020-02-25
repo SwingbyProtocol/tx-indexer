@@ -20,11 +20,11 @@ func NewResolver(uri string) *Resolver {
 	client := &http.Client{Transport: &http.Transport{
 		MaxIdleConnsPerHost: 100,
 	}}
-	client.Timeout = 10 * time.Second
+	client.Timeout = 20 * time.Second
 	resolver := &Resolver{
 		URI:            uri,
 		Client:         client,
-		ContextTimeout: 10 * time.Second,
+		ContextTimeout: 20 * time.Second,
 	}
 	return resolver
 }
