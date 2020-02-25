@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/gorilla/websocket"
@@ -66,33 +67,38 @@ func main() {
 
 	// open
 	///k.WriteJSON(api.MsgWsReqest{})
-
-	switch run {
-	case "WatchAddrReceived":
-		k.WatchAddrReceived()
-		break
-	case "WatchAddrSend":
-		k.WatchAddrSend()
-		break
-	case "GetIndexTxsReceived":
-		k.GetIndexTxsReceived()
-		break
-	case "GetIndexTxsSend":
-		k.GetIndexTxsSend()
-		break
-	case "GetIndexTxsReceivedWithTimeWindow":
-		k.GetIndexTxsReceivedWithTimeWindow()
-		break
-	case "GetIndexTxsSendWithTimeWindow":
-		k.GetIndexTxsSendWithTimeWindow()
-		break
-	case "BroadcastSignedRawTransaction":
-		k.BroadcastSignedRawTransaction()
-		break
-	default:
-		k.WatchAddrReceived()
+	timer := time.Tick(2 * time.Second)
+	for {
+		select {
+		case <-timer:
+			switch run {
+			case "WatchAddrReceived":
+				k.WatchAddrReceived()
+				//break
+			case "WatchAddrSend":
+				k.WatchAddrSend()
+				//break
+			case "GetIndexTxsReceived":
+				k.GetIndexTxsReceived()
+				//break
+			case "GetIndexTxsSend":
+				k.GetIndexTxsSend()
+				//break
+			case "GetIndexTxsReceivedWithTimeWindow":
+				k.GetIndexTxsReceivedWithTimeWindow()
+				//break
+			case "GetIndexTxsSendWithTimeWindow":
+				k.GetIndexTxsSendWithTimeWindow()
+				//break
+			case "BroadcastSignedRawTransaction":
+				k.BroadcastSignedRawTransaction()
+				//break
+			default:
+				k.WatchAddrReceived()
+			}
+		}
 	}
-	select {}
+
 }
 
 // WatchAddrReceived subscribes the incoming transaction to the
@@ -263,6 +269,11 @@ func (k *Keeper) Start() {
 			log.Infof("action: %s msg: %s ", res.Action, res.Message)
 			// show txid
 			for _, tx := range res.Txs {
+				for _, in := range tx.Vin {
+					if in.Value == nil {
+						log.Fatal("value is nil")
+					}
+				}
 				log.Infof("Tx %s confirm %10d minedtime %10d received %10d", tx.Txid, tx.Height, tx.MinedTime, tx.Receivedtime)
 			}
 		}

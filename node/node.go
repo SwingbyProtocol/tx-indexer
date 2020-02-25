@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/peer"
-	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/btcsuite/btcutil"
 	log "github.com/sirupsen/logrus"
@@ -52,12 +52,11 @@ type Node struct {
 	peerConfig     *peer.Config
 	mu             *sync.RWMutex
 	receivedTxs    map[string]bool
+	restNodes      map[string]bool
 	targetOutbound uint32
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
 	invtxs         map[string]*wire.MsgTx
-	sigCache       *txscript.SigCache
-	hashCache      *txscript.HashCache
 	trustedPeer    string
 	txChan         chan *types.Tx
 	blockChan      chan *wire.MsgBlock
@@ -68,6 +67,7 @@ func NewNode(config *NodeConfig) *Node {
 	node := &Node{
 		mu:             new(sync.RWMutex),
 		receivedTxs:    make(map[string]bool),
+		restNodes:      make(map[string]bool),
 		targetOutbound: config.TargetOutbound,
 		connectedRanks: make(map[string]uint64),
 		connectedPeers: make(map[string]*peer.Peer),
@@ -75,14 +75,15 @@ func NewNode(config *NodeConfig) *Node {
 		trustedPeer:    config.TrustedPeer,
 		txChan:         config.TxChan,
 		blockChan:      config.BlockChan,
-		sigCache:       txscript.NewSigCache(1000),
-		hashCache:      txscript.NewHashCache(1000),
 	}
 	// Override node count times
 	if config.Params.Name == "testnet3" {
-		DefaultNodeAddTimes = 18
+		DefaultNodeAddTimes = 16
 		DefaultNodeRankSize = 100
 	}
+	// Add bootstrap nodes
+	node.restNodes["35.185.181.99:18332"] = true
+	node.restNodes["18.216.48.162:18332"] = true
 
 	listeners := &peer.MessageListeners{}
 	listeners.OnVersion = node.onVersion
@@ -101,19 +102,12 @@ func NewNode(config *NodeConfig) *Node {
 		TrickleInterval:  time.Second * 10,
 		Listeners:        *listeners,
 	}
-	log.Debugf("Using settings -> DefaultNodeAddTimes: %d DefaultNodeRankSize: %d", DefaultNodeAddTimes, DefaultNodeRankSize)
+	log.Infof("Using network -> %s", config.Params.Name)
+	log.Infof("Using settings -> DefaultNodeAddTimes: %d DefaultNodeRankSize: %d", DefaultNodeAddTimes, DefaultNodeRankSize)
 	return node
 }
 
 func (node *Node) Start() {
-	if node.trustedPeer != "" {
-		conn, err := net.Dial("tcp", node.trustedPeer)
-		if err != nil {
-			log.Fatal("net.Dial: error %v\n", err)
-			return
-		}
-		node.AddPeer(conn)
-	}
 	go node.queryDNSSeeds()
 }
 
@@ -221,6 +215,52 @@ func (node *Node) ConnectedPeers() []*peer.Peer {
 	return ret
 }
 
+func (node *Node) GetNodes() []string {
+	node.mu.RLock()
+	defer node.mu.RUnlock()
+	list := []string{}
+	for addr, active := range node.restNodes {
+		if active == true {
+			list = append(list, addr)
+		}
+	}
+	return list
+}
+
+func (node *Node) ScanRestNodes() {
+	wg := new(sync.WaitGroup)
+	for addr := range node.restNodes {
+		wg.Add(1)
+		go func(addr string) {
+			resolver := api.NewResolver("http://" + addr)
+			resolver.SetTimeout(3 * time.Second)
+			info := types.ChainInfo{}
+			err := resolver.GetRequest("/rest/chaininfo.json", &info)
+			if err != nil {
+				node.mu.Lock()
+				delete(node.restNodes, addr)
+				node.mu.Unlock()
+				wg.Done()
+				return
+			}
+			node.mu.Lock()
+			node.restNodes[addr] = true
+			node.mu.Unlock()
+			wg.Done()
+		}(addr)
+	}
+	wg.Wait()
+	count := len(node.GetNodes())
+	log.Infof("rest nodes -> %d", count)
+	if count < 3 {
+		go func() {
+			log.Info("start queryDNSSeeds")
+			time.Sleep(5 * time.Second)
+			node.queryDNSSeeds()
+		}()
+	}
+}
+
 func (node *Node) GetRank() (uint64, uint64, string, []string) {
 	node.mu.RLock()
 	top, min, topAddr, olders := utils.GetMaxMin(node.connectedRanks)
@@ -261,14 +301,6 @@ func (node *Node) AddPeer(conn net.Conn) {
 	}()
 }
 
-func (node *Node) onDisconneted(p *peer.Peer, conn net.Conn) {
-	// Remove peers if peer conn is closed.
-	node.mu.Lock()
-	delete(node.connectedPeers, conn.RemoteAddr().String())
-	node.mu.Unlock()
-	log.Infof("Peer %s disconnected", p)
-}
-
 // Query the DNS seeds and pass the addresses into the address manager.
 func (node *Node) queryDNSSeeds() {
 	wg := new(sync.WaitGroup)
@@ -282,19 +314,18 @@ func (node *Node) queryDNSSeeds() {
 				wg.Done()
 				return
 			}
-			node.addRandomNodes(0, addrs)
+			node.addRandomNodes(addrs)
 			wg.Done()
 		}(seed.Host)
 	}
 	wg.Wait()
 	log.Infof("Conncted peers -> %d", len(node.ConnectedPeers()))
 	log.Infof("Using network --> %s", node.peerConfig.ChainParams.Name)
+	// rescan all of restnodes
+	node.ScanRestNodes()
 }
 
-func (node *Node) addRandomNodes(count int, addrs []string) {
-	if count != 0 {
-		DefaultNodeAddTimes = count
-	}
+func (node *Node) addRandomNodes(addrs []string) {
 	for i := 0; i < DefaultNodeAddTimes; i++ {
 		key := utils.RandRange(0, len(addrs)-1)
 		addr := addrs[key]
@@ -303,6 +334,14 @@ func (node *Node) addRandomNodes(count int, addrs []string) {
 			log.Debug("port error")
 			continue
 		}
+
+		go func() {
+			httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
+			node.mu.Lock()
+			node.restNodes[httpTarget.String()] = false
+			node.mu.Unlock()
+		}()
+
 		target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
 		dialer := net.Dialer{Timeout: DefaultNodeTimeout}
 		conn, err := dialer.Dial("tcp", target.String())

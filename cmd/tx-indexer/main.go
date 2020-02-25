@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/SwingbyProtocol/tx-indexer/api/pubsub"
@@ -67,7 +68,6 @@ func main() {
 		TxChan:           bc.TxChan(),
 		BlockChan:        bc.BlockChan(),
 	}
-	log.Infof("Using network -> %s", nodeConfig.Params.Name)
 	// Node initialize
 	node := node.NewNode(nodeConfig)
 	// Node Start
@@ -191,14 +191,37 @@ func main() {
 		}
 		txs := []*types.Tx{}
 		txs = append(txs, tx)
-		res := api.MsgWsResponse{
-			Action:  req.Action,
-			Result:  false,
-			Message: "success",
-			Txs:     txs,
+		txins := []string{}
+		for _, tx := range txs {
+			for _, in := range tx.Vin {
+				if in.Value == nil {
+					txins = append(txins, in.Txid)
+				}
+			}
 		}
-		log.Info(res)
+		// get tx from other full node
+		loaded := make(map[string]*types.Tx)
+		nodes := node.GetNodes()
+		if len(nodes) != 0 {
+			for _, txid := range txins {
+				tx := getTx(nodes, txid, 0)
+				loaded[txid] = tx
+			}
+
+			for _, tx := range txs {
+				for _, in := range tx.Vin {
+					if in.Value == nil {
+						tx := loaded[in.Txid]
+						vout := tx.Vout[in.Vout]
+						in.Value = vout.Value.(float64) * 100000000
+						in.Addresses = vout.Scriptpubkey.Addresses
+					}
+				}
+			}
+		}
+		res := api.CreateMsgSuccessWS(api.GETTX, req.RequestID, "Get tx success only for "+req.Params.Type, bc.GetLatestBlock().Height, txs)
 		c.SendJSON(res)
+		log.Infof("Get txs for %50s with params type %10s txs %d", req.Params.Txid, req.Params.Type, len(res.Txs))
 	}
 
 	onGetIndexTxsWS := func(c *pubsub.Client, req *api.MsgWsReqest) {
@@ -233,7 +256,37 @@ func main() {
 			log.Warn("Get txs call: time windows cannot enable mempool flag")
 			return
 		}
+
 		txs := bc.GetIndexTxsWithTW(req.Params.Address, timeFrom, timeTo, state, mempool)
+		// collect all of missed txins
+		txins := []string{}
+		for _, tx := range txs {
+			for _, in := range tx.Vin {
+				if in.Value == nil {
+					txins = append(txins, in.Txid)
+				}
+			}
+		}
+		// get tx from other full node
+		loaded := make(map[string]*types.Tx)
+		nodes := node.GetNodes()
+		if len(nodes) != 0 {
+			for _, txid := range txins {
+				tx := getTx(nodes, txid, 0)
+				loaded[txid] = tx
+			}
+
+			for _, tx := range txs {
+				for _, in := range tx.Vin {
+					if in.Value == nil {
+						tx := loaded[in.Txid]
+						vout := tx.Vout[in.Vout]
+						in.Value = vout.Value.(float64) * 100000000
+						in.Addresses = vout.Scriptpubkey.Addresses
+					}
+				}
+			}
+		}
 		res := api.CreateMsgSuccessWS(api.GETTXS, req.RequestID, "Get txs success only for "+req.Params.Type, bc.GetLatestBlock().Height, txs)
 		c.SendJSON(res)
 		log.Infof("Get txs for %50s with params from %11d to %11d type %10s mempool %6t txs %d", req.Params.Address, timeFrom, timeTo, req.Params.Type, mempool, len(res.Txs))
@@ -316,4 +369,21 @@ func main() {
 	signal := <-c
 	// Backup operation
 	log.Info(signal)
+}
+
+func getTx(addrs []string, txid string, count int) *types.Tx {
+	resolver := api.NewResolver("http://" + addrs[count])
+	resolver.SetTimeout(2 * time.Second)
+	txData := types.Tx{}
+	log.Infof("addr -> %s count %d", addrs[count], count)
+	err := resolver.GetRequest("/rest/tx/"+txid+".json", &txData)
+	if err != nil {
+		if len(addrs) == count+1 {
+			log.Info("error")
+			return nil
+		}
+		count++
+		return getTx(addrs, txid, count)
+	}
+	return &txData
 }

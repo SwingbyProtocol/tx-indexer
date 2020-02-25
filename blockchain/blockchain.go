@@ -160,7 +160,7 @@ func (bc *Blockchain) WatchBlock() {
 
 func (bc *Blockchain) Start() {
 	// Once sync blocks
-	err := bc.syncBlocks(300)
+	err := bc.syncBlocks(1000)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -170,16 +170,16 @@ func (bc *Blockchain) Start() {
 
 	latest := bc.GetLatestBlock()
 
-	jobs := make(chan int64, 500)
+	//jobs := make(chan int64, 500)
 
-	for i := 0; i < 160; i++ {
-		go bc.SyncWork(i, jobs)
-	}
-	for i := 0; i < 40000; i++ {
-		jobs <- latest.Height - int64(i)
-	}
+	//for i := 0; i < 160; i++ {
+	//	go bc.SyncWork(i, jobs)
+	//}
+	//for i := 0; i < 4; i++ {
+	//		jobs <- latest.Height - int64(i)
+	//	}
 
-	close(jobs)
+	//close(jobs)
 
 	log.Infof("Now block -> #%d %s", latest.Height, latest.Hash)
 
@@ -329,34 +329,6 @@ func (bc *Blockchain) GetTxs(txids []string, mem bool) []*types.Tx {
 		if tx == nil {
 			continue
 		}
-		for _, in := range tx.Vin {
-			if in.Value == "not exist" || in.Value == nil {
-				//txhash, err := bc.db.Get([]byte(in.Txid), nil)
-				//if err != nil {
-				//	continue
-				//}
-				targetHash, err := bc.GetData(in.Txid)
-				if err != nil {
-					continue
-				}
-				getBlock, err := bc.NewBlock(targetHash)
-				if err != nil {
-					in.Value = "not exist"
-					in.Addresses = []string{"not exist"}
-					continue
-				}
-				for _, btx := range getBlock.Txs {
-					if btx.Txid == in.Txid {
-						vout := btx.Vout[in.Vout]
-						//in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
-						in.Value = vout.Value.(float64) * 100000000
-						in.Addresses = vout.Scriptpubkey.Addresses
-						log.Info("loaded from block ", btx.Txid)
-					}
-				}
-			}
-		}
-
 		txs = append(txs, tx)
 	}
 	return txs
