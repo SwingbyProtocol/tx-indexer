@@ -205,6 +205,12 @@ func main() {
 					txins = append(txins, in.Txid)
 				}
 			}
+			for _, vout := range tx.Vout {
+				if vout.Addresses == nil {
+					vout.Addresses = []string{"OP_RETURN"}
+				}
+				vout.Txs = []string{}
+			}
 		}
 		// get tx from other full node
 		loaded := make(map[string]*types.Tx)
@@ -425,6 +431,7 @@ func main() {
 		}
 		w.WriteHeader(http.StatusOK)
 		w.WriteJson(txs)
+		log.Infof("rest api call [getTx] -> %s", txid)
 	}
 	apiConfig.Listeners.OnGetAddressIndex = bc.OnGetAddressIndex
 

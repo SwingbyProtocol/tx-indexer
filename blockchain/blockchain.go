@@ -161,7 +161,7 @@ func (bc *Blockchain) WatchBlock() {
 
 func (bc *Blockchain) Start() {
 	// Once sync blocks
-	err := bc.syncBlocks(40)
+	err := bc.syncBlocks(800)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -17,7 +17,8 @@ var (
 )
 
 type Keeper struct {
-	conn *websocket.Conn
+	conn      *websocket.Conn
+	startTime int64
 }
 
 // Using with environment variables
@@ -196,16 +197,27 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 		end = 0
 		log.Info(err)
 	}
+	nodetails, err := strconv.ParseBool(os.Getenv("NODETAILS"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	mempool, err := strconv.ParseBool(os.Getenv("MEMPOOL"))
+	if err != nil {
+		log.Fatal(err)
+	}
 	msg := api.MsgWsReqest{
 		Action: "getTxs",
 		Params: &api.Params{
-			Address:  watchAddr,
-			Type:     "",    // "" mean used as "received" ( "received" or "send" )
-			TimeFrom: start, // 0 means "oldest time"
-			TimeTo:   end,   // 0 means "latest time"
+			Address:   watchAddr,
+			Type:      "",        // "" mean used as "received" ( "received" or "send" )
+			Mempool:   mempool,   // ismempool
+			NoDetails: nodetails, // default false
+			TimeFrom:  start,     // 0 means "oldest time"
+			TimeTo:    end,       // 0 means "latest time"
 		},
 	}
 	k.WriteJSON(msg)
+	msg.Params.Mempool = false
 }
 
 // GetIndexTxsSendWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
@@ -266,15 +278,27 @@ func (k *Keeper) Start() {
 			if err != nil {
 				log.Info(err)
 			}
-			log.Infof("action: %s msg: %s ", res.Action, res.Message)
+			now := time.Now().UnixNano()
+			diff := now - k.startTime
+			log.Infof("action: %s msg: %s latency: %v sec", res.Action, res.Message, float64(diff)/1000000000)
 			// show txid
 			for _, tx := range res.Txs {
 				for _, in := range tx.Vin {
 					if in.Value == nil {
-						log.Fatal("value is nil")
+						log.Fatalf("value is nil -> %s", tx.Txid)
 					}
 				}
-				log.Infof("Tx %s confirm %10d minedtime %10d received %10d", tx.Txid, tx.Height, tx.MinedTime, tx.Receivedtime)
+				for _, vout := range tx.Vout {
+					// Check Value
+					value := strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+					_, err := strconv.ParseInt(value, 10, 64)
+					if err != nil {
+						log.Fatal(err)
+						continue
+					}
+					//log.Infof("value -> %d", v)
+				}
+				//log.Infof("Tx %s height %10d minedtime %10d received %10d", tx.Txid, tx.Height, tx.MinedTime, tx.Receivedtime)
 			}
 		}
 	}()
@@ -289,4 +313,5 @@ func (k *Keeper) WriteJSON(data interface{}) {
 	if err != nil {
 		log.Info(err)
 	}
+	k.startTime = time.Now().UnixNano()
 }
