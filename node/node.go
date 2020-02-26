@@ -229,7 +229,10 @@ func (node *Node) GetNodes() []string {
 
 func (node *Node) ScanRestNodes() {
 	wg := new(sync.WaitGroup)
-	for addr := range node.restNodes {
+	node.mu.RLock()
+	nodes := node.restNodes
+	node.mu.RUnlock()
+	for addr := range nodes {
 		wg.Add(1)
 		go func(addr string) {
 			resolver := api.NewResolver("http://" + addr)

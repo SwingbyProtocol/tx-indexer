@@ -378,8 +378,15 @@ func main() {
 		txid := r.PathParam("txid")
 		nodes := node.GetNodes()
 		tx, _ := bc.GetTx(txid)
+		isExternal := false
 		if tx == nil {
+			// get tx from other full node
 			tx = getTx(nodes, txid, 0)
+			if tx == nil {
+				w.WriteJson([]string{})
+				return
+			}
+			isExternal = true
 		}
 		txs := []*types.Tx{}
 		txs = append(txs, tx)
@@ -395,30 +402,25 @@ func main() {
 				}
 			}
 		}
-		// get tx from other full node
-		loaded := make(map[string]*types.Tx)
-		if len(nodes) != 0 {
-			for _, txid := range txins {
-				tx := getTx(nodes, txid, 0)
-				loaded[txid] = tx
+		// get input tx
+		for _, tx := range txs {
+			for _, in := range tx.Vin {
+				if in.Value == nil && in.Coinbase == "" {
+					inTx := getTx(nodes, in.Txid, 0)
+					vout := inTx.Vout[in.Vout]
+					in.Value = utils.ValueSat(vout.Value)
+					in.Addresses = vout.Scriptpubkey.Addresses
+				}
 			}
-			for _, tx := range txs {
-				for _, in := range tx.Vin {
-					if in.Value == nil && in.Coinbase == "" {
-						tx := loaded[in.Txid]
-						vout := tx.Vout[in.Vout]
-						in.Value = utils.ValueSat(vout.Value)
-						in.Addresses = vout.Scriptpubkey.Addresses
-					}
+		}
+		if isExternal {
+			for _, vout := range tx.Vout {
+				vout.Value = utils.ValueSat(vout.Value)
+				vout.Addresses = vout.Scriptpubkey.Addresses
+				if vout.Addresses == nil {
+					vout.Addresses = []string{"OP_RETURN"}
 				}
-				for _, vout := range tx.Vout {
-					vout.Value = utils.ValueSat(vout.Value)
-					vout.Addresses = vout.Scriptpubkey.Addresses
-					if vout.Addresses == nil {
-						vout.Addresses = []string{"OP_RETURN"}
-					}
-					vout.Txs = []string{}
-				}
+				vout.Txs = []string{}
 			}
 		}
 		w.WriteHeader(http.StatusOK)
