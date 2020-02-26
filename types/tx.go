@@ -105,7 +105,7 @@ func MsgTxToTx(msgTx *wire.MsgTx, params *chaincfg.Params) Tx {
 	for i, txout := range msgTx.TxOut {
 		spi, _ := utils.ScriptToPubkeyInfo(txout.PkScript, params)
 		newVout := &Vout{
-			Value:        float64(txout.Value) / 100000000,
+			Value:        float64(txout.Value),
 			Spent:        false,
 			Txs:          []string{},
 			Addresses:    spi.Addresses,
