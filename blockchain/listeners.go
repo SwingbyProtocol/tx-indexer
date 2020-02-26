@@ -19,7 +19,7 @@ func (bc *Blockchain) OnGetTx(w rest.ResponseWriter, r *rest.Request) {
 	txid := r.PathParam("txid")
 	tx, _ := bc.GetTx(txid)
 	if tx == nil {
-		res500(errors.New("tx is not exit"), w)
+		Res500(errors.New("tx is not exit"), w)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -64,7 +64,7 @@ func (bc *Blockchain) OnGetAddressIndex(w rest.ResponseWriter, r *rest.Request) 
 	return
 }
 
-func res500(msg error, w rest.ResponseWriter) {
+func Res500(msg error, w rest.ResponseWriter) {
 	w.WriteHeader(http.StatusInternalServerError)
 	res := ErrorResponse{false, msg.Error()}
 	w.WriteJson(res)

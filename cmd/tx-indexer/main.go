@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
@@ -16,6 +17,7 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/node"
 	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
+	"github.com/ant0ine/go-json-rest/rest"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -371,7 +373,57 @@ func main() {
 	apiConfig.Listeners.OnGetIndexTxsWS = onGetIndexTxsWS
 	apiConfig.Listeners.OnBroadcastTxWS = onBroadcastTxWS
 	// Add handler for REST
-	apiConfig.Listeners.OnGetTx = bc.OnGetTx
+	// Override bc.OnGetTx
+	apiConfig.Listeners.OnGetTx = func(w rest.ResponseWriter, r *rest.Request) {
+		txid := r.PathParam("txid")
+		nodes := node.GetNodes()
+		tx, _ := bc.GetTx(txid)
+		if tx == nil {
+			tx = getTx(nodes, txid, 0)
+		}
+		txs := []*types.Tx{}
+		txs = append(txs, tx)
+		txins := []string{}
+		for _, tx := range txs {
+			for _, in := range tx.Vin {
+				if in.Coinbase != "" {
+					in.Addresses = []string{}
+					in.Value = 0
+				}
+				if in.Value == nil && in.Coinbase == "" {
+					txins = append(txins, in.Txid)
+				}
+			}
+		}
+		// get tx from other full node
+		loaded := make(map[string]*types.Tx)
+		if len(nodes) != 0 {
+			for _, txid := range txins {
+				tx := getTx(nodes, txid, 0)
+				loaded[txid] = tx
+			}
+			for _, tx := range txs {
+				for _, in := range tx.Vin {
+					if in.Value == nil && in.Coinbase == "" {
+						tx := loaded[in.Txid]
+						vout := tx.Vout[in.Vout]
+						in.Value = utils.ValueSat(vout.Value)
+						in.Addresses = vout.Scriptpubkey.Addresses
+					}
+				}
+				for _, vout := range tx.Vout {
+					vout.Value = utils.ValueSat(vout.Value)
+					vout.Addresses = vout.Scriptpubkey.Addresses
+					if vout.Addresses == nil {
+						vout.Addresses = []string{"OP_RETURN"}
+					}
+					vout.Txs = []string{}
+				}
+			}
+		}
+		w.WriteHeader(http.StatusOK)
+		w.WriteJson(txs)
+	}
 	apiConfig.Listeners.OnGetAddressIndex = bc.OnGetAddressIndex
 
 	apiServer.Start()
