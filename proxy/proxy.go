@@ -15,9 +15,16 @@ type Proxy struct {
 
 func NewProxy() *Proxy {
 	proxy := &Proxy{
-		mu: new(sync.RWMutex),
+		mu:    new(sync.RWMutex),
+		nodes: make(map[string]bool),
 	}
 	return proxy
+}
+
+func (p *Proxy) Add(addr string) {
+	p.mu.Lock()
+	p.nodes[addr] = true
+	p.mu.Unlock()
 }
 
 func (p *Proxy) ScanAll() {

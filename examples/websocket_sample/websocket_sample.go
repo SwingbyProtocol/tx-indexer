@@ -138,7 +138,7 @@ func (k *Keeper) WatchAddrSend() {
 // GetIndexTxsReceived gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
 // mempool (bool default false) : whether include txs that are in the memory pool
-// Type (string defualt "") : whether txs is outgoing or incoming
+// Type (string default "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsReceived() {
@@ -160,7 +160,7 @@ func (k *Keeper) GetIndexTxsReceived() {
 // GetIndexTxsSend gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
 // mempool (bool default false) : whether include txs that are in the memory pool
-// Type (string defualt "") : whether txs is outgoing or incoming
+// Type (string default "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
 func (k *Keeper) GetIndexTxsSend() {
@@ -182,7 +182,7 @@ func (k *Keeper) GetIndexTxsSend() {
 // GetIndexTxsReceivedWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
 // mempool (bool default false) : whether include txs that are in the memory pool
-// Type (string defualt "") : whether txs is outgoing or incoming
+// Type (string default "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
 // NOTE: time window only support mined txs
@@ -223,7 +223,7 @@ func (k *Keeper) GetIndexTxsReceivedWithTimeWindow() {
 // GetIndexTxsSendWithTimeWindow gets all txs for the target address. The required filter parameters are as follows:
 // Address (string) : The target address for index
 // mempool (bool default false) : whether include txs that are in the memory pool
-// Type (string defualt "") : whether txs is outgoing or incoming
+// Type (string default "") : whether txs is outgoing or incoming
 // TimeFrom (int64 unixtime) : start of time window period
 // TimeTo (int64 unixtime) : end of time window period
 // NOTE: time window only support mined txs

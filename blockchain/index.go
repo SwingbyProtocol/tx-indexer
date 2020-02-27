@@ -20,7 +20,7 @@ func NewIndex() *Index {
 }
 
 func (in *Index) Open() error {
-	db, err := leveldb.OpenFile("./data/leveldb", nil)
+	db, err := leveldb.OpenFile("./.db", nil)
 	if err != nil {
 		return err
 	}

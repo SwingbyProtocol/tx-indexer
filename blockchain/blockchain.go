@@ -38,9 +38,9 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 		mu:          new(sync.RWMutex),
 		index:       NewIndex(),
 		mempool:     NewMempool(),
-		txChan:      make(chan *types.Tx, 100000),
-		bChan:       make(chan *types.Block),
-		pushMsgChan: make(chan *types.PushMsg),
+		txChan:      conf.TxChan,
+		bChan:       conf.BChan,
+		pushMsgChan: conf.PushMsgChan,
 	}
 	return bc
 }

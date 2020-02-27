@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SwingbyProtocol/tx-indexer/proxy"
 	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -39,8 +40,8 @@ type NodeConfig struct {
 	// is highly recommended to specify this value and that it follows the
 	// form "major.minor.revision" e.g. "2.6.41".
 	UserAgentVersion string
-	// If this field is not nil the PeerManager will only connect to this address
-	RestPeers []*RestPeer
+	// Set Proxy
+	Proxy *proxy.Proxy
 	// Chan for Tx
 	TxChan chan *types.Tx
 	// Chan for Block
@@ -51,25 +52,24 @@ type Node struct {
 	peerConfig     *peer.Config
 	mu             *sync.RWMutex
 	receivedTxs    map[string]bool
-	restNodes      map[string]bool
 	targetOutbound uint32
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
 	invtxs         map[string]*wire.MsgTx
+	proxy          *proxy.Proxy
 	txChan         chan *types.Tx
 	bChan          chan *types.Block
 }
 
 func NewNode(config *NodeConfig) *Node {
-
 	node := &Node{
 		mu:             new(sync.RWMutex),
 		receivedTxs:    make(map[string]bool),
-		restNodes:      make(map[string]bool),
 		targetOutbound: config.TargetOutbound,
 		connectedRanks: make(map[string]uint64),
 		connectedPeers: make(map[string]*peer.Peer),
 		invtxs:         make(map[string]*wire.MsgTx),
+		proxy:          config.Proxy,
 		txChan:         config.TxChan,
 		bChan:          config.BChan,
 	}
@@ -79,8 +79,8 @@ func NewNode(config *NodeConfig) *Node {
 		DefaultNodeRankSize = 100
 	}
 	// Add bootstrap nodes
-	node.restNodes["35.185.181.99:18332"] = true
-	node.restNodes["18.216.48.162:18332"] = true
+	//node.restNodes["35.185.181.99:18332"] = true
+	//node.restNodes["18.216.48.162:18332"] = true
 
 	listeners := &peer.MessageListeners{}
 	listeners.OnVersion = node.onVersion
@@ -155,13 +155,13 @@ func (node *Node) DecodeToTx(hexStr string) (*btcutil.Tx, error) {
 	return tx, nil
 }
 
-func (node *Node) AddInvTx(txid string, msgTx *wire.MsgTx) {
+func (node *Node) AddInvMsgTx(txid string, msgTx *wire.MsgTx) {
 	node.mu.Lock()
 	node.invtxs[txid] = msgTx
 	node.mu.Unlock()
 }
 
-func (node *Node) GetInvTx(txid string) *wire.MsgTx {
+func (node *Node) GetInvMsgTx(txid string) *wire.MsgTx {
 	node.mu.RLock()
 	msg := node.invtxs[txid]
 	node.mu.RUnlock()
@@ -180,7 +180,7 @@ func (node *Node) RemoveInvTx(txid string) error {
 
 func (node *Node) BroadcastTxInv(txid string) {
 	// Get msgTx
-	msgTx := node.GetInvTx(txid)
+	msgTx := node.GetInvMsgTx(txid)
 	// Add new tx to invtxs
 	var invType wire.InvType
 	if msgTx.HasWitness() {
@@ -210,18 +210,6 @@ func (node *Node) ConnectedPeers() []*peer.Peer {
 		ret = append(ret, p)
 	}
 	return ret
-}
-
-func (node *Node) GetNodes() []string {
-	node.mu.RLock()
-	defer node.mu.RUnlock()
-	list := []string{}
-	for addr, active := range node.restNodes {
-		if active == true {
-			list = append(list, addr)
-		}
-	}
-	return list
 }
 
 func (node *Node) GetRank() (uint64, uint64, string, []string) {
@@ -299,9 +287,7 @@ func (node *Node) addRandomNodes(addrs []string) {
 
 		go func() {
 			httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
-			node.mu.Lock()
-			node.restNodes[httpTarget.String()] = false
-			node.mu.Unlock()
+			node.proxy.Add(httpTarget.String())
 		}()
 
 		target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
@@ -316,7 +302,7 @@ func (node *Node) addRandomNodes(addrs []string) {
 }
 
 func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.MessageEncoding) error {
-	msgTx := node.GetInvTx(hash.String())
+	msgTx := node.GetInvMsgTx(hash.String())
 	if msgTx == nil {
 		return errors.New("Unable to fetch tx from invtxs")
 	}

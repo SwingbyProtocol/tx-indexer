@@ -80,7 +80,7 @@ func (ws *Websocket) mainHandler(w http.ResponseWriter, r *http.Request) {
 	// Register pubsub client to pubsub manager
 	ws.Pubsub.AddClient(&client)
 	// Send Hello msg
-	client.SendJSON(NewSuccessResponse("", "Websocket connection is succesful", nil))
+	client.SendJSON(NewSuccessResponse("", "Websocket connection is successful", nil))
 	// Pubsub client
 	log.Info("New Client is connected, total: ", len(ws.Pubsub.clients))
 

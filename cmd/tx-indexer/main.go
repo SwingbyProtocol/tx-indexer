@@ -20,7 +20,7 @@ import (
 var (
 	bc        = &blockchain.Blockchain{}
 	apiServer = &api.API{}
-	peer      = &node.Node{}
+	instance  = &node.Node{}
 )
 
 func init() {
@@ -68,14 +68,14 @@ func main() {
 		TargetOutbound:   conf.P2PConfig.TargetOutbound,
 		UserAgentName:    "Tx-indexer",
 		UserAgentVersion: "1.0.0",
+		Proxy:            proxy,
 		TxChan:           bcConfig.TxChan,
 		BChan:            bcConfig.BChan,
 	}
-	log.Infof("Using network -> %s", nodeConfig.Params.Name)
 	// Peer initialize
-	peer = node.NewNode(nodeConfig)
+	instance = node.NewNode(nodeConfig)
 	// Peer Start
-	peer.Start()
+	instance.Start()
 
 	// Define API config
 	// Define REST and WS api listener address

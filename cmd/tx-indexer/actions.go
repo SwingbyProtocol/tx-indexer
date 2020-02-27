@@ -139,7 +139,7 @@ func onBroadcastTxWS(c *api.Client, req *api.Request) {
 	//bc.TxChan <- msgTx
 	// Add tx to inv
 	txHash := utilTx.Hash().String()
-	peer.AddInvTx(txHash, msgTx)
+	instance.AddInvMsgTx(txHash, msgTx)
 	for _, in := range msgTx.TxIn {
 		inTx, _ := bc.GetTx(in.PreviousOutPoint.Hash.String())
 		if inTx == nil {
@@ -149,7 +149,7 @@ func onBroadcastTxWS(c *api.Client, req *api.Request) {
 		// Add inTx to inv
 		//peer.AddInvTx(inTx.Txid, inTx.MsgTx)
 	}
-	peer.BroadcastTxInv(txHash)
+	instance.BroadcastTxInv(txHash)
 	res := CreateMsgSuccessWS(req.Action, "Tx data broadcast success: "+txHash, bc.GetLatestBlock(), []*types.Tx{})
 	c.SendJSON(res)
 }
