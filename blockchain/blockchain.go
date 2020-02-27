@@ -108,7 +108,6 @@ func (bc *Blockchain) StoreData(key string, data string) error {
 }
 
 func (bc *Blockchain) WatchTx() {
-
 	for {
 		tx := <-bc.txChan
 		log.Infof("remain tx %d", len(bc.txChan))
