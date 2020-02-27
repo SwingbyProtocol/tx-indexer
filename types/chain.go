@@ -10,5 +10,5 @@ type ChainInfo struct {
 type PushMsg struct {
 	Tx    *Tx
 	Addr  string
-	State int
+	State string
 }

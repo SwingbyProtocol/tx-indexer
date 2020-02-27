@@ -12,6 +12,8 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/SwingbyProtocol/tx-indexer/config"
 	"github.com/SwingbyProtocol/tx-indexer/node"
+	"github.com/SwingbyProtocol/tx-indexer/proxy"
+	"github.com/SwingbyProtocol/tx-indexer/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -47,12 +49,17 @@ func main() {
 	if loglevel == "debug" {
 		log.SetLevel(log.DebugLevel)
 	}
-	// Create Config
-	blockchianConfig := &blockchain.BlockchainConfig{
-		Finalizer: conf.RESTConfig.Finalizer,
+	// Create rest peers
+	proxy := proxy.NewProxy()
+	// Create bc config
+	bcConfig := &blockchain.BlockchainConfig{
+		TxChan:      make(chan *types.Tx, 100000),
+		BChan:       make(chan *types.Block),
+		PushMsgChan: make(chan *types.PushMsg),
+		Proxy:       proxy,
 	}
 	// Create blockchain instance
-	bc = blockchain.NewBlockchain(blockchianConfig)
+	bc = blockchain.NewBlockchain(bcConfig)
 	// Start blockchain service
 	bc.Start()
 
@@ -61,8 +68,8 @@ func main() {
 		TargetOutbound:   conf.P2PConfig.TargetOutbound,
 		UserAgentName:    "Tx-indexer",
 		UserAgentVersion: "1.0.0",
-		TxChan:           bc.TxChan,
-		BChan:            bc.BChan,
+		TxChan:           bcConfig.TxChan,
+		BChan:            bcConfig.BChan,
 	}
 	log.Infof("Using network -> %s", nodeConfig.Params.Name)
 	// Peer initialize
@@ -89,6 +96,7 @@ func main() {
 	// Add new handler for unwatchTxs action
 	broadcast := api.NewWatch("broadcast", onBroadcastTxWS)
 	apiConfig.AddAction(broadcast)
+
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
 
@@ -101,8 +109,6 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGSTOP)
 	signal := <-c
-	// Backup operation
-	//err = bc.Backup()
 	if err != nil {
 		log.Error(err)
 	}

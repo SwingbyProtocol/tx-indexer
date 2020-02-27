@@ -7,27 +7,26 @@ import (
 	"sync"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
+	"github.com/SwingbyProtocol/tx-indexer/proxy"
 	"github.com/SwingbyProtocol/tx-indexer/types"
-	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
 )
 
 type BlockchainConfig struct {
-	// Finalizer is peer address to finalize block and txs
-	Finalizer string
-	// PruneSize is holding height
+	TxChan      chan *types.Tx
+	BChan       chan *types.Block
+	PushMsgChan chan *types.PushMsg
+	Proxy       *proxy.Proxy
 }
 
 type Blockchain struct {
 	mu          *sync.RWMutex
 	resolver    *api.Resolver
 	index       *Index
-	cache       *Cache
-	txMap       *TxMap
 	mempool     *Mempool
-	TxChan      chan *wire.MsgTx
-	BChan       chan *wire.MsgBlock
-	PushMsgChan chan *types.PushMsg
+	txChan      chan *types.Tx
+	bChan       chan *types.Block
+	pushMsgChan chan *types.PushMsg
 }
 
 type HeighHash struct {
@@ -38,25 +37,22 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	bc := &Blockchain{
 		mu:          new(sync.RWMutex),
 		index:       NewIndex(),
-		cache:       NewCache(conf.Finalizer),
-		txMap:       NewTxMap(conf.Finalizer),
 		mempool:     NewMempool(),
-		TxChan:      make(chan *wire.MsgTx, 100000),
-		BChan:       make(chan *wire.MsgBlock),
-		PushMsgChan: make(chan *types.PushMsg),
+		txChan:      make(chan *types.Tx, 100000),
+		bChan:       make(chan *types.Block),
+		pushMsgChan: make(chan *types.PushMsg),
 	}
-	log.Infof("Using Finalizer node: %s", conf.Finalizer)
 	return bc
 }
 
 func (bc *Blockchain) GetLatestBlock() int64 {
-	return bc.cache.GetLatestBlock()
+	return 2
 }
 
 func (bc *Blockchain) WatchTx() {
 	for {
-		tx := <-bc.TxChan
-		log.Info(tx.TxHash().String())
+		tx := <-bc.txChan
+		log.Info(tx.Txid)
 		/*
 			storedTx, mempool := bc.GetTx(tx.Txid)
 			// Tx is not exist, add to mempool from tx
@@ -89,7 +85,7 @@ func (bc *Blockchain) WatchTx() {
 func (bc *Blockchain) WatchBlock() {
 	for {
 		// TODO: Getting block from P2P network
-		_ = <-bc.BChan
+		_ = <-bc.bChan
 		// block := MsgBlockToBlock(msg)
 
 		// Get block data from TrustedPeer for now
@@ -99,14 +95,9 @@ func (bc *Blockchain) WatchBlock() {
 
 func (bc *Blockchain) Start() {
 	// load data from files
-	err := bc.txMap.Load()
-	if err != nil {
-		log.Error(err)
-		log.Info("Skip load process...")
-	}
+
 	go bc.WatchBlock()
 	go bc.WatchTx()
-	go bc.txMap.Start()
 	// Once sync blocks
 }
 
@@ -119,26 +110,26 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 			// continue if spent tx is not exist
 			// check coinbase
 			if in.Txid == "" {
-				in.Value = "coinbase"
+				//in.Value = "coinbase"
 				in.Addresses = []string{"coinbase"}
 				continue
 			}
 			targetHash := "ss"
 			if targetHash == "" {
-				in.Value = "not exist"
+				//in.Value = "not exist"
 				in.Addresses = []string{"not exist"}
 				continue
 			}
 			getBlock, err := bc.NewBlock(targetHash)
 			if err != nil {
-				in.Value = "not exist"
+				//in.Value = "not exist"
 				in.Addresses = []string{"not exist"}
 				continue
 			}
 			for _, btx := range getBlock.Txs {
 				if btx.Txid == in.Txid {
 					vout := btx.Vout[in.Vout]
-					in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
+					//in.Value = strconv.FormatFloat(vout.Value.(float64), 'f', -1, 64)
 					in.Addresses = vout.Scriptpubkey.Addresses
 				}
 			}
@@ -155,16 +146,15 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 			// Add address of spent to in
 			in.Addresses = addrs
 			// Update index and the spent tx (spent)
-			bc.index.Update(addrs[0], tx.Txid, Send)
 			// Publish tx to notification handler
-			bc.PushMsgChan <- &types.PushMsg{Tx: tx, Addr: addrs[0], State: Send}
+			//bc.PushMsgChan <- &types.PushMsg{Tx: tx, Addr: addrs[0], State: Send}
 		}
 		// Remove tx that all consumed output
 		//bc.txStore.RemoveAllSpentTx(inTx)
 	}
 	for _, out := range tx.Vout {
-		valueStr := strconv.FormatFloat(out.Value.(float64), 'f', -1, 64)
-		out.Value = valueStr
+		//valueStr := strconv.FormatFloat(out.Value.(float64), 'f', -1, 64)
+		//out.Value = valueStr
 		out.Txs = []string{}
 		if len(out.Scriptpubkey.Addresses) != 0 {
 			out.Addresses = out.Scriptpubkey.Addresses
@@ -173,13 +163,12 @@ func (bc *Blockchain) UpdateIndex(tx *types.Tx) {
 		}
 	}
 	// Check tx output to update indexer storage
-	addrs := tx.GetOutsAddrs()
-	for _, addr := range addrs {
-		// Update index and the spent tx (unspent)
-		bc.index.Update(addr, tx.Txid, Received)
-		// Publish tx to notification handler
-		bc.PushMsgChan <- &types.PushMsg{Tx: tx, Addr: addr, State: Received}
-	}
+	//	addrs := tx.GetOutsAddrs()
+	//for _, addr := range addrs {
+	// Update index and the spent tx (unspent)
+	// Publish tx to notification handler
+	//bc.PushMsgChan <- &types.PushMsg{Tx: tx, Addr: addr, State: Received}
+	//}
 }
 
 func (bc *Blockchain) NewBlock(hash string) (*types.Block, error) {
@@ -192,19 +181,9 @@ func (bc *Blockchain) NewBlock(hash string) (*types.Block, error) {
 }
 
 func (bc *Blockchain) GetTx(txid string) (*types.Tx, bool) {
-	mTx := bc.mempool.GetTx(txid)
-	if mTx != nil {
-		return mTx, true
-	}
-	tHash := bc.txMap.GetHash(txid)
-	if tHash == "" {
-		return nil, false
-	}
-	bTx := bc.cache.GetTx(tHash, txid)
-	if bTx == nil {
-		return nil, false
-	}
-	return bTx, false
+	//mTx := bc.mempool.GetTx(txid)
+
+	return nil, false
 }
 
 func (bc *Blockchain) GetTxs(txids []string) []*types.Tx {
@@ -223,8 +202,8 @@ func (bc *Blockchain) GetIndexTxsWithTW(addr string, start int64, end int64, sta
 	if end == 0 {
 		end = int64(^uint(0) >> 1)
 	}
-	txids := bc.index.GetTxIDs(addr, state)
-	txs := bc.GetTxs(txids)
+	//txids := bc.index.GetTxIDs(addr, state)
+	txs := bc.GetTxs([]string{})
 	res := []*types.Tx{}
 	for _, tx := range txs {
 		if tx.MinedTime == 0 && !mempool {

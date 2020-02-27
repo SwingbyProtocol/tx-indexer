@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/SwingbyProtocol/tx-indexer/api"
-	"github.com/SwingbyProtocol/tx-indexer/blockchain"
 	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	log "github.com/sirupsen/logrus"
@@ -13,40 +12,12 @@ const (
 	Send     = "send"
 )
 
-const (
-	WATCHTXS   = "watchTxs"
-	UNWATCHTXS = "unwatchTxs"
-	GETTXS     = "getTxs"
-	GETTX      = "getTx"
-	BROADCAST  = "broadcast"
-)
-
-type MsgWsParams struct {
-	Address    string `json:"address"`
-	Txid       string `json:"txid"`
-	Hex        string `json:"hex"`
-	Type       string `json:"type"`
-	Mempool    bool   `json:"mempool"`
-	HeightFrom int64  `json:"height_from"`
-	HeightTo   int64  `json:"height_to"`
-	TimeFrom   int64  `json:"time_from"`
-	TimeTo     int64  `json:"time_to"`
-}
-
-type MsgWsResponse struct {
-	Action  string      `json:"action"`
-	Result  bool        `json:"result"`
-	Height  int64       `json:"height"`
-	Message string      `json:"message"`
-	Txs     []*types.Tx `json:"txs"`
-}
-
 func onWatchTxWS(c *api.Client, req *api.Request) {
 	if req.Params == nil {
 		c.SendJSON(CreateMsgErrorWS(req.Action, "Params is not correct"))
 		return
 	}
-	params := req.Params.(MsgWsParams)
+	params := req.Params.(api.MsgWsParams)
 	if params.Address == "" {
 		c.SendJSON(CreateMsgErrorWS(req.Action, "Address is not correct"))
 		return
@@ -67,7 +38,7 @@ func onWatchTxWS(c *api.Client, req *api.Request) {
 	log.Infof("new subscription registered for : %s when %s by %s", params.Address, params.Type, c.ID())
 
 	msg := "watch success for " + params.Address + " when " + params.Type
-	c.SendJSON(MsgWsResponse{req.Action, true, bc.GetLatestBlock(), msg, []*types.Tx{}})
+	c.SendJSON(CreateMsgSuccessWS(req.Action, msg, bc.GetLatestBlock(), []*types.Tx{}))
 }
 
 func onUnWatchTxWS(c *api.Client, req *api.Request) {
@@ -75,7 +46,7 @@ func onUnWatchTxWS(c *api.Client, req *api.Request) {
 		c.SendJSON(CreateMsgErrorWS(req.Action, "Params is not correct"))
 		return
 	}
-	params := req.Params.(MsgWsParams)
+	params := req.Params.(api.MsgWsParams)
 	if params.Address == "" {
 		c.SendJSON(CreateMsgErrorWS(req.Action, "Address is not correct"))
 		return
@@ -100,7 +71,7 @@ func onGetIndexTxsWS(c *api.Client, req *api.Request) {
 		c.SendJSON(CreateMsgErrorWS(req.Action, "Params is not correct"))
 		return
 	}
-	params := req.Params.(MsgWsParams)
+	params := req.Params.(api.MsgWsParams)
 	if params.Address == "" {
 		c.SendJSON(CreateMsgErrorWS(req.Action, "Params.Address is not correct"))
 		return
@@ -112,10 +83,10 @@ func onGetIndexTxsWS(c *api.Client, req *api.Request) {
 	if params.Type == "" {
 		params.Type = Received
 	}
-	state := blockchain.Received
-	if params.Type == Send {
-		state = blockchain.Send
-	}
+	//state := blockchain.Received
+	//if params.Type == Send {
+	//	state = blockchain.Send
+	//}
 	timeFrom := params.TimeFrom
 	timeTo := params.TimeTo
 	mempool := params.Mempool
@@ -124,10 +95,10 @@ func onGetIndexTxsWS(c *api.Client, req *api.Request) {
 		log.Warn("Get txs call: time windows cannot enable mempool flag")
 		return
 	}
-	txs := bc.GetIndexTxsWithTW(params.Address, timeFrom, timeTo, state, mempool)
-	res := CreateMsgSuccessWS(GETTXS, "Get txs success only for "+params.Type, bc.GetLatestBlock(), txs)
+	txs := bc.GetIndexTxsWithTW(params.Address, timeFrom, timeTo, 1, mempool)
+	res := CreateMsgSuccessWS(req.Action, "Get txs success only for "+params.Type, bc.GetLatestBlock(), txs)
 	c.SendJSON(res)
-	log.Infof("Get txs for %50s with params from %11d to %11d type %10s mempool %6t txs %d", params.Address, timeFrom, timeTo, params.Type, mempool, len(res.Txs))
+	log.Infof("Get txs for %50s with params from %11d to %11d type %10s mempool %6t txs %d", params.Address, timeFrom, timeTo, params.Type, mempool, len(res.Txs.([]string)))
 }
 
 func onBroadcastTxWS(c *api.Client, req *api.Request) {
@@ -135,7 +106,7 @@ func onBroadcastTxWS(c *api.Client, req *api.Request) {
 		c.SendJSON(CreateMsgErrorWS(req.Action, "Params is not correct"))
 		return
 	}
-	params := req.Params.(MsgWsParams)
+	params := req.Params.(api.MsgWsParams)
 	if params.Address != "" {
 		c.SendJSON(CreateMsgErrorWS(req.Action, "Params.Address should be null"))
 		return
@@ -165,7 +136,7 @@ func onBroadcastTxWS(c *api.Client, req *api.Request) {
 	log.Infof("client: %s hash: %s hex: %s", addr, utilTx.Hash().String(), params.Hex)
 	msgTx := utilTx.MsgTx()
 	// Push to bc
-	bc.TxChan <- msgTx
+	//bc.TxChan <- msgTx
 	// Add tx to inv
 	txHash := utilTx.Hash().String()
 	peer.AddInvTx(txHash, msgTx)
@@ -179,27 +150,27 @@ func onBroadcastTxWS(c *api.Client, req *api.Request) {
 		//peer.AddInvTx(inTx.Txid, inTx.MsgTx)
 	}
 	peer.BroadcastTxInv(txHash)
-	res := CreateMsgSuccessWS(BROADCAST, "Tx data broadcast success: "+txHash, bc.GetLatestBlock(), []*types.Tx{})
+	res := CreateMsgSuccessWS(req.Action, "Tx data broadcast success: "+txHash, bc.GetLatestBlock(), []*types.Tx{})
 	c.SendJSON(res)
 }
 
 func Publish(ps *api.PubSub, msg *types.PushMsg) {
 	txs := []*types.Tx{}
 	txs = append(txs, msg.Tx)
-	if msg.State == blockchain.Send {
-		res := CreateMsgSuccessWS(WATCHTXS, Send, bc.GetLatestBlock(), txs)
+	if msg.State == Send {
+		res := CreateMsgSuccessWS("broadcast", Send, bc.GetLatestBlock(), txs)
 		ps.PublishJSON(Send+"_"+msg.Addr, res)
 		return
 	}
-	if msg.State == blockchain.Received {
-		res := CreateMsgSuccessWS(WATCHTXS, Received, bc.GetLatestBlock(), txs)
+	if msg.State == Received {
+		res := CreateMsgSuccessWS("broadcast", Received, bc.GetLatestBlock(), txs)
 		ps.PublishJSON(Received+"_"+msg.Addr, res)
 		return
 	}
 }
 
-func CreateMsgSuccessWS(action string, message string, height int64, txs []*types.Tx) MsgWsResponse {
-	msg := MsgWsResponse{
+func CreateMsgSuccessWS(action string, message string, height int64, txs []*types.Tx) api.MsgWsResponse {
+	msg := api.MsgWsResponse{
 		Action:  action,
 		Result:  true,
 		Message: message,
@@ -209,8 +180,8 @@ func CreateMsgSuccessWS(action string, message string, height int64, txs []*type
 	return msg
 }
 
-func CreateMsgErrorWS(action string, errMsg string) MsgWsResponse {
-	msg := MsgWsResponse{
+func CreateMsgErrorWS(action string, errMsg string) api.MsgWsResponse {
+	msg := api.MsgWsResponse{
 		Action:  action,
 		Result:  false,
 		Message: errMsg,

@@ -91,9 +91,10 @@ func MsgTxToTx(msgTx *wire.MsgTx, params *chaincfg.Params) types.Tx {
 
 	for _, txin := range msgTx.TxIn {
 		newVin := &types.Vin{
-			Txid:     txin.PreviousOutPoint.Hash.String(),
-			Vout:     txin.PreviousOutPoint.Index,
-			Sequence: txin.Sequence,
+			Txid:      txin.PreviousOutPoint.Hash.String(),
+			Vout:      txin.PreviousOutPoint.Index,
+			Addresses: []string{},
+			Sequence:  txin.Sequence,
 		}
 		tx.Vin = append(tx.Vin, newVin)
 	}
@@ -102,9 +103,8 @@ func MsgTxToTx(msgTx *wire.MsgTx, params *chaincfg.Params) types.Tx {
 		// Ignore the error here because the sender could have used and exotic script
 		// for his change and we don't want to fail in that case.
 		spi, _ := ScriptToPubkeyInfo(txout.PkScript, params)
-		value := float64(txout.Value) / 100000000
 		newVout := &types.Vout{
-			Value:        value,
+			Value:        txout.Value,
 			Spent:        false,
 			Txs:          []string{},
 			N:            i,

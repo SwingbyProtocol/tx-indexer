@@ -1,17 +1,21 @@
 package node
 
 import (
+	"bytes"
+	"encoding/hex"
 	"errors"
 	"net"
 	"strconv"
 	"sync"
 	"time"
 
+	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/btcsuite/btcutil"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -35,22 +39,25 @@ type NodeConfig struct {
 	// is highly recommended to specify this value and that it follows the
 	// form "major.minor.revision" e.g. "2.6.41".
 	UserAgentVersion string
+	// If this field is not nil the PeerManager will only connect to this address
+	RestPeers []*RestPeer
 	// Chan for Tx
-	TxChan chan *wire.MsgTx
+	TxChan chan *types.Tx
 	// Chan for Block
-	BChan chan *wire.MsgBlock
+	BChan chan *types.Block
 }
 
 type Node struct {
 	peerConfig     *peer.Config
 	mu             *sync.RWMutex
 	receivedTxs    map[string]bool
+	restNodes      map[string]bool
 	targetOutbound uint32
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
 	invtxs         map[string]*wire.MsgTx
-	txChan         chan *wire.MsgTx
-	bChan          chan *wire.MsgBlock
+	txChan         chan *types.Tx
+	bChan          chan *types.Block
 }
 
 func NewNode(config *NodeConfig) *Node {
@@ -58,10 +65,11 @@ func NewNode(config *NodeConfig) *Node {
 	node := &Node{
 		mu:             new(sync.RWMutex),
 		receivedTxs:    make(map[string]bool),
-		invtxs:         make(map[string]*wire.MsgTx),
+		restNodes:      make(map[string]bool),
+		targetOutbound: config.TargetOutbound,
 		connectedRanks: make(map[string]uint64),
 		connectedPeers: make(map[string]*peer.Peer),
-		targetOutbound: config.TargetOutbound,
+		invtxs:         make(map[string]*wire.MsgTx),
 		txChan:         config.TxChan,
 		bChan:          config.BChan,
 	}
@@ -70,6 +78,9 @@ func NewNode(config *NodeConfig) *Node {
 		DefaultNodeAddTimes = 16
 		DefaultNodeRankSize = 100
 	}
+	// Add bootstrap nodes
+	node.restNodes["35.185.181.99:18332"] = true
+	node.restNodes["18.216.48.162:18332"] = true
 
 	listeners := &peer.MessageListeners{}
 	listeners.OnVersion = node.onVersion
@@ -88,7 +99,8 @@ func NewNode(config *NodeConfig) *Node {
 		TrickleInterval:  time.Second * 10,
 		Listeners:        *listeners,
 	}
-	log.Debugf("Using settings -> DefaultNodeAddTimes: %d DefaultNodeRankSize: %d", DefaultNodeAddTimes, DefaultNodeRankSize)
+	log.Infof("Using network -> %s", config.Params.Name)
+	log.Infof("Using settings -> DefaultNodeAddTimes: %d DefaultNodeRankSize: %d", DefaultNodeAddTimes, DefaultNodeRankSize)
 	return node
 }
 
@@ -112,6 +124,35 @@ func (node *Node) Stop() {
 	}
 	node.connectedPeers = make(map[string]*peer.Peer)
 	wg.Wait()
+}
+
+func (node *Node) ValidateTx(tx *btcutil.Tx) error {
+	err := utils.CheckNonStandardTx(tx)
+	if err != nil {
+		return err
+	}
+	err = utils.OutputRejector(tx.MsgTx())
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (node *Node) DecodeToTx(hexStr string) (*btcutil.Tx, error) {
+	if len(hexStr)%2 != 0 {
+		hexStr = "0" + hexStr
+	}
+	serializedTx, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return nil, err
+	}
+	var msgTx wire.MsgTx
+	err = msgTx.Deserialize(bytes.NewReader(serializedTx))
+	if err != nil {
+		return nil, err
+	}
+	tx := btcutil.NewTx(&msgTx)
+	return tx, nil
 }
 
 func (node *Node) AddInvTx(txid string, msgTx *wire.MsgTx) {
@@ -154,16 +195,6 @@ func (node *Node) BroadcastTxInv(txid string) {
 	log.Infof("Broadcast inv msg success: %s", txid)
 }
 
-func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
-	peers := node.ConnectedPeers()
-	if len(peers) > 14 {
-		peers = peers[:12]
-	}
-	for _, peer := range peers {
-		peer.QueueInventory(iv)
-	}
-}
-
 func (node *Node) ConnectedPeer(addr string) *peer.Peer {
 	node.mu.RLock()
 	peer := node.connectedPeers[addr]
@@ -179,6 +210,18 @@ func (node *Node) ConnectedPeers() []*peer.Peer {
 		ret = append(ret, p)
 	}
 	return ret
+}
+
+func (node *Node) GetNodes() []string {
+	node.mu.RLock()
+	defer node.mu.RUnlock()
+	list := []string{}
+	for addr, active := range node.restNodes {
+		if active == true {
+			list = append(list, addr)
+		}
+	}
+	return list
 }
 
 func (node *Node) GetRank() (uint64, uint64, string, []string) {
@@ -221,14 +264,6 @@ func (node *Node) AddPeer(conn net.Conn) {
 	}()
 }
 
-func (node *Node) onDisconneted(p *peer.Peer, conn net.Conn) {
-	// Remove peers if peer conn is closed.
-	node.mu.Lock()
-	delete(node.connectedPeers, conn.RemoteAddr().String())
-	node.mu.Unlock()
-	log.Infof("Peer %s disconnected", p)
-}
-
 // Query the DNS seeds and pass the addresses into the address manager.
 func (node *Node) queryDNSSeeds() {
 	wg := new(sync.WaitGroup)
@@ -242,19 +277,17 @@ func (node *Node) queryDNSSeeds() {
 				wg.Done()
 				return
 			}
-			node.addRandomNodes(0, addrs)
+			node.addRandomNodes(addrs)
 			wg.Done()
 		}(seed.Host)
 	}
 	wg.Wait()
 	log.Infof("Conncted peers -> %d", len(node.ConnectedPeers()))
 	log.Infof("Using network --> %s", node.peerConfig.ChainParams.Name)
+	// rescan all of restnodes
 }
 
-func (node *Node) addRandomNodes(count int, addrs []string) {
-	if count != 0 {
-		DefaultNodeAddTimes = count
-	}
+func (node *Node) addRandomNodes(addrs []string) {
 	for i := 0; i < DefaultNodeAddTimes; i++ {
 		key := utils.RandRange(0, len(addrs)-1)
 		addr := addrs[key]
@@ -263,6 +296,14 @@ func (node *Node) addRandomNodes(count int, addrs []string) {
 			log.Debug("port error")
 			continue
 		}
+
+		go func() {
+			httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
+			node.mu.Lock()
+			node.restNodes[httpTarget.String()] = false
+			node.mu.Unlock()
+		}()
+
 		target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
 		dialer := net.Dialer{Timeout: DefaultNodeTimeout}
 		conn, err := dialer.Dial("tcp", target.String())
@@ -284,6 +325,16 @@ func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.Message
 	return nil
 }
 
+func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
+	peers := node.ConnectedPeers()
+	if len(peers) > 21 {
+		peers = peers[:20]
+	}
+	for _, peer := range peers {
+		peer.QueueInventory(iv)
+	}
+}
+
 func (node *Node) updateRank(p *peer.Peer) {
 	node.mu.Lock()
 	node.connectedRanks[p.Addr()]++
@@ -299,8 +350,7 @@ func (node *Node) addReceived(hash string) {
 	node.receivedTxs[hash] = true
 	node.mu.Unlock()
 	go func() {
-		// Delete after 10 min
-		time.Sleep(10 * time.Minute)
+		time.Sleep(4 * time.Minute)
 		node.mu.Lock()
 		delete(node.receivedTxs, hash)
 		node.mu.Unlock()

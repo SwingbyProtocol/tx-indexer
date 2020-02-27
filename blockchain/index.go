@@ -2,21 +2,12 @@ package blockchain
 
 import (
 	"encoding/json"
-	"errors"
-	"io/ioutil"
-	"os"
-	"sync"
-)
 
-const (
-	Received = iota
-	Send
-	Both
+	"github.com/syndtr/goleveldb/leveldb"
 )
 
 type Index struct {
-	mu *sync.RWMutex
-	kv map[string]*Store `json:"kv"`
+	db *leveldb.DB
 }
 
 type Store struct {
@@ -24,79 +15,56 @@ type Store struct {
 }
 
 func NewIndex() *Index {
-	index := &Index{
-		mu: new(sync.RWMutex),
-		kv: make(map[string]*Store),
-	}
+	index := &Index{}
 	return index
 }
 
-func (in *Index) Update(addr string, txid string, state int) {
-	in.mu.Lock()
-	if in.kv[addr] == nil {
-		in.kv[addr] = &Store{Txs: make(map[string]int)}
-	}
-	if in.kv[addr].Txs[txid] == Send && state == Received {
-		in.kv[addr].Txs[txid] = Both
-	} else {
-		in.kv[addr].Txs[txid] = state
-	}
-	in.mu.Unlock()
-}
-
-func (in *Index) Remove(addr string, txid string) error {
-	in.mu.Lock()
-	defer in.mu.Unlock()
-	if in.kv[addr] == nil {
-		return errors.New("tx is not exit")
-	}
-	delete(in.kv[addr].Txs, txid)
-	return nil
-}
-
-func (in *Index) GetTxIDs(addr string, state int) []string {
-	in.mu.RLock()
-	defer in.mu.RUnlock()
-	txids := []string{}
-	if in.kv[addr] == nil {
-		return txids
-	}
-	for i, status := range in.kv[addr].Txs {
-		if status == state || status == Both {
-			txids = append(txids, i)
-		}
-	}
-	return txids
-}
-
-func (in *Index) Backup() error {
-	in.mu.RLock()
-	defer in.mu.RUnlock()
-	str, err := json.Marshal(in.kv)
+func (in *Index) Open() error {
+	db, err := leveldb.OpenFile("./data/leveldb", nil)
 	if err != nil {
 		return err
 	}
-	f, err := os.Create("./data/index.backup")
+	in.db = db
+	return nil
+}
+
+func (in *Index) Get(addr string, prefix string) ([]string, error) {
+	data := []string{}
+	base, err := in.db.Get([]byte(prefix+"_"+addr), nil)
 	if err != nil {
-		err = os.MkdirAll("./data", 0755)
-		if err != nil {
-			return err
-		}
-		return in.Backup()
+		return nil, err
 	}
-	_, err = f.Write(str)
+	err = json.Unmarshal(base, &data)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func (in *Index) Add(addr string, txid string, prefix string) error {
+	data := []string{}
+	base, err := in.db.Get([]byte(prefix+"_"+addr), nil)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(base, &data)
+	if err != nil {
+		return err
+	}
+	data = append(data, txid)
+	bytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	err = in.db.Put([]byte(prefix+"_"+addr), bytes, nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (in *Index) Load() error {
-	data, err := ioutil.ReadFile("./data/index.backup")
-	if err != nil {
-		return err
-	}
-	err = json.Unmarshal(data, &in.kv)
+func (in *Index) Remove(addr string, prefix string) error {
+	err := in.db.Delete([]byte(prefix+"_"+addr), nil)
 	if err != nil {
 		return err
 	}

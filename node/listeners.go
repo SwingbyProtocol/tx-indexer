@@ -1,8 +1,10 @@
 package node
 
 import (
+	"net"
 	"time"
 
+	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
@@ -27,23 +29,23 @@ func (node *Node) onVersion(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject 
 	isSegwit := remoteAddr.HasService(wire.SFNodeWitness)
 	// Reject outbound peers that are not full nodes.
 	if !isFullNode {
-		log.Debugf("Peer %s is not full node, diconnecting...", p)
+		log.Infof("Peer %s is not full node, diconnecting...", p)
 		reason := "Peer is not full node"
 		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
 	}
 	// Don't connect to bitcoin cash nodes
 	if isBCash {
-		log.Debugf("Peer %s does not support Bitcoin Cash, diconnecting...", p)
+		log.Infof("Peer %s does not support Bitcoin Cash, diconnecting...", p)
 		reason := "does not support Bitcoin Cash"
 		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
 	}
 	if !isSegwit {
-		log.Debugf("Peer %s does not support segwit, diconnecting...", p)
+		log.Infof("Peer %s does not support segwit, diconnecting...", p)
 		reason := "Peer does not support segwit"
 		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
 	}
 	if !isSupportBloom {
-		log.Debugf("Peer %s does not support bloom filtering, diconnecting...", p)
+		log.Infof("Peer %s does not support bloom filtering, diconnecting...", p)
 		reason := "Peer does not support bloom filtering"
 		return wire.NewMsgReject(msg.Command(), wire.RejectNonstandard, reason)
 	}
@@ -95,6 +97,7 @@ func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
 			for i := 0; i < 2; i++ {
 				peer := node.ConnectedPeer(olders[i])
 				if peer != nil {
+					log.Infof("Force disconnect... %s", peer.Addr())
 					peer.Disconnect()
 				}
 			}
@@ -107,14 +110,16 @@ func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
 		return
 	}
 	node.addReceived(txHash)
+	tx := utils.MsgTxToTx(msg, node.peerConfig.ChainParams)
 	go func() {
-		node.txChan <- msg
+		node.txChan <- &tx
 	}()
 }
 
 func (node *Node) onBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
 	go func() {
-		node.bChan <- msg
+		block := utils.MsgBlockToBlock(msg, node.peerConfig.ChainParams)
+		node.bChan <- &block
 	}()
 }
 
@@ -144,4 +149,12 @@ func (node *Node) onGetData(p *peer.Peer, msg *wire.MsgGetData) {
 			}
 		}()
 	}
+}
+
+func (node *Node) onDisconneted(p *peer.Peer, conn net.Conn) {
+	// Remove peers if peer conn is closed.
+	node.mu.Lock()
+	delete(node.connectedPeers, conn.RemoteAddr().String())
+	node.mu.Unlock()
+	log.Infof("Peer %s disconnected", p)
 }

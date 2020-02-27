@@ -2,11 +2,13 @@ package api
 
 type Request struct {
 	Action string      `json:"action"`
+	ReqID  string      `json:"reqid"`
 	Params interface{} `json:"params"`
 }
 
 type Response struct {
 	Action  string      `json:"action"`
+	ReqID   string      `json:"reqid"`
 	Result  bool        `json:"result"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
