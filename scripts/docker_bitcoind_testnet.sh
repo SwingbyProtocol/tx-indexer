@@ -12,6 +12,6 @@ docker run --cpus=0.4 -v /var/bitcoind-test:/bitcoin -d \
     -rpcallowip=0.0.0.0/0 \
     -minrelaytxfee=0 \
     -maxmempool=300 \
-    -mempoolexpiry=72 \
+    -mempoolexpiry=10 \
     -rpcworkqueue=200 \
     -testnet=1
