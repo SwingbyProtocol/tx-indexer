@@ -98,6 +98,16 @@ func (bc *Blockchain) GetData(key string) (string, error) {
 	return string(txhash), nil
 }
 
+func (bc *Blockchain) GetMempool() []*types.Tx {
+	bc.mu.RLock()
+	defer bc.mu.RUnlock()
+	txs := []*types.Tx{}
+	for _, tx := range bc.Mempool {
+		txs = append(txs, tx)
+	}
+	return txs
+}
+
 func (bc *Blockchain) StoreData(key string, data string) error {
 	_, err := bc.GetData(data)
 	if err != nil {
@@ -126,15 +136,15 @@ func (bc *Blockchain) WatchTx() {
 			bc.UpdateIndex(tx)
 			// Remove Tx from mempool
 			bc.RemoveMempoolTx(tx)
-			log.Debugf("already tx exist on mempool removed %s", tx.Txid)
+			log.Infof("already tx exist on mempool removed (mined) %s", tx.Txid)
 			continue
 		}
 		// Tx is on the kv
 		if storedTx != nil && !mempool {
 			bc.UpdateIndex(tx)
 			// Remove Tx from mempool
-			bc.RemoveMempoolTx(tx)
-			log.Debugf("already tx exist on kv updated %s", tx.Txid)
+			//bc.RemoveMempoolTx(tx)
+			log.Infof("already tx exist on kv updated not mempool %s", tx.Txid)
 			continue
 		}
 		//log.Info("remaining sync count -> ", len(bc.txChan))
@@ -160,7 +170,7 @@ func (bc *Blockchain) WatchBlock() {
 
 func (bc *Blockchain) Start() {
 	// Once sync blocks
-	err := bc.syncBlocks(800)
+	err := bc.syncBlocks(10)
 	if err != nil {
 		log.Fatal(err)
 	}

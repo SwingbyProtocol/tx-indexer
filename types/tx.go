@@ -8,6 +8,10 @@ import (
 	"github.com/btcsuite/btcd/wire"
 )
 
+type Txids struct {
+	Txids []string `json:"txids"`
+}
+
 type Tx struct {
 	Txid         string      `json:"txid"`
 	WitnessID    string      `json:"hash,omitempty"`

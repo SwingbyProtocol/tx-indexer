@@ -1,9 +1,10 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/ant0ine/go-json-rest/rest"
 	log "github.com/sirupsen/logrus"
-	"net/http"
 )
 
 type RESTApi struct {
@@ -38,8 +39,10 @@ func (ra *RESTApi) Start() {
 	}
 	restRouter, err := rest.MakeRouter(
 		rest.Get("/keep", ra.listeners.OnKeep),
+		rest.Get("/txs/btc/mempool-txs", ra.listeners.OnGetMempool),
 		rest.Get("/txs/btc/:address", ra.listeners.OnGetAddressIndex),
 		rest.Get("/txs/btc/tx/:txid", ra.listeners.OnGetTx),
+		rest.Post("/txs/btc/multi-txs", ra.listeners.OnGetTxMulti),
 	)
 	if err != nil {
 		log.Fatal(err)

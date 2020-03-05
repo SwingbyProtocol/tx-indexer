@@ -379,7 +379,6 @@ func main() {
 	apiConfig.Listeners.OnGetIndexTxsWS = onGetIndexTxsWS
 	apiConfig.Listeners.OnBroadcastTxWS = onBroadcastTxWS
 	// Add handler for REST
-	// Override bc.OnGetTx
 	apiConfig.Listeners.OnGetTx = func(w rest.ResponseWriter, r *rest.Request) {
 		txid := r.PathParam("txid")
 		nodes := node.GetNodes()
@@ -433,6 +432,77 @@ func main() {
 		w.WriteJson(txs)
 		log.Infof("rest api call [getTx] -> %s", txid)
 	}
+
+	apiConfig.Listeners.OnGetTxMulti = func(w rest.ResponseWriter, r *rest.Request) {
+		txids := types.Txids{}
+		err := r.DecodeJsonPayload(&txids)
+		if err != nil {
+			rest.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		isExternal := make(map[string]bool)
+		txs := []*types.Tx{}
+		for _, txid := range txids.Txids {
+			nodes := node.GetNodes()
+			tx, _ := bc.GetTx(txid)
+			if tx == nil {
+				// get tx from other full node
+				tx = getTx(nodes, txid, 0)
+				if tx == nil {
+					continue
+				}
+				isExternal[txid] = true
+			}
+			txs = append(txs, tx)
+		}
+
+		txins := []string{}
+		for _, tx := range txs {
+			for _, in := range tx.Vin {
+				if in.Coinbase != "" {
+					in.Addresses = []string{}
+					in.Value = 0
+				}
+				if in.Value == nil && in.Coinbase == "" {
+					txins = append(txins, in.Txid)
+				}
+			}
+		}
+		// get input tx
+		for _, tx := range txs {
+			for _, in := range tx.Vin {
+				if in.Value == nil && in.Coinbase == "" {
+					nodes := node.GetNodes()
+					inTx := getTx(nodes, in.Txid, 0)
+					vout := inTx.Vout[in.Vout]
+					in.Value = utils.ValueSat(vout.Value)
+					in.Addresses = vout.Scriptpubkey.Addresses
+				}
+			}
+			if isExternal[tx.Txid] {
+				for _, vout := range tx.Vout {
+					vout.Value = utils.ValueSat(vout.Value)
+					vout.Addresses = vout.Scriptpubkey.Addresses
+					if vout.Addresses == nil {
+						vout.Addresses = []string{"OP_RETURN"}
+					}
+					vout.Txs = []string{}
+				}
+			}
+		}
+
+		w.WriteHeader(http.StatusOK)
+		w.WriteJson(txs)
+		log.Infof("rest api call [getTxs] -> %d", len(txs))
+	}
+
+	apiConfig.Listeners.OnGetMempool = func(w rest.ResponseWriter, r *rest.Request) {
+		txs := bc.GetMempool()
+		w.WriteHeader(http.StatusOK)
+		w.WriteJson(txs)
+		log.Infof("rest api call [getMempool] -> %d", len(txs))
+	}
+
 	apiConfig.Listeners.OnGetAddressIndex = bc.OnGetAddressIndex
 
 	apiServer.Start()
@@ -452,7 +522,7 @@ func getTx(addrs []string, txid string, count int) *types.Tx {
 	err := resolver.GetRequest("/rest/tx/"+txid+".json", &txData)
 	if err != nil {
 		if len(addrs) == count+1 {
-			log.Info("error")
+			log.Info(err)
 			return nil
 		}
 		count++

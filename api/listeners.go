@@ -27,4 +27,8 @@ type Listeners struct {
 	OnBroadcastTxWS func(c *pubsub.Client, req *MsgWsReqest)
 	// Publish is invoked when new tx is stored to index.
 	Publish func(ps *pubsub.PubSub, tx *types.PushMsg)
+	// OnGetTxs
+	OnGetTxMulti func(w rest.ResponseWriter, r *rest.Request)
+	// OnGetMempool
+	OnGetMempool func(w rest.ResponseWriter, r *rest.Request)
 }
