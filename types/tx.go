@@ -12,6 +12,10 @@ type Txids struct {
 	Txids []string `json:"txids"`
 }
 
+type Broadcast struct {
+	HEX string `json:"hex"`
+}
+
 type Tx struct {
 	Txid         string      `json:"txid"`
 	WitnessID    string      `json:"hash,omitempty"`

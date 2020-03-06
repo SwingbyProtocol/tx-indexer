@@ -43,6 +43,7 @@ func (ra *RESTApi) Start() {
 		rest.Get("/txs/btc/:address", ra.listeners.OnGetAddressIndex),
 		rest.Get("/txs/btc/tx/:txid", ra.listeners.OnGetTx),
 		rest.Post("/txs/btc/multi-txs", ra.listeners.OnGetTxMulti),
+		rest.Post("/txs/btc/broadcast", ra.listeners.OnBroadcast),
 	)
 	if err != nil {
 		log.Fatal(err)

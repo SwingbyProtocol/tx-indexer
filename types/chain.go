@@ -12,3 +12,8 @@ type PushMsg struct {
 	Addr  string
 	State int
 }
+
+type Response struct {
+	Txid   string `json:"txid"`
+	Result bool   `json:"result"`
+}

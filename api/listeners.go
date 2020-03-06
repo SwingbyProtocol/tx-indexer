@@ -31,4 +31,6 @@ type Listeners struct {
 	OnGetTxMulti func(w rest.ResponseWriter, r *rest.Request)
 	// OnGetMempool
 	OnGetMempool func(w rest.ResponseWriter, r *rest.Request)
+	// OnBroadcast
+	OnBroadcast func(w rest.ResponseWriter, r *rest.Request)
 }

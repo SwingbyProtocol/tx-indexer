@@ -433,6 +433,52 @@ func main() {
 		log.Infof("rest api call [getTx] -> %s", txid)
 	}
 
+	apiConfig.Listeners.OnBroadcast = func(w rest.ResponseWriter, r *rest.Request) {
+		hex := types.Broadcast{}
+		err := r.DecodeJsonPayload(&hex)
+		if err != nil {
+			rest.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		utilTx, err := node.DecodeToTx(hex.HEX)
+		if err != nil {
+			log.Info(err)
+			rest.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Validate tx
+		err = node.ValidateTx(utilTx)
+		if err != nil {
+			log.Info(err)
+			rest.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		msgTx := utilTx.MsgTx()
+		// Add tx to store
+		tx := types.MsgTxToTx(msgTx, conf.P2PConfig.Params)
+		// Push to bc
+		bc.TxChan() <- &tx
+		// Add tx to inv
+		txHash := utilTx.Hash().String()
+		node.AddInvTx(txHash, msgTx)
+		for _, in := range msgTx.TxIn {
+			inTx, _ := bc.GetTx(in.PreviousOutPoint.Hash.String())
+			if inTx == nil {
+				log.Debug("tx is not exit")
+				continue
+			}
+			// Add inTx to inv
+			node.AddInvTx(inTx.Txid, inTx.MsgTx)
+		}
+		node.BroadcastTxInv(txHash)
+		w.WriteHeader(http.StatusOK)
+		res := types.Response{}
+		res.Txid = txHash
+		res.Result = true
+		w.WriteJson(res)
+		log.Infof("rest api call [broadcasted] -> %s %s", hex.HEX, res.Txid)
+	}
+
 	apiConfig.Listeners.OnGetTxMulti = func(w rest.ResponseWriter, r *rest.Request) {
 		txids := types.Txids{}
 		err := r.DecodeJsonPayload(&txids)
