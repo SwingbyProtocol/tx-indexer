@@ -135,8 +135,11 @@ func (bc *Blockchain) WatchTx() {
 		if storedTx != nil && mempool && tx.Height != 0 {
 			bc.UpdateIndex(tx)
 			// Remove Tx from mempool
-			bc.RemoveMempoolTx(tx)
-			log.Infof("already tx exist on mempool removed (mined) %s", tx.Txid)
+			go func() {
+				time.Sleep(5 * time.Minute)
+				bc.RemoveMempoolTx(tx)
+			}()
+			log.Infof("already tx exist on mempool future remove (mined) %s", tx.Txid)
 			continue
 		}
 		// Tx is on the kv

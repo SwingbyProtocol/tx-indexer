@@ -412,6 +412,9 @@ func main() {
 			for _, in := range tx.Vin {
 				if in.Value == nil && in.Coinbase == "" {
 					inTx := getTx(nodes, in.Txid, 0)
+					if inTx == nil {
+						continue
+					}
 					vout := inTx.Vout[in.Vout]
 					in.Value = utils.ValueSat(vout.Value)
 					in.Addresses = vout.Scriptpubkey.Addresses
@@ -562,7 +565,7 @@ func main() {
 
 func getTx(addrs []string, txid string, count int) *types.Tx {
 	resolver := api.NewResolver("http://" + addrs[count])
-	resolver.SetTimeout(2 * time.Second)
+	resolver.SetTimeout(1 * time.Second)
 	txData := types.Tx{}
 	log.Infof("addr -> %s count %d", addrs[count], count)
 	err := resolver.GetRequest("/rest/tx/"+txid+".json", &txData)

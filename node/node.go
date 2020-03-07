@@ -253,7 +253,7 @@ func (node *Node) ScanRestNodes() {
 		}(addr)
 	}
 	wg.Wait()
-	count := len(node.GetNodes())
+	count := len(nodes)
 	log.Infof("rest nodes -> %d", count)
 	if count < 3 {
 		go func() {
