@@ -384,11 +384,12 @@ func main() {
 		nodes := node.GetNodes()
 		tx, _ := bc.GetTx(txid)
 		isExternal := false
+		isNilInput := false
 		if tx == nil {
 			// get tx from other full node
 			tx = getTx(nodes, txid, 0)
 			if tx == nil {
-				w.WriteJson([]string{})
+				rest.Error(w, "tx value is invalid", http.StatusInternalServerError)
 				return
 			}
 			isExternal = true
@@ -413,6 +414,7 @@ func main() {
 				if in.Value == nil && in.Coinbase == "" {
 					inTx := getTx(nodes, in.Txid, 0)
 					if inTx == nil {
+						isNilInput = true
 						continue
 					}
 					vout := inTx.Vout[in.Vout]
@@ -421,6 +423,12 @@ func main() {
 				}
 			}
 		}
+
+		if isNilInput {
+			rest.Error(w, "tx input value is invalid", http.StatusInternalServerError)
+			return
+		}
+
 		if isExternal {
 			for _, vout := range tx.Vout {
 				vout.Value = utils.ValueSat(vout.Value)
@@ -430,6 +438,9 @@ func main() {
 				}
 				vout.Txs = []string{}
 			}
+		}
+		if isExternal {
+			bc.TxChan() <- tx
 		}
 		w.WriteHeader(http.StatusOK)
 		w.WriteJson(txs)
@@ -492,10 +503,10 @@ func main() {
 		isExternal := make(map[string]bool)
 		txs := []*types.Tx{}
 		for _, txid := range txids.Txids {
-			nodes := node.GetNodes()
 			tx, _ := bc.GetTx(txid)
 			if tx == nil {
 				// get tx from other full node
+				nodes := node.GetNodes()
 				tx = getTx(nodes, txid, 0)
 				if tx == nil {
 					continue
@@ -565,7 +576,7 @@ func main() {
 
 func getTx(addrs []string, txid string, count int) *types.Tx {
 	resolver := api.NewResolver("http://" + addrs[count])
-	resolver.SetTimeout(1 * time.Second)
+	resolver.SetTimeout(15 * time.Second)
 	txData := types.Tx{}
 	log.Infof("addr -> %s count %d", addrs[count], count)
 	err := resolver.GetRequest("/rest/tx/"+txid+".json", &txData)

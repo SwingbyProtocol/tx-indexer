@@ -136,7 +136,7 @@ func (bc *Blockchain) WatchTx() {
 			bc.UpdateIndex(tx)
 			// Remove Tx from mempool
 			go func() {
-				time.Sleep(5 * time.Minute)
+				time.Sleep(30 * time.Minute)
 				bc.RemoveMempoolTx(tx)
 			}()
 			log.Infof("already tx exist on mempool future remove (mined) %s", tx.Txid)

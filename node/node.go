@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
@@ -52,7 +53,7 @@ type Node struct {
 	peerConfig     *peer.Config
 	mu             *sync.RWMutex
 	receivedTxs    map[string]bool
-	restNodes      map[string]bool
+	restNodes      map[string]int
 	targetOutbound uint32
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
@@ -63,11 +64,10 @@ type Node struct {
 }
 
 func NewNode(config *NodeConfig) *Node {
-
 	node := &Node{
 		mu:             new(sync.RWMutex),
 		receivedTxs:    make(map[string]bool),
-		restNodes:      make(map[string]bool),
+		restNodes:      make(map[string]int),
 		targetOutbound: config.TargetOutbound,
 		connectedRanks: make(map[string]uint64),
 		connectedPeers: make(map[string]*peer.Peer),
@@ -82,8 +82,10 @@ func NewNode(config *NodeConfig) *Node {
 		DefaultNodeRankSize = 100
 	}
 	// Add bootstrap nodes
-	node.restNodes["35.185.181.99:18332"] = true
-	node.restNodes["18.216.48.162:18332"] = true
+	node.restNodes["54.254.139.68:18332"] = 1
+	node.restNodes["35.185.181.99:18332"] = 2
+	node.restNodes["34.228.156.223:18332"] = 3
+	node.restNodes["159.138.137.69:18332"] = 4
 
 	listeners := &peer.MessageListeners{}
 	listeners.OnVersion = node.onVersion
@@ -219,10 +221,15 @@ func (node *Node) GetNodes() []string {
 	node.mu.RLock()
 	defer node.mu.RUnlock()
 	list := []string{}
-	for addr, active := range node.restNodes {
-		if active == true {
-			list = append(list, addr)
-		}
+	nodes := map[int]string{}
+	nodekeys := []int{}
+	for key, val := range node.restNodes {
+		nodes[val] = key
+		nodekeys = append(nodekeys, val)
+	}
+	sort.Ints(nodekeys)
+	for _, key := range nodekeys {
+		list = append(list, nodes[key])
 	}
 	return list
 }
@@ -247,7 +254,7 @@ func (node *Node) ScanRestNodes() {
 				return
 			}
 			node.mu.Lock()
-			node.restNodes[addr] = true
+			node.restNodes[addr] = 1
 			node.mu.Unlock()
 			wg.Done()
 		}(addr)
@@ -324,8 +331,17 @@ func (node *Node) queryDNSSeeds() {
 	wg.Wait()
 	log.Infof("Conncted peers -> %d", len(node.ConnectedPeers()))
 	log.Infof("Using network --> %s", node.peerConfig.ChainParams.Name)
+
 	// rescan all of restnodes
-	node.ScanRestNodes()
+	//node.ScanRestNodes()
+
+	if len(node.ConnectedPeers()) < 13 {
+		go func() {
+			log.Info("start queryDNSSeeds")
+			time.Sleep(15 * time.Second)
+			node.queryDNSSeeds()
+		}()
+	}
 }
 
 func (node *Node) addRandomNodes(addrs []string) {
@@ -339,10 +355,10 @@ func (node *Node) addRandomNodes(addrs []string) {
 		}
 
 		go func() {
-			httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
-			node.mu.Lock()
-			node.restNodes[httpTarget.String()] = false
-			node.mu.Unlock()
+			//httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
+			//node.mu.Lock()
+			//node.restNodes[httpTarget.String()] = 3
+			//node.mu.Unlock()
 		}()
 
 		target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
