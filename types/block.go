@@ -11,6 +11,10 @@ type Block struct {
 	Previousblockhash string `json:"previousblockhash"`
 }
 
+type HeightHash struct {
+	BlockHash string `json:"blockhash"`
+}
+
 type BlockTxs struct {
 	Hash   string   `json:"hash"`
 	Height int64    `json:"height"`

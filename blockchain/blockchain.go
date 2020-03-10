@@ -37,10 +37,6 @@ type Blockchain struct {
 	pushMsgChan     chan *types.PushMsg
 }
 
-type HeighHash struct {
-	BlockHash string `json:"blockhash"`
-}
-
 func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 	bc := &Blockchain{
 		mu:          new(sync.RWMutex),
@@ -65,7 +61,7 @@ func NewBlockchain(conf *BlockchainConfig) *Blockchain {
 }
 
 func (bc *Blockchain) AddTxMap(height int64) error {
-	bh := HeighHash{}
+	bh := types.HeightHash{}
 	err := bc.resolver.GetRequest("/rest/blockhashbyheight/"+strconv.Itoa(int(height))+".json", &bh)
 	if err != nil {
 		return err
