@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -379,9 +380,7 @@ func main() {
 	apiConfig.Listeners.OnGetIndexTxsWS = onGetIndexTxsWS
 	apiConfig.Listeners.OnBroadcastTxWS = onBroadcastTxWS
 	// Add handler for REST
-	apiConfig.Listeners.OnGetTx = func(w rest.ResponseWriter, r *rest.Request) {
-		txid := r.PathParam("txid")
-		nodes := node.GetNodes()
+	getTxFromNodes := func(txid string, nodes []string) (*types.Tx, error) {
 		tx, _ := bc.GetTx(txid)
 		isExternal := false
 		isNilInput := false
@@ -389,44 +388,32 @@ func main() {
 			// get tx from other full node
 			tx = getTx(nodes, txid, 0)
 			if tx == nil {
-				rest.Error(w, "tx value is invalid", http.StatusInternalServerError)
-				return
+				return nil, errors.New("tx value is invalid")
 			}
 			isExternal = true
 		}
-		txs := []*types.Tx{}
-		txs = append(txs, tx)
-		txins := []string{}
-		for _, tx := range txs {
-			for _, in := range tx.Vin {
-				if in.Coinbase != "" {
-					in.Addresses = []string{}
-					in.Value = 0
-				}
-				if in.Value == nil && in.Coinbase == "" {
-					txins = append(txins, in.Txid)
-				}
+		for _, in := range tx.Vin {
+			if in.Coinbase != "" {
+				in.Addresses = []string{}
+				in.Value = 0
 			}
 		}
 		// get input tx
-		for _, tx := range txs {
-			for _, in := range tx.Vin {
-				if in.Value == nil && in.Coinbase == "" {
-					inTx := getTx(nodes, in.Txid, 0)
-					if inTx == nil {
-						isNilInput = true
-						continue
-					}
-					vout := inTx.Vout[in.Vout]
-					in.Value = utils.ValueSat(vout.Value)
-					in.Addresses = vout.Scriptpubkey.Addresses
+		for _, in := range tx.Vin {
+			if in.Value == nil && in.Coinbase == "" {
+				inTx := getTx(nodes, in.Txid, 0)
+				if inTx == nil {
+					isNilInput = true
+					continue
 				}
+				vout := inTx.Vout[in.Vout]
+				in.Value = utils.ValueSat(vout.Value)
+				in.Addresses = vout.Scriptpubkey.Addresses
 			}
 		}
 
 		if isNilInput {
-			rest.Error(w, "tx input value is invalid", http.StatusInternalServerError)
-			return
+			return nil, errors.New("tx inputs is invalid")
 		}
 
 		if isExternal {
@@ -438,13 +425,52 @@ func main() {
 				}
 				vout.Txs = []string{}
 			}
-		}
-		if isExternal {
 			bc.TxChan() <- tx
+
 		}
+		return tx, nil
+	}
+
+	apiConfig.Listeners.OnGetTx = func(w rest.ResponseWriter, r *rest.Request) {
+		txid := r.PathParam("txid")
+		nodes := node.GetNodes()
+		tx, err := getTxFromNodes(txid, nodes)
+		if err != nil {
+			rest.Error(w, "tx input value is invalid", http.StatusInternalServerError)
+			return
+		}
+		txs := []*types.Tx{}
+		txs = append(txs, tx)
 		w.WriteHeader(http.StatusOK)
 		w.WriteJson(txs)
 		log.Infof("rest api call [getTx] -> %s", txid)
+	}
+
+	apiConfig.Listeners.OnGetTxMulti = func(w rest.ResponseWriter, r *rest.Request) {
+		txids := types.Txids{}
+		err := r.DecodeJsonPayload(&txids)
+		if err != nil {
+			rest.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		txs := []*types.Tx{}
+		isError := false
+		nodes := node.GetNodes()
+		for _, txid := range txids.Txids {
+			tx, err := getTxFromNodes(txid, nodes)
+			if err != nil {
+				log.Info(err)
+				isError = true
+				continue
+			}
+			txs = append(txs, tx)
+		}
+		if isError {
+			rest.Error(w, "getting tx error", http.StatusInternalServerError)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.WriteJson(txs)
+		log.Infof("rest api call [getTxs] -> %d", len(txs))
 	}
 
 	apiConfig.Listeners.OnBroadcast = func(w rest.ResponseWriter, r *rest.Request) {
@@ -491,69 +517,6 @@ func main() {
 		res.Result = true
 		w.WriteJson(res)
 		log.Infof("rest api call [broadcasted] -> %s %s", hex.HEX, res.Txid)
-	}
-
-	apiConfig.Listeners.OnGetTxMulti = func(w rest.ResponseWriter, r *rest.Request) {
-		txids := types.Txids{}
-		err := r.DecodeJsonPayload(&txids)
-		if err != nil {
-			rest.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		isExternal := make(map[string]bool)
-		txs := []*types.Tx{}
-		for _, txid := range txids.Txids {
-			tx, _ := bc.GetTx(txid)
-			if tx == nil {
-				// get tx from other full node
-				nodes := node.GetNodes()
-				tx = getTx(nodes, txid, 0)
-				if tx == nil {
-					continue
-				}
-				isExternal[txid] = true
-			}
-			txs = append(txs, tx)
-		}
-
-		txins := []string{}
-		for _, tx := range txs {
-			for _, in := range tx.Vin {
-				if in.Coinbase != "" {
-					in.Addresses = []string{}
-					in.Value = 0
-				}
-				if in.Value == nil && in.Coinbase == "" {
-					txins = append(txins, in.Txid)
-				}
-			}
-		}
-		// get input tx
-		for _, tx := range txs {
-			for _, in := range tx.Vin {
-				if in.Value == nil && in.Coinbase == "" {
-					nodes := node.GetNodes()
-					inTx := getTx(nodes, in.Txid, 0)
-					vout := inTx.Vout[in.Vout]
-					in.Value = utils.ValueSat(vout.Value)
-					in.Addresses = vout.Scriptpubkey.Addresses
-				}
-			}
-			if isExternal[tx.Txid] {
-				for _, vout := range tx.Vout {
-					vout.Value = utils.ValueSat(vout.Value)
-					vout.Addresses = vout.Scriptpubkey.Addresses
-					if vout.Addresses == nil {
-						vout.Addresses = []string{"OP_RETURN"}
-					}
-					vout.Txs = []string{}
-				}
-			}
-		}
-
-		w.WriteHeader(http.StatusOK)
-		w.WriteJson(txs)
-		log.Infof("rest api call [getTxs] -> %d", len(txs))
 	}
 
 	apiConfig.Listeners.OnGetMempool = func(w rest.ResponseWriter, r *rest.Request) {

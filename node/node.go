@@ -76,16 +76,16 @@ func NewNode(config *NodeConfig) *Node {
 		txChan:         config.TxChan,
 		blockChan:      config.BlockChan,
 	}
-	// Override node count times
+	// Override node discover times
 	if config.Params.Name == "testnet3" {
 		DefaultNodeAddTimes = 16
 		DefaultNodeRankSize = 100
 	}
 	// Add bootstrap nodes
-	node.restNodes["54.254.139.68:18332"] = 1
-	node.restNodes["35.185.181.99:18332"] = 2
-	node.restNodes["34.228.156.223:18332"] = 3
-	node.restNodes["159.138.137.69:18332"] = 4
+	node.restNodes["54.254.139.68:18332"] = 125866000
+	node.restNodes["35.185.181.99:18332"] = 125866000
+	node.restNodes["34.228.156.223:18332"] = 125866000
+	node.restNodes["159.138.137.69:18332"] = 125866000
 
 	listeners := &peer.MessageListeners{}
 	listeners.OnVersion = node.onVersion
@@ -230,6 +230,7 @@ func (node *Node) GetNodes() []string {
 	sort.Ints(nodekeys)
 	for _, key := range nodekeys {
 		list = append(list, nodes[key])
+		log.Infof("node -> %40s %10d", nodes[key], key)
 	}
 	return list
 }
@@ -239,36 +240,42 @@ func (node *Node) ScanRestNodes() {
 	node.mu.RLock()
 	nodes := node.restNodes
 	node.mu.RUnlock()
+	deleteList := make(map[string]bool)
+	activeList := make(map[string]int)
+	blockHeights := make(map[string]int64)
 	for addr := range nodes {
 		wg.Add(1)
 		go func(addr string) {
 			resolver := api.NewResolver("http://" + addr)
-			resolver.SetTimeout(3 * time.Second)
+			resolver.SetTimeout(12 * time.Second)
 			info := types.ChainInfo{}
+			start := time.Now().UnixNano()
 			err := resolver.GetRequest("/rest/chaininfo.json", &info)
 			if err != nil {
 				node.mu.Lock()
-				delete(node.restNodes, addr)
+				deleteList[addr] = true
 				node.mu.Unlock()
 				wg.Done()
 				return
 			}
+			end := time.Now().UnixNano()
+			latency := end - start
 			node.mu.Lock()
-			node.restNodes[addr] = 1
+			activeList[addr] = int(latency)
+			blockHeights[addr] = info.Blocks
 			node.mu.Unlock()
 			wg.Done()
 		}(addr)
 	}
 	wg.Wait()
+	for addr := range deleteList {
+		delete(node.restNodes, addr)
+	}
+	for addr, retency := range activeList {
+		node.restNodes[addr] = retency
+	}
 	count := len(nodes)
 	log.Infof("rest nodes -> %d", count)
-	if count < 3 {
-		go func() {
-			log.Info("start queryDNSSeeds")
-			time.Sleep(5 * time.Second)
-			node.queryDNSSeeds()
-		}()
-	}
 }
 
 func (node *Node) GetRank() (uint64, uint64, string, []string) {
@@ -333,9 +340,9 @@ func (node *Node) queryDNSSeeds() {
 	log.Infof("Using network --> %s", node.peerConfig.ChainParams.Name)
 
 	// rescan all of restnodes
-	//node.ScanRestNodes()
+	node.ScanRestNodes()
 
-	if len(node.ConnectedPeers()) < 13 {
+	if len(node.ConnectedPeers()) < 17 {
 		go func() {
 			log.Info("start queryDNSSeeds")
 			time.Sleep(15 * time.Second)
@@ -355,10 +362,10 @@ func (node *Node) addRandomNodes(addrs []string) {
 		}
 
 		go func() {
-			//httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
-			//node.mu.Lock()
-			//node.restNodes[httpTarget.String()] = 3
-			//node.mu.Unlock()
+			httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
+			node.mu.Lock()
+			node.restNodes[httpTarget.String()] = 125866000
+			node.mu.Unlock()
 		}()
 
 		target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
