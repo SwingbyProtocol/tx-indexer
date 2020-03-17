@@ -50,31 +50,33 @@ type NodeConfig struct {
 }
 
 type Node struct {
-	peerConfig     *peer.Config
-	mu             *sync.RWMutex
-	receivedTxs    map[string]bool
-	restNodes      map[string]int
-	targetOutbound uint32
-	connectedRanks map[string]uint64
-	connectedPeers map[string]*peer.Peer
-	invtxs         map[string]*wire.MsgTx
-	trustedPeer    string
-	txChan         chan *types.Tx
-	blockChan      chan *wire.MsgBlock
+	peerConfig      *peer.Config
+	mu              *sync.RWMutex
+	receivedTxs     map[string]bool
+	restNodes       map[string]int
+	restActiveNodes map[string]int
+	targetOutbound  uint32
+	connectedRanks  map[string]uint64
+	connectedPeers  map[string]*peer.Peer
+	invtxs          map[string]*wire.MsgTx
+	trustedPeer     string
+	txChan          chan *types.Tx
+	blockChan       chan *wire.MsgBlock
 }
 
 func NewNode(config *NodeConfig) *Node {
 	node := &Node{
-		mu:             new(sync.RWMutex),
-		receivedTxs:    make(map[string]bool),
-		restNodes:      make(map[string]int),
-		targetOutbound: config.TargetOutbound,
-		connectedRanks: make(map[string]uint64),
-		connectedPeers: make(map[string]*peer.Peer),
-		invtxs:         make(map[string]*wire.MsgTx),
-		trustedPeer:    config.TrustedPeer,
-		txChan:         config.TxChan,
-		blockChan:      config.BlockChan,
+		mu:              new(sync.RWMutex),
+		receivedTxs:     make(map[string]bool),
+		restActiveNodes: make(map[string]int),
+		restNodes:       make(map[string]int),
+		targetOutbound:  config.TargetOutbound,
+		connectedRanks:  make(map[string]uint64),
+		connectedPeers:  make(map[string]*peer.Peer),
+		invtxs:          make(map[string]*wire.MsgTx),
+		trustedPeer:     config.TrustedPeer,
+		txChan:          config.TxChan,
+		blockChan:       config.BlockChan,
 	}
 	// Override node discover times
 	if config.Params.Name == "testnet3" {
@@ -223,14 +225,17 @@ func (node *Node) GetNodes() []string {
 	list := []string{}
 	nodes := map[int]string{}
 	nodekeys := []int{}
-	for key, val := range node.restNodes {
+	for key, val := range node.restActiveNodes {
 		nodes[val] = key
 		nodekeys = append(nodekeys, val)
 	}
-	sort.Ints(nodekeys)
+	sort.SliceStable(nodekeys, func(i, j int) bool { return nodekeys[i] > nodekeys[j] })
 	for _, key := range nodekeys {
 		list = append(list, nodes[key])
-		log.Infof("node -> %40s %10d", nodes[key], key)
+		log.Infof("node -> %40s %10d nanosec", nodes[key], key)
+	}
+	if len(nodekeys) >= 4 {
+		list = list[3:]
 	}
 	return list
 }
@@ -261,7 +266,7 @@ func (node *Node) ScanRestNodes() {
 			end := time.Now().UnixNano()
 			latency := end - start
 			node.mu.Lock()
-			activeList[addr] = int(latency)
+			node.restActiveNodes[addr] = int(latency)
 			blockHeights[addr] = info.Blocks
 			node.mu.Unlock()
 			wg.Done()
@@ -272,7 +277,7 @@ func (node *Node) ScanRestNodes() {
 		delete(node.restNodes, addr)
 	}
 	for addr, retency := range activeList {
-		node.restNodes[addr] = retency
+		node.restActiveNodes[addr] = retency
 	}
 	count := len(nodes)
 	log.Infof("rest nodes -> %d", count)
@@ -364,7 +369,7 @@ func (node *Node) addRandomNodes(addrs []string) {
 		go func() {
 			httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
 			node.mu.Lock()
-			node.restNodes[httpTarget.String()] = 125866000
+			node.restNodes[httpTarget.String()] = 125866001
 			node.mu.Unlock()
 		}()
 

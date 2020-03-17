@@ -383,10 +383,9 @@ func main() {
 	getTxFromNodes := func(txid string, nodes []string) (*types.Tx, error) {
 		tx, _ := bc.GetTx(txid)
 		isExternal := false
-		isNilInput := false
 		if tx == nil {
 			// get tx from other full node
-			tx = getTx(nodes, txid, 0)
+			tx = getTx(nodes, txid, len(nodes)-1)
 			if tx == nil {
 				return nil, errors.New("tx value is invalid")
 			}
@@ -401,19 +400,15 @@ func main() {
 		// get input tx
 		for _, in := range tx.Vin {
 			if in.Value == nil && in.Coinbase == "" {
-				inTx := getTx(nodes, in.Txid, 0)
+				inTx := getTx(nodes, in.Txid, len(nodes)-1)
 				if inTx == nil {
-					isNilInput = true
+					log.Infof("input invalid -> %s", in.Txid)
 					continue
 				}
 				vout := inTx.Vout[in.Vout]
 				in.Value = utils.ValueSat(vout.Value)
 				in.Addresses = vout.Scriptpubkey.Addresses
 			}
-		}
-
-		if isNilInput {
-			return nil, errors.New("tx inputs is invalid")
 		}
 
 		if isExternal {
@@ -434,9 +429,13 @@ func main() {
 	apiConfig.Listeners.OnGetTx = func(w rest.ResponseWriter, r *rest.Request) {
 		txid := r.PathParam("txid")
 		nodes := node.GetNodes()
+		if len(nodes) == 0 {
+			rest.Error(w, "nodes is not exist", http.StatusInternalServerError)
+			return
+		}
 		tx, err := getTxFromNodes(txid, nodes)
 		if err != nil {
-			rest.Error(w, "tx input value is invalid", http.StatusInternalServerError)
+			rest.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		txs := []*types.Tx{}
@@ -454,19 +453,18 @@ func main() {
 			return
 		}
 		txs := []*types.Tx{}
-		isError := false
 		nodes := node.GetNodes()
+		if len(nodes) == 0 {
+			rest.Error(w, "nodes is not exist", http.StatusInternalServerError)
+			return
+		}
 		for _, txid := range txids.Txids {
 			tx, err := getTxFromNodes(txid, nodes)
 			if err != nil {
 				log.Info(err)
-				isError = true
 				continue
 			}
 			txs = append(txs, tx)
-		}
-		if isError {
-			rest.Error(w, "getting tx error", http.StatusInternalServerError)
 		}
 		w.WriteHeader(http.StatusOK)
 		w.WriteJson(txs)
@@ -537,19 +535,18 @@ func main() {
 	log.Info(signal)
 }
 
-func getTx(addrs []string, txid string, count int) *types.Tx {
-	resolver := api.NewResolver("http://" + addrs[count])
+func getTx(addrs []string, txid string, index int) *types.Tx {
+	resolver := api.NewResolver("http://" + addrs[index])
 	resolver.SetTimeout(15 * time.Second)
 	txData := types.Tx{}
-	log.Infof("addr -> %s count %d", addrs[count], count)
+	log.Infof("addr -> %s index %d", addrs[index], index)
 	err := resolver.GetRequest("/rest/tx/"+txid+".json", &txData)
 	if err != nil {
-		if len(addrs) == count+1 {
-			log.Info(err)
+		if index == 0 {
 			return nil
 		}
-		count++
-		return getTx(addrs, txid, count)
+		index--
+		return getTx(addrs, txid, index)
 	}
 	return &txData
 }
