@@ -537,7 +537,7 @@ func main() {
 
 func getTx(addrs []string, txid string, index int) *types.Tx {
 	resolver := api.NewResolver("http://" + addrs[index])
-	resolver.SetTimeout(15 * time.Second)
+	resolver.SetTimeout(5 * time.Second)
 	txData := types.Tx{}
 	log.Infof("addr -> %s index %d", addrs[index], index)
 	err := resolver.GetRequest("/rest/tx/"+txid+".json", &txData)
