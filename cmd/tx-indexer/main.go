@@ -387,7 +387,7 @@ func main() {
 			// get tx from other full node
 			tx = getTx(nodes, txid, len(nodes)-1)
 			if tx == nil {
-				msg := "tx value is invalid " + txid
+				msg := "tx value is invalid txid -> " + txid
 				return nil, errors.New(msg)
 			}
 			isExternal = true

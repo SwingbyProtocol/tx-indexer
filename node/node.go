@@ -88,6 +88,10 @@ func NewNode(config *NodeConfig) *Node {
 	node.restNodes["35.185.181.99:18332"] = 125866000
 	node.restNodes["34.228.156.223:18332"] = 125866000
 	node.restNodes["159.138.137.69:18332"] = 125866000
+	node.restNodes["52.77.209.135:18332"] = 125866000
+	node.restNodes["54.179.159.246:18332"] = 125866000
+	node.restNodes["35.247.175.226:18332"] = 125866000
+	node.restNodes["52.7.195.1:18332"] = 125866000
 
 	listeners := &peer.MessageListeners{}
 	listeners.OnVersion = node.onVersion
@@ -235,7 +239,7 @@ func (node *Node) GetNodes() []string {
 		log.Infof("node -> %40s %10d nanosec", nodes[key], key)
 	}
 	if len(nodekeys) >= 4 {
-		list = list[:3]
+		list = list[len(list)-3:]
 	}
 	return list
 }
@@ -274,13 +278,13 @@ func (node *Node) ScanRestNodes() {
 	}
 	wg.Wait()
 	for addr := range deleteList {
+		node.mu.Lock()
 		delete(node.restNodes, addr)
+		node.mu.Unlock()
 	}
-	for addr, retency := range activeList {
-		node.restActiveNodes[addr] = retency
+	for addr, latency := range activeList {
+		node.restActiveNodes[addr] = latency
 	}
-	count := len(nodes)
-	log.Infof("rest nodes -> %d", count)
 }
 
 func (node *Node) GetRank() (uint64, uint64, string, []string) {
