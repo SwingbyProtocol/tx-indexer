@@ -235,7 +235,7 @@ func (node *Node) GetNodes() []string {
 		log.Infof("node -> %40s %10d nanosec", nodes[key], key)
 	}
 	if len(nodekeys) >= 4 {
-		list = list[3:]
+		list = list[:3]
 	}
 	return list
 }
