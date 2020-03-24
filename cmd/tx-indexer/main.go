@@ -421,8 +421,8 @@ func main() {
 				}
 				vout.Txs = []string{}
 			}
-			bc.TxChan() <- tx
-
+			// disabled cache for tx.
+			// bc.TxChan() <- tx
 		}
 		return tx, nil
 	}
