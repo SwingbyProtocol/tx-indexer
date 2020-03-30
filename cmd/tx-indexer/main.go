@@ -381,17 +381,17 @@ func main() {
 	apiConfig.Listeners.OnBroadcastTxWS = onBroadcastTxWS
 	// Add handler for REST
 	getTxFromNodes := func(txid string, nodes []string) (*types.Tx, error) {
-		tx, _ := bc.GetTx(txid)
+		//tx, _ := bc.GetTx(txid)
 		isExternal := false
+		//if tx == nil {
+		// get tx from other full node
+		tx := getTx(nodes, txid, len(nodes)-1)
 		if tx == nil {
-			// get tx from other full node
-			tx = getTx(nodes, txid, len(nodes)-1)
-			if tx == nil {
-				msg := "tx value is invalid txid -> " + txid
-				return nil, errors.New(msg)
-			}
-			isExternal = true
+			msg := "tx value is invalid txid -> " + txid
+			return nil, errors.New(msg)
 		}
+		isExternal = true
+		//}
 		for _, in := range tx.Vin {
 			if in.Coinbase != "" {
 				in.Addresses = []string{}
