@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net"
+	"net/url"
 	"sort"
 	"strconv"
 	"sync"
@@ -116,6 +117,11 @@ func NewNode(config *NodeConfig) *Node {
 }
 
 func (node *Node) Start() {
+	base, err := url.Parse(node.trustedPeer)
+	if err != nil {
+		log.Fatal(err)
+	}
+	node.restNodes[base.Host] = 125866001
 	go node.queryDNSSeeds()
 }
 
