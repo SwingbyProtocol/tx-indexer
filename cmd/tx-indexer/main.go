@@ -68,7 +68,7 @@ func main() {
 		TargetOutbound:   conf.P2PConfig.TargetOutbound,
 		UserAgentName:    "Tx-indexer",
 		UserAgentVersion: "1.0.0",
-		TrustedPeer:      conf.P2PConfig.ConnAddr,
+		TrustedPeer:      conf.RESTConfig.ConnAddr,
 		TxChan:           bc.TxChan(),
 		BlockChan:        bc.BlockChan(),
 	}
@@ -538,7 +538,7 @@ func main() {
 
 func getTx(addrs []string, txid string, index int) *types.Tx {
 	resolver := api.NewResolver("http://" + addrs[index])
-	resolver.SetTimeout(5 * time.Second)
+	resolver.SetTimeout(2 * time.Second)
 	txData := types.Tx{}
 	log.Infof("addr -> %s index %d", addrs[index], index)
 	err := resolver.GetRequest("/rest/tx/"+txid+".json", &txData)
