@@ -266,7 +266,7 @@ func (node *Node) ScanRestNodes() {
 			info := types.ChainInfo{}
 			start := time.Now().UnixNano()
 			err := resolver.GetRequest("/rest/chaininfo.json", &info)
-			if err != nil {
+			if err != nil || info.Blocks == 0 {
 				node.mu.Lock()
 				deleteList[addr] = true
 				node.mu.Unlock()
