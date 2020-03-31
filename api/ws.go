@@ -129,7 +129,7 @@ func (ws *Websocket) onhandler(w http.ResponseWriter, r *http.Request) {
 	// Send Hello msg
 	client.SendJSON(CreateMsgSuccessWS("", "", "Websocket connection is succesful", 0, []*types.Tx{}))
 	// Pubsub client
-	log.Info("New Client is connected, total: ", len(ws.pubsub.Clients))
+	log.Infof("New Client is connected, id: %s %s total: %d", client.ID, client.Connection.RemoteAddr().String(), len(ws.pubsub.Clients))
 
 	ticker := time.NewTicker(24 * time.Second)
 	defer ticker.Stop()
