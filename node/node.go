@@ -242,7 +242,7 @@ func (node *Node) GetNodes() []string {
 	sort.SliceStable(nodekeys, func(i, j int) bool { return nodekeys[i] > nodekeys[j] })
 	for _, key := range nodekeys {
 		list = append(list, nodes[key])
-		log.Infof("node -> %40s %10d nanosec", nodes[key], key)
+		log.Infof("node -> %40s %10d nsec", nodes[key], key)
 	}
 	if len(nodekeys) >= 4 {
 		list = list[len(list)-3:]
@@ -255,9 +255,11 @@ func (node *Node) ScanRestNodes() {
 	node.mu.RLock()
 	nodes := node.restNodes
 	node.mu.RUnlock()
-	deleteList := make(map[string]bool)
-	activeList := make(map[string]int)
 	blockHeights := make(map[string]int64)
+	if len(nodes) == 0 {
+		log.Info("nodes count is zero")
+		return
+	}
 	for addr := range nodes {
 		wg.Add(1)
 		go func(addr string) {
@@ -268,7 +270,7 @@ func (node *Node) ScanRestNodes() {
 			err := resolver.GetRequest("/rest/chaininfo.json", &info)
 			if err != nil || info.Blocks == 0 {
 				node.mu.Lock()
-				deleteList[addr] = true
+				delete(node.restNodes, addr)
 				node.mu.Unlock()
 				wg.Done()
 				return
@@ -283,14 +285,6 @@ func (node *Node) ScanRestNodes() {
 		}(addr)
 	}
 	wg.Wait()
-	for addr := range deleteList {
-		node.mu.Lock()
-		delete(node.restNodes, addr)
-		node.mu.Unlock()
-	}
-	for addr, latency := range activeList {
-		node.restActiveNodes[addr] = latency
-	}
 }
 
 func (node *Node) GetRank() (uint64, uint64, string, []string) {
@@ -360,7 +354,7 @@ func (node *Node) queryDNSSeeds() {
 	if len(node.ConnectedPeers()) < 17 {
 		go func() {
 			log.Info("start queryDNSSeeds")
-			time.Sleep(15 * time.Second)
+			time.Sleep(1 * time.Second)
 			node.queryDNSSeeds()
 		}()
 	}
