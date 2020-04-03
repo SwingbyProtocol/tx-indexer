@@ -261,8 +261,7 @@ func (node *Node) ScanRestNodes() {
 		log.Info("nodes count is zero")
 		return
 	}
-	for addr, lt := range nodes {
-		log.Info(addr, " ", lt)
+	for addr := range nodes {
 		wg.Add(1)
 		go func(addr string) {
 			resolver := api.NewResolver("http://" + addr)
@@ -273,6 +272,7 @@ func (node *Node) ScanRestNodes() {
 			if err != nil || info.Blocks == 0 {
 				node.mu.Lock()
 				delete(node.restNodes, addr)
+				delete(node.restActiveNodes, addr)
 				node.mu.Unlock()
 				wg.Done()
 				return
