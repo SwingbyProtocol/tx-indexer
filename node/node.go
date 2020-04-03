@@ -121,7 +121,9 @@ func (node *Node) Start() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	node.mu.Lock()
 	node.restNodes[base.Host] = 125866001
+	node.mu.Unlock()
 	go node.queryDNSSeeds()
 }
 
@@ -369,12 +371,10 @@ func (node *Node) addRandomNodes(addrs []string) {
 			continue
 		}
 
-		go func() {
-			httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
-			node.mu.Lock()
-			node.restNodes[httpTarget.String()] = 125866001
-			node.mu.Unlock()
-		}()
+		httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
+		node.mu.Lock()
+		node.restNodes[httpTarget.String()] = 125866001
+		node.mu.Unlock()
 
 		target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
 		dialer := net.Dialer{Timeout: DefaultNodeTimeout}
