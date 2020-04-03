@@ -255,12 +255,12 @@ func (node *Node) ScanRestNodes() {
 	node.mu.RLock()
 	nodes := node.restNodes
 	node.mu.RUnlock()
-	blockHeights := make(map[string]int64)
 	if len(nodes) == 0 {
 		log.Info("nodes count is zero")
 		return
 	}
-	for addr := range nodes {
+	for addr, lt := range nodes {
+		log.Info(addr, " ", lt)
 		wg.Add(1)
 		go func(addr string) {
 			resolver := api.NewResolver("http://" + addr)
@@ -279,7 +279,6 @@ func (node *Node) ScanRestNodes() {
 			latency := end - start
 			node.mu.Lock()
 			node.restActiveNodes[addr] = int(latency)
-			blockHeights[addr] = info.Blocks
 			node.mu.Unlock()
 			wg.Done()
 		}(addr)
