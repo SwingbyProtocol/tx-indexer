@@ -7,59 +7,56 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type RESTApi struct {
-	api       *rest.Api
-	listen    string
-	listeners *Listeners
+type Rest struct {
+	api     *rest.Api
+	listen  string
+	actions []*Action
 }
 
-func NewREST(conf *APIConfig) *RESTApi {
-	ra := &RESTApi{
-		api:       rest.NewApi(),
-		listen:    conf.RESTListen,
-		listeners: conf.Listeners,
+func NewREST(conf *APIConfig) *Rest {
+	re := &Rest{
+		api:     rest.NewApi(),
+		listen:  conf.ListenREST,
+		actions: conf.Actions,
 	}
-	ra.api.Use(&rest.CorsMiddleware{
+	re.api.Use(&rest.CorsMiddleware{
 		OriginValidator: func(origin string, request *rest.Request) bool {
 			return true
 		},
 	})
-	return ra
+	return re
 }
 
-func (ra *RESTApi) Start() {
-	if ra.listeners.OnKeep == nil {
-		ra.listeners.OnKeep = ra.OnKeep
+func (re *Rest) Start() {
+	routes := []*rest.Route{}
+	for _, action := range re.actions {
+		switch action.method {
+		case "REST:GET":
+			routes = append(routes, rest.Get(action.key, action.HandlerREST))
+			break
+		case "REST:POST":
+			routes = append(routes, rest.Post(action.key, action.HandlerREST))
+		default:
+			break
+		}
 	}
-	if ra.listeners.OnGetAddressIndex == nil {
-		ra.listeners.OnGetAddressIndex = ra.OnKeep
-	}
-	if ra.listeners.OnGetTx == nil {
-		ra.listeners.OnGetTx = ra.OnKeep
-	}
-	restRouter, err := rest.MakeRouter(
-		rest.Get("/keep", ra.listeners.OnKeep),
-		rest.Get("/txs/btc/mempool-txs", ra.listeners.OnGetMempool),
-		rest.Get("/txs/btc/:address", ra.listeners.OnGetAddressIndex),
-		rest.Get("/txs/btc/tx/:txid", ra.listeners.OnGetTx),
-		rest.Post("/txs/btc/multi-txs", ra.listeners.OnGetTxMulti),
-		rest.Post("/txs/btc/broadcast", ra.listeners.OnBroadcast),
-	)
+	// Default
+	routes = append(routes, rest.Get("/", onKeep))
+	restRouter, err := rest.MakeRouter(routes...)
 	if err != nil {
 		log.Fatal(err)
 	}
-	ra.api.SetApp(restRouter)
-
+	re.api.SetApp(restRouter)
 	go func() {
-		err := http.ListenAndServe(ra.listen, ra.api.MakeHandler())
+		err := http.ListenAndServe(re.listen, re.api.MakeHandler())
 		if err != nil {
 			log.Fatal(err)
 		}
 	}()
-	log.Infof("REST api listen: %s", ra.listen)
+	log.Infof("REST api listen: %s", re.listen)
 }
 
-func (ra *RESTApi) OnKeep(w rest.ResponseWriter, r *rest.Request) {
+func onKeep(w rest.ResponseWriter, r *rest.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.WriteJson("status OK")
 	return

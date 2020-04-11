@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Resolver struct {
@@ -16,15 +18,15 @@ type Resolver struct {
 	ContextTimeout time.Duration
 }
 
-func NewResolver(uri string) *Resolver {
+func NewResolver(uri string, conns int) *Resolver {
 	client := &http.Client{Transport: &http.Transport{
-		MaxIdleConnsPerHost: 100,
+		MaxIdleConnsPerHost: conns,
 	}}
-	client.Timeout = 20 * time.Second
+	client.Timeout = 4 * time.Second
 	resolver := &Resolver{
 		URI:            uri,
 		Client:         client,
-		ContextTimeout: 20 * time.Second,
+		ContextTimeout: 4 * time.Second,
 	}
 	return resolver
 }
@@ -79,6 +81,7 @@ func (r *Resolver) PostRequest(uri string, jsonBody string, res interface{}) err
 	reqWithDeadline := req.WithContext(ctx)
 	resp, err := r.Client.Do(reqWithDeadline)
 	if err != nil {
+		log.Println("post err:", err)
 		return err
 	}
 	decoder := json.NewDecoder(resp.Body)

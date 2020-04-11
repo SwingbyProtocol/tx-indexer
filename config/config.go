@@ -3,32 +3,33 @@ package config
 import (
 	"flag"
 
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
 const (
-	DefaultConenctPeer = "http://192.168.1.230:8332"
+	DefaultBTCNode = "http://192.168.1.230:8332"
 )
 
 // Config is app of conig
 type Config struct {
 	// Network parameters. Set mainnet, testnet, or regtest using this.
-	NodeConfig NodeConfig `mapstructure:"node" json:"node"`
-	P2PConfig  P2PConfig  `mapstructure:"p2p" json:"p2p"`
+	BTCConfig  BTCConfig  `mapstructure:"btc" json:"node"`
+	LogConfig  LogConfig  `mapstructure:"log" json:"log"`
 	RESTConfig RESTConfig `mapstructure:"rest" json:"rest"`
 	WSConfig   WSConfig   `mapstructure:"ws" json:"ws"`
 }
 
-type NodeConfig struct {
-	Testnet   bool   `mapstructure:"testnet" json:"testnet"`
-	LogLevel  string `mapstructure:"loglevel" json:"loglevel"`
-	PurneSize uint   `mapstructure:"prune" json:"prune"`
+type BTCConfig struct {
+	NodeAddr       string `mapstructure:"node" json:"node"`
+	TargetOutbound uint32 `mapstructure:"targetSize" json:"targetSize"`
+}
+
+type LogConfig struct {
+	LogLevel string `mapstructure:"level" json:"level"`
 }
 
 type P2PConfig struct {
-	Params         *chaincfg.Params
 	ConnAddr       string `mapstructure:"connect" json:"connect"`
 	TargetOutbound uint32 `mapstructure:"targetSize" json:"targetSize"`
 }
@@ -43,11 +44,9 @@ type WSConfig struct {
 }
 
 func init() {
-	pflag.Bool("node.testnet", false, "Using testnet")
-	pflag.IntP("node.prune", "s", 12, "Proune block size of this app")
-	pflag.String("node.loglevel", "info", "The loglevel")
-	// Bind rest flags
-	pflag.StringP("rest.connect", "c", DefaultConenctPeer, "The address for connect block finalizer")
+	pflag.String("log.level", "info", "The log level")
+	// Bind btc configs
+	pflag.StringP("btc.node", "c", DefaultBTCNode, "The address for connect block finalizer")
 	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
 	// Bind p2p flags
 	pflag.String("p2p.connect", "", "The address for connect p2p network")
@@ -64,11 +63,6 @@ func NewDefaultConfig() (*Config, error) {
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, err
-	}
-	if config.NodeConfig.Testnet {
-		config.P2PConfig.Params = &chaincfg.TestNet3Params
-	} else {
-		config.P2PConfig.Params = &chaincfg.MainNetParams
 	}
 	return &config, nil
 }
