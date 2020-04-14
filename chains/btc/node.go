@@ -1,18 +1,14 @@
-package node
+package btc
 
 import (
 	"bytes"
 	"encoding/hex"
 	"errors"
 	"net"
-	"net/url"
-	"sort"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/api"
-	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -23,6 +19,8 @@ import (
 )
 
 var (
+	DefualtNodeBootstrapCount = 17
+
 	DefaultNodeAddTimes = 4
 
 	DefaultNodeTimeout = 5 * time.Second
@@ -31,68 +29,46 @@ var (
 )
 
 type NodeConfig struct {
-	// The network parameters to use
-	Params *chaincfg.Params
+	IsTestnet bool
 	// The target number of outbound peers. Defaults to 10.
 	TargetOutbound uint32
-	// UserAgentName specifies the user agent name to advertise.  It is
+	// UserAgentName specifies the user agent name to advertise. It is
 	// highly recommended to specify this value.
 	UserAgentName string
 	// UserAgentVersion specifies the user agent version to advertise.  It
 	// is highly recommended to specify this value and that it follows the
 	// form "major.minor.revision" e.g. "2.6.41".
 	UserAgentVersion string
-	// If this field is not nil the PeerManager will only connect to this address
-	TrustedPeer string
 	// Chan for Tx
-	TxChan chan *types.Tx
+	TxChan chan *Tx
 	// Chan for Block
-	BlockChan chan *wire.MsgBlock
+	BChan chan *Block
 }
 
 type Node struct {
-	peerConfig      *peer.Config
-	mu              *sync.RWMutex
-	receivedTxs     map[string]bool
-	restNodes       map[string]int
-	restActiveNodes map[string]int
-	targetOutbound  uint32
-	connectedRanks  map[string]uint64
-	connectedPeers  map[string]*peer.Peer
-	invtxs          map[string]*wire.MsgTx
-	trustedPeer     string
-	txChan          chan *types.Tx
-	blockChan       chan *wire.MsgBlock
+	start          bool
+	peerConfig     *peer.Config
+	mu             *sync.RWMutex
+	receivedTxs    map[string]bool
+	targetOutbound uint32
+	connectedRanks map[string]uint64
+	connectedPeers map[string]*peer.Peer
+	invtxs         map[string]*wire.MsgTx
+	txChan         chan *Tx
+	bChan          chan *Block
 }
 
 func NewNode(config *NodeConfig) *Node {
 	node := &Node{
-		mu:              new(sync.RWMutex),
-		receivedTxs:     make(map[string]bool),
-		restActiveNodes: make(map[string]int),
-		restNodes:       make(map[string]int),
-		targetOutbound:  config.TargetOutbound,
-		connectedRanks:  make(map[string]uint64),
-		connectedPeers:  make(map[string]*peer.Peer),
-		invtxs:          make(map[string]*wire.MsgTx),
-		trustedPeer:     config.TrustedPeer,
-		txChan:          config.TxChan,
-		blockChan:       config.BlockChan,
+		mu:             new(sync.RWMutex),
+		receivedTxs:    make(map[string]bool),
+		targetOutbound: config.TargetOutbound,
+		connectedRanks: make(map[string]uint64),
+		connectedPeers: make(map[string]*peer.Peer),
+		invtxs:         make(map[string]*wire.MsgTx),
+		txChan:         config.TxChan,
+		bChan:          config.BChan,
 	}
-	// Override node discover times
-	if config.Params.Name == "testnet3" {
-		DefaultNodeAddTimes = 16
-		DefaultNodeRankSize = 100
-	}
-	// Add bootstrap nodes
-	node.restNodes["54.254.139.68:18332"] = 125866000
-	node.restNodes["35.185.181.99:18332"] = 125866000
-	node.restNodes["34.228.156.223:18332"] = 125866000
-	node.restNodes["159.138.137.69:18332"] = 125866000
-	node.restNodes["52.77.209.135:18332"] = 125866000
-	node.restNodes["54.179.159.246:18332"] = 125866000
-	node.restNodes["35.247.175.226:18332"] = 125866000
-	node.restNodes["52.7.195.1:18332"] = 125866000
 
 	listeners := &peer.MessageListeners{}
 	listeners.OnVersion = node.onVersion
@@ -106,43 +82,28 @@ func NewNode(config *NodeConfig) *Node {
 	node.peerConfig = &peer.Config{
 		UserAgentName:    config.UserAgentName,
 		UserAgentVersion: config.UserAgentVersion,
-		ChainParams:      config.Params,
 		DisableRelayTx:   false,
 		TrickleInterval:  time.Second * 10,
 		Listeners:        *listeners,
 	}
-	log.Infof("Using network -> %s", config.Params.Name)
-	log.Infof("Using settings -> DefaultNodeAddTimes: %d DefaultNodeRankSize: %d", DefaultNodeAddTimes, DefaultNodeRankSize)
+	node.peerConfig.ChainParams = &chaincfg.MainNetParams
+	if config.IsTestnet {
+		node.peerConfig.ChainParams = &chaincfg.TestNet3Params
+		DefaultNodeAddTimes = 16
+		DefaultNodeRankSize = 100
+	}
+	log.Infof("Using network -> %s", node.peerConfig.ChainParams.Net.String())
+	log.Infof("Using settings -> DefaultNodeAddTimes: %d DefaultNodeRankSize: %d TargetOutbound %d", DefaultNodeAddTimes, DefaultNodeRankSize, node.targetOutbound)
 	return node
 }
 
 func (node *Node) Start() {
-	base, err := url.Parse(node.trustedPeer)
-	if err != nil {
-		log.Fatal(err)
-	}
-	node.mu.Lock()
-	node.restNodes[base.Host] = 125866001
-	node.mu.Unlock()
+	node.start = true
 	go node.queryDNSSeeds()
 }
 
 func (node *Node) Stop() {
-	node.mu.Lock()
-	defer node.mu.Unlock()
-	wg := new(sync.WaitGroup)
-	peers := node.ConnectedPeers()
-	for _, peer := range peers {
-		wg.Add(1)
-		p := peer
-		go func() {
-			p.Disconnect()
-			p.WaitForDisconnect()
-			wg.Done()
-		}()
-	}
-	node.connectedPeers = make(map[string]*peer.Peer)
-	wg.Wait()
+	node.start = false
 }
 
 func (node *Node) ValidateTx(tx *btcutil.Tx) error {
@@ -174,13 +135,13 @@ func (node *Node) DecodeToTx(hexStr string) (*btcutil.Tx, error) {
 	return tx, nil
 }
 
-func (node *Node) AddInvTx(txid string, msgTx *wire.MsgTx) {
+func (node *Node) AddInvMsgTx(txid string, msgTx *wire.MsgTx) {
 	node.mu.Lock()
 	node.invtxs[txid] = msgTx
 	node.mu.Unlock()
 }
 
-func (node *Node) GetInvTx(txid string) *wire.MsgTx {
+func (node *Node) GetInvMsgTx(txid string) *wire.MsgTx {
 	node.mu.RLock()
 	msg := node.invtxs[txid]
 	node.mu.RUnlock()
@@ -199,7 +160,7 @@ func (node *Node) RemoveInvTx(txid string) error {
 
 func (node *Node) BroadcastTxInv(txid string) {
 	// Get msgTx
-	msgTx := node.GetInvTx(txid)
+	msgTx := node.GetInvMsgTx(txid)
 	// Add new tx to invtxs
 	var invType wire.InvType
 	if msgTx.HasWitness() {
@@ -214,14 +175,14 @@ func (node *Node) BroadcastTxInv(txid string) {
 	log.Infof("Broadcast inv msg success: %s", txid)
 }
 
-func (node *Node) ConnectedPeer(addr string) *peer.Peer {
+func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
 	node.mu.RLock()
 	peer := node.connectedPeers[addr]
 	node.mu.RUnlock()
 	return peer
 }
 
-func (node *Node) ConnectedPeers() []*peer.Peer {
+func (node *Node) GetConnectedPeers() []*peer.Peer {
 	node.mu.RLock()
 	defer node.mu.RUnlock()
 	ret := []*peer.Peer{}
@@ -229,63 +190,6 @@ func (node *Node) ConnectedPeers() []*peer.Peer {
 		ret = append(ret, p)
 	}
 	return ret
-}
-
-func (node *Node) GetNodes() []string {
-	node.mu.RLock()
-	defer node.mu.RUnlock()
-	list := []string{}
-	nodes := map[int]string{}
-	nodekeys := []int{}
-	for key, val := range node.restActiveNodes {
-		nodes[val] = key
-		nodekeys = append(nodekeys, val)
-	}
-	sort.SliceStable(nodekeys, func(i, j int) bool { return nodekeys[i] > nodekeys[j] })
-	for _, key := range nodekeys {
-		list = append(list, nodes[key])
-		log.Infof("node -> %40s %10d nsec", nodes[key], key)
-	}
-	if len(nodekeys) >= 4 {
-		list = list[len(list)-3:]
-	}
-	return list
-}
-
-func (node *Node) ScanRestNodes() {
-	wg := new(sync.WaitGroup)
-	node.mu.RLock()
-	nodes := node.restNodes
-	node.mu.RUnlock()
-	if len(nodes) == 0 {
-		log.Info("nodes count is zero")
-		return
-	}
-	for addr := range nodes {
-		wg.Add(1)
-		go func(addr string) {
-			resolver := api.NewResolver("http://" + addr)
-			resolver.SetTimeout(12 * time.Second)
-			info := types.ChainInfo{}
-			start := time.Now().UnixNano()
-			err := resolver.GetRequest("/rest/chaininfo.json", &info)
-			if err != nil || info.Blocks == 0 {
-				node.mu.Lock()
-				delete(node.restNodes, addr)
-				delete(node.restActiveNodes, addr)
-				node.mu.Unlock()
-				wg.Done()
-				return
-			}
-			end := time.Now().UnixNano()
-			latency := end - start
-			node.mu.Lock()
-			node.restActiveNodes[addr] = int(latency)
-			node.mu.Unlock()
-			wg.Done()
-		}(addr)
-	}
-	wg.Wait()
 }
 
 func (node *Node) GetRank() (uint64, uint64, string, []string) {
@@ -296,14 +200,14 @@ func (node *Node) GetRank() (uint64, uint64, string, []string) {
 }
 
 func (node *Node) AddPeer(conn net.Conn) {
-	conns := len(node.ConnectedPeers())
+	conns := len(node.GetConnectedPeers())
 	if uint32(conns) >= node.targetOutbound {
 		log.Debugf("peer count is enough %d", conns)
 		conn.Close()
 		return
 	}
 	addr := conn.RemoteAddr().String()
-	if node.ConnectedPeer(addr) != nil {
+	if node.GetConnectedPeer(addr) != nil {
 		log.Debugf("peer is already joined %s", addr)
 		conn.Close()
 		return
@@ -330,6 +234,8 @@ func (node *Node) AddPeer(conn net.Conn) {
 
 // Query the DNS seeds and pass the addresses into the address manager.
 func (node *Node) queryDNSSeeds() {
+	log.Infof("Conncted peers -> %d", len(node.GetConnectedPeers()))
+	log.Infof("Using network --> %s", node.peerConfig.ChainParams.Name)
 	wg := new(sync.WaitGroup)
 	for _, seed := range node.peerConfig.ChainParams.DNSSeeds {
 		wg.Add(1)
@@ -346,18 +252,21 @@ func (node *Node) queryDNSSeeds() {
 		}(seed.Host)
 	}
 	wg.Wait()
-	log.Infof("Conncted peers -> %d", len(node.ConnectedPeers()))
-	log.Infof("Using network --> %s", node.peerConfig.ChainParams.Name)
-
-	// rescan all of restnodes
-	node.ScanRestNodes()
-
-	if len(node.ConnectedPeers()) < 17 {
-		go func() {
-			log.Info("start queryDNSSeeds")
-			time.Sleep(1 * time.Second)
-			node.queryDNSSeeds()
-		}()
+	if len(node.GetConnectedPeers()) < DefualtNodeBootstrapCount {
+		//time.Sleep(2 * time.Second)
+		if !node.start {
+			peers := node.GetConnectedPeers()
+			for _, p := range peers {
+				p.Disconnect()
+			}
+			node.mu.Lock()
+			node.connectedPeers = make(map[string]*peer.Peer)
+			node.mu.Unlock()
+			log.Info("STOP: nodes subscriber stopped")
+			return
+		}
+		log.Info("start queryDNSSeeds")
+		go node.queryDNSSeeds()
 	}
 }
 
@@ -371,11 +280,6 @@ func (node *Node) addRandomNodes(addrs []string) {
 			continue
 		}
 
-		httpTarget := &net.TCPAddr{IP: net.ParseIP(addr), Port: 18332}
-		node.mu.Lock()
-		node.restNodes[httpTarget.String()] = 125866001
-		node.mu.Unlock()
-
 		target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
 		dialer := net.Dialer{Timeout: DefaultNodeTimeout}
 		conn, err := dialer.Dial("tcp", target.String())
@@ -388,7 +292,7 @@ func (node *Node) addRandomNodes(addrs []string) {
 }
 
 func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.MessageEncoding) error {
-	msgTx := node.GetInvTx(hash.String())
+	msgTx := node.GetInvMsgTx(hash.String())
 	if msgTx == nil {
 		return errors.New("Unable to fetch tx from invtxs")
 	}
@@ -398,7 +302,7 @@ func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.Message
 }
 
 func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
-	peers := node.ConnectedPeers()
+	peers := node.GetConnectedPeers()
 	if len(peers) > 21 {
 		peers = peers[:20]
 	}

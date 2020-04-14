@@ -1,4 +1,11 @@
-package types
+package btc
+
+type ChainInfo struct {
+	Chain         string `json:"chain"`
+	Blocks        int64  `json:"blocks"`
+	Headers       int64  `json:"headers"`
+	Bestblockhash string `json:"bestblockhash"`
+}
 
 type Block struct {
 	Hash              string `json:"hash"`
@@ -9,16 +16,6 @@ type Block struct {
 	Time              int64  `json:"time"`
 	Mediantime        int64  `json:"mediantime"`
 	Previousblockhash string `json:"previousblockhash"`
-}
-
-type HeightHash struct {
-	BlockHash string `json:"blockhash"`
-}
-
-type BlockTxs struct {
-	Hash   string   `json:"hash"`
-	Height int64    `json:"height"`
-	Txs    []string `json:"tx"`
 }
 
 func (block *Block) GetTxIDs() []string {

@@ -4,13 +4,13 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/SwingbyProtocol/tx-indexer/config"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 )
 
 func TestScriptToPubkeyInfo(t *testing.T) {
 
-	conf, _ := config.NewDefaultConfig()
+	mainetParams := chaincfg.MainNetParams
 
 	testPubKeyHash := "76a9141a2553392ba26892c4d5eba55cc23ecbd81350ad88ac"
 
@@ -22,7 +22,7 @@ func TestScriptToPubkeyInfo(t *testing.T) {
 
 	script, _ := hex.DecodeString(testPubKeyHash)
 
-	spi, _ := ScriptToPubkeyInfo(script, conf.P2PConfig.Params)
+	spi, _ := ScriptToPubkeyInfo(script, &mainetParams)
 
 	// TODO: support ASM
 	if spi.Asm != "" {

@@ -51,18 +51,6 @@ func (ps *PubSub) RemoveClient(client *Client) *PubSub {
 	return ps
 }
 
-func (ps *PubSub) GetTopicSubs(topic string, client *Client) []*Subscription {
-	var subscriptionList []*Subscription
-	for _, subs := range ps.subscriptions {
-		for _, sub := range subs {
-			if sub.topic == topic {
-				subscriptionList = append(subscriptionList, sub)
-			}
-		}
-	}
-	return subscriptionList
-}
-
 func (ps *PubSub) GetClientSubs(topic string, client *Client) []*Subscription {
 	var subscriptionList []*Subscription
 	for _, sub := range ps.subscriptions[client.id] {
@@ -88,7 +76,6 @@ func (ps *PubSub) Subscribe(client *Client, topic string) error {
 }
 
 func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {
-	//clientSubscriptions := ps.GetSubscriptions(topic, client)
 	for _, subs := range ps.subscriptions {
 		for index, sub := range subs {
 			if sub.client.id == client.id && sub.topic == topic {
@@ -100,7 +87,7 @@ func (ps *PubSub) Unsubscribe(client *Client, topic string) *PubSub {
 }
 
 func (ps *PubSub) Publish(topic string, msg []byte) {
-	subscriptions := ps.GetTopicSubs(topic, nil)
+	subscriptions := ps.getTopicSubs(topic, nil)
 	for _, sub := range subscriptions {
 		log.Infof("Sending to client id %s msg is %s \n", sub.client.id, msg[:30])
 		//sub.Client.Connection.WriteMessage(1, message)
@@ -109,12 +96,24 @@ func (ps *PubSub) Publish(topic string, msg []byte) {
 }
 
 func (ps *PubSub) PublishJSON(topic string, data interface{}) {
-	subscriptions := ps.GetTopicSubs(topic, nil)
+	subscriptions := ps.getTopicSubs(topic, nil)
 	for _, sub := range subscriptions {
 		log.Infof("Sending to client id %s \n", sub.client.id)
 		//sub.Client.Connection.WriteMessage(1, message)
 		sub.client.SendJSON(data)
 	}
+}
+
+func (ps *PubSub) getTopicSubs(topic string, client *Client) []*Subscription {
+	var subscriptionList []*Subscription
+	for _, subs := range ps.subscriptions {
+		for _, sub := range subs {
+			if sub.topic == topic {
+				subscriptionList = append(subscriptionList, sub)
+			}
+		}
+	}
+	return subscriptionList
 }
 
 func (ps *PubSub) PublishPing(writeWait time.Duration) {

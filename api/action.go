@@ -8,10 +8,10 @@ type Action struct {
 	key         string
 	method      string
 	HandlerREST func(w rest.ResponseWriter, r *rest.Request)
-	HandlerWS   func(c *Client, r *Request)
+	HandlerWS   func(c *Client, r *MsgWsRequest)
 }
 
-func NewWatch(key string, handler func(c *Client, r *Request)) *Action {
+func NewWatch(key string, handler func(c *Client, r *MsgWsRequest)) *Action {
 	ac := &Action{
 		key:       key,
 		method:    "WS:",

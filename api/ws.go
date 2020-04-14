@@ -97,7 +97,7 @@ func (ws *Websocket) mainHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (ws *Websocket) onAction(c *Client, msg []byte) {
-	req := Request{}
+	req := MsgWsRequest{}
 	err := json.Unmarshal(msg, &req)
 	if err != nil {
 		c.SendJSON(NewErrorResponse("", err.Error()))

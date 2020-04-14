@@ -1,10 +1,9 @@
-package node
+package btc
 
 import (
 	"net"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
@@ -95,7 +94,7 @@ func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
 		// Remove end peers
 		if len(olders) > 2 {
 			for i := 0; i < 2; i++ {
-				peer := node.ConnectedPeer(olders[i])
+				peer := node.GetConnectedPeer(olders[i])
 				if peer != nil {
 					log.Infof("Force disconnect... %s", peer.Addr())
 					peer.Disconnect()
@@ -110,15 +109,16 @@ func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
 		return
 	}
 	node.addReceived(txHash)
-	tx := types.MsgTxToTx(msg, node.peerConfig.ChainParams)
+	tx := MsgTxToTx(msg, node.peerConfig.ChainParams)
 	go func() {
 		node.txChan <- &tx
 	}()
 }
 
 func (node *Node) onBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
+	block := MsgBlockToBlock(msg, node.peerConfig.ChainParams)
 	go func() {
-		node.blockChan <- msg
+		node.bChan <- &block
 	}()
 }
 

@@ -22,7 +22,8 @@ type Config struct {
 
 type BTCConfig struct {
 	NodeAddr       string `mapstructure:"node" json:"node"`
-	TargetOutbound uint32 `mapstructure:"targetSize" json:"targetSize"`
+	Testnet        bool   `mapstructure:"testnet" json:"testnet`
+	TargetOutbound uint32 `mapstructure:"nodeSize" json:"targetSize"`
 }
 
 type LogConfig struct {
@@ -44,13 +45,16 @@ type WSConfig struct {
 }
 
 func init() {
+	// Logger
 	pflag.String("log.level", "info", "The log level")
-	// Bind btc configs
-	pflag.StringP("btc.node", "c", DefaultBTCNode, "The address for connect block finalizer")
+	// Network
+	pflag.Bool("btc.testnet", false, "This is a btc testnet")
+	// The trusted btc node
+	pflag.String("btc.node", DefaultBTCNode, "The address for connect block finalizer")
+	// The target number of outbound peers. Defaults to 25.
+	pflag.Int("btc.nodeSize", 25, "The maximum node count for connect p2p")
+
 	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
-	// Bind p2p flags
-	pflag.String("p2p.connect", "", "The address for connect p2p network")
-	pflag.Int("p2p.targetSize", 25, "The maximum node count for connect p2p")
 	// Bind ws flags
 	pflag.StringP("ws.listen", "w", "0.0.0.0:9099", "The listen address for Websocket API")
 }
