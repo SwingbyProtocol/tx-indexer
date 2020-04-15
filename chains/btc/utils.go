@@ -66,6 +66,7 @@ func btcTransactionsToChainTransactions(curHeight int64, txs []Tx, timeFromUnix,
 		// try our best to figure out what the applicable vIn address is
 		fundingVIn := tx.Vin[0]
 		for _, vIn := range tx.Vin {
+			log.Info(vIn)
 			if 0 < len(vIn.Addresses) && vIn.Addresses[0] != "not exist" {
 				fundingVIn = vIn
 				break
@@ -92,16 +93,7 @@ func btcTransactionsToChainTransactions(curHeight int64, txs []Tx, timeFromUnix,
 				(0 < timeToUnix && timeToUnix < txTime) {
 				continue
 			}
-			//val, err := common.NewAmountFromInt(vOut.Value)
-			//if err != nil {
-			//	log.Logger.Warningf("TX error decoding output amount: %s, %s", vOut.Value, err)
-			//	continue
-			//}
-			//if len(vOut.Addresses) > 1 {
-			//	log.Logger.Warningf("TX %s output contains more than one address: %v. only address 0 will be used.",
-			//		tx.TxId, vOut)
-			//}
-			// TODO: this is best effort for now; improve it later
+
 			for _, vIn := range tx.Vin {
 				if vIn.Value == vOut.Value {
 					fundingVIn = vIn
@@ -118,12 +110,14 @@ func btcTransactionsToChainTransactions(curHeight int64, txs []Tx, timeFromUnix,
 			if 0 < confirms {
 				confirms++ // count its including block as one confirmation
 			}
+			amount, _ := common.NewAmountFromFloat64(vOut.Value.(float64))
+
 			log.Debugf("TX %s confirms: %d", tx.Txid, confirms)
 			newTxs = append(newTxs, common.Transaction{
 				TxID:          strings.ToLower(tx.Txid),
 				From:          fundingVIn.Addresses[0], // TODO: may be multiple addresses for multisig transactions
 				To:            vOut.Addresses[0],       // TODO: may be multiple addresses for multisig transactions
-				Amount:        vOut.Value.(int64),
+				Amount:        amount,
 				Timestamp:     time.Unix(txTime, 0),
 				Currency:      common.BTC,
 				Confirmations: confirms,

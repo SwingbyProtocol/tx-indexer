@@ -51,7 +51,7 @@ func main() {
 
 	btcKeeper.Start()
 
-	btcKeeper.StartNode()
+	//btcKeeper.StartNode()
 
 	// Define API config
 	// Define REST and WS api listener address

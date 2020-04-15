@@ -47,7 +47,7 @@ type WSConfig struct {
 func init() {
 	// Logger
 	pflag.String("log.level", "info", "The log level")
-	// Network
+	// Set BTC Network
 	pflag.Bool("btc.testnet", false, "This is a btc testnet")
 	// The trusted btc node
 	pflag.String("btc.node", DefaultBTCNode, "The address for connect block finalizer")

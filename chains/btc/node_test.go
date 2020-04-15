@@ -14,7 +14,6 @@ func TestNode(t *testing.T) {
 		TargetOutbound:   25,
 		UserAgentName:    "Tx-indexer",
 		UserAgentVersion: "1.0.0",
-		TrustedNode:      "192.168.1.1",
 		TxChan:           txChan,
 		BChan:            BChan,
 	}
