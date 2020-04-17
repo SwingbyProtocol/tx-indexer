@@ -8,6 +8,7 @@ require (
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/btcsuite/btcutil v1.0.2
 	github.com/btcsuite/btcwallet v0.11.0 // indirect
+	github.com/ethereum/go-ethereum v1.9.13
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.2
 	github.com/rs/zerolog v1.18.0 // indirect

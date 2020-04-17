@@ -65,10 +65,10 @@ func (r *Resolver) GetRequest(query string, res interface{}) error {
 	return nil
 }
 
-func (r *Resolver) PostRequest(uri string, jsonBody string, res interface{}) error {
+func (r *Resolver) PostRequest(query string, jsonBody string, res interface{}) error {
 	req, err := http.NewRequest(
 		"POST",
-		uri,
+		r.URI+query,
 		bytes.NewBuffer([]byte(jsonBody)),
 	)
 	if err != nil {
