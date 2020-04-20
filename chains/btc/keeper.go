@@ -1,11 +1,11 @@
 package btc
 
 import (
-	"sort"
 	"sync"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/types"
+	"github.com/SwingbyProtocol/tx-indexer/common"
+	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/ant0ine/go-json-rest/rest"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -24,10 +24,10 @@ type Keeper struct {
 }
 
 type State struct {
-	InTxsMempool  []types.Transaction `json:"inTxsMempool"`
-	InTxs         []types.Transaction `json:"inTxs"`
-	OutTxsMempool []types.Transaction `json:"outTxsMempool"`
-	OutTxs        []types.Transaction `json:"outTxs"`
+	InTxsMempool  []common.Transaction `json:"inTxsMempool"`
+	InTxs         []common.Transaction `json:"inTxs"`
+	OutTxsMempool []common.Transaction `json:"outTxsMempool"`
+	OutTxs        []common.Transaction `json:"outTxs"`
 }
 
 func NewKeeper(url string, isTestnet bool) *Keeper {
@@ -100,7 +100,7 @@ func (k *Keeper) Start() {
 		log.Fatal(err)
 	}
 	// Every call try to store latest 5 blocks
-	k.ticker = time.NewTicker(60 * time.Second)
+	k.ticker = time.NewTicker(40 * time.Second)
 	k.processKeep()
 	go func() {
 		for {
@@ -122,7 +122,7 @@ func (k *Keeper) processKeep() {
 	addr := k.GetAddr().EncodeAddress()
 	k.mu.RUnlock()
 	// ... incoming BTC txs (mempool)
-	btcInTxsMempool, err := k.client.GetMempoolTransactions(types.TxQueryParams{
+	btcInTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
 		Address: addr,
 		Type:    TxTypeReceived,
 		Mempool: true,
@@ -131,7 +131,7 @@ func (k *Keeper) processKeep() {
 		log.Info(err)
 	}
 	// ... incoming BTC txs
-	btcInTxs, err := k.client.GetTransactions(types.TxQueryParams{
+	btcInTxs, err := k.client.GetTransactions(common.TxQueryParams{
 		Address:  addr,
 		Type:     TxTypeReceived,
 		TimeFrom: fromTime.Unix(),
@@ -141,7 +141,7 @@ func (k *Keeper) processKeep() {
 		log.Info(err)
 	}
 	// ... outgoing BTC txs (mempool)
-	btcOutTxsMempool, err := k.client.GetMempoolTransactions(types.TxQueryParams{
+	btcOutTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
 		Address: addr,
 		Type:    TxTypeSend,
 		Mempool: true,
@@ -150,7 +150,7 @@ func (k *Keeper) processKeep() {
 		log.Info(err)
 	}
 	// ... outgoing BTC txs
-	btcOutTxs, err := k.client.GetTransactions(types.TxQueryParams{
+	btcOutTxs, err := k.client.GetTransactions(common.TxQueryParams{
 		Address:  addr,
 		Type:     TxTypeSend,
 		TimeFrom: fromTime.Unix(),
@@ -159,10 +159,10 @@ func (k *Keeper) processKeep() {
 	if err != nil {
 		log.Info(err)
 	}
-	sortTx(btcInTxsMempool)
-	sortTx(btcInTxs)
-	sortTx(btcOutTxsMempool)
-	sortTx(btcOutTxs)
+	utils.SortTx(btcInTxsMempool)
+	utils.SortTx(btcInTxs)
+	utils.SortTx(btcOutTxsMempool)
+	utils.SortTx(btcOutTxs)
 
 	k.mu.Lock()
 	k.Txs.InTxsMempool = btcInTxsMempool
@@ -173,8 +173,8 @@ func (k *Keeper) processKeep() {
 }
 
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
-	hex := types.BroadcastParams{}
-	res := types.BroadcastResponse{
+	hex := common.BroadcastParams{}
+	res := common.BroadcastResponse{
 		Result: false,
 	}
 	err := r.DecodeJsonPayload(&hex)
@@ -232,9 +232,4 @@ func (k *Keeper) StartNode() {
 
 func (k *Keeper) Stop() {
 	k.ticker.Stop()
-}
-
-func sortTx(txs []types.Transaction) {
-	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Serialize() < txs[j].Serialize() })
-	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Timestamp.UnixNano() < txs[j].Timestamp.UnixNano() })
 }

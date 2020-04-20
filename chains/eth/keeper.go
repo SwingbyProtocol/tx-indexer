@@ -1,13 +1,17 @@
 package eth
 
 import (
-	"sort"
+	"context"
+	"encoding/hex"
 	"sync"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/types"
+	"github.com/SwingbyProtocol/tx-indexer/common"
+	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/ant0ine/go-json-rest/rest"
-	"github.com/ethereum/go-ethereum/common"
+	eth_common "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,17 +19,17 @@ type Keeper struct {
 	mu        *sync.RWMutex
 	client    *Client
 	ticker    *time.Ticker
-	tokenAddr common.Address
-	watchAddr common.Address
+	tokenAddr eth_common.Address
+	watchAddr eth_common.Address
 	tesnet    bool
 	Txs       *State
 }
 
 type State struct {
-	InTxsMempool  []types.Transaction `json:"inTxsMempool"`
-	InTxs         []types.Transaction `json:"inTxs"`
-	OutTxsMempool []types.Transaction `json:"outTxsMempool"`
-	OutTxs        []types.Transaction `json:"outTxs"`
+	InTxsMempool  []common.Transaction `json:"inTxsMempool"`
+	InTxs         []common.Transaction `json:"inTxs"`
+	OutTxsMempool []common.Transaction `json:"outTxsMempool"`
+	OutTxs        []common.Transaction `json:"outTxs"`
 }
 
 func NewKeeper(url string, isTestnet bool) *Keeper {
@@ -40,19 +44,19 @@ func NewKeeper(url string, isTestnet bool) *Keeper {
 }
 
 func (k *Keeper) StartReScanAddr(addr string, timestamp int64) error {
-	// set rescan
+	// TODO: set rescan
 	return nil
 }
 
 func (k *Keeper) SetTokenAndAddr(token string, addr string) error {
 	k.mu.Lock()
-	k.tokenAddr = common.HexToAddress(token)
-	k.watchAddr = common.HexToAddress(addr)
+	k.tokenAddr = eth_common.HexToAddress(token)
+	k.watchAddr = eth_common.HexToAddress(addr)
 	k.mu.Unlock()
 	return nil
 }
 
-func (k *Keeper) GetAddr() common.Address {
+func (k *Keeper) GetAddr() eth_common.Address {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	return k.watchAddr
@@ -65,11 +69,10 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) Start() {
-	if k.GetAddr().String() == new(common.Address).String() {
+	if k.GetAddr().String() == new(eth_common.Address).String() {
 		log.Fatal("Error: eth address is not set")
 	}
-	// Every call try to store latest 5 blocks
-	k.ticker = time.NewTicker(12 * time.Second)
+	k.ticker = time.NewTicker(15 * time.Second)
 	k.processKeep()
 	go func() {
 		for {
@@ -81,18 +84,45 @@ func (k *Keeper) Start() {
 	}()
 }
 
+func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
+	req := common.BroadcastParams{}
+	res := common.BroadcastResponse{
+		Result: false,
+	}
+	err := r.DecodeJsonPayload(&req)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	var tx *types.Transaction
+	rawtx, err := hex.DecodeString(req.HEX)
+	rlp.DecodeBytes(rawtx, &tx)
+	err = k.client.SendTransaction(context.Background(), tx)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	res.TxHash = tx.Hash().String()
+	res.Result = true
+	res.Msg = "success"
+	w.WriteJson(res)
+}
+
 func (k *Keeper) processKeep() {
 	//fromTime := time.Now().Add(-78 * time.Hour)
 	//toTime := time.Now()
 
 	inTxsMempool, outTxsMempool := k.client.GetMempoolTxs(k.tokenAddr, k.watchAddr)
-
 	inTxs, outTxs := k.client.GetTxs(k.tokenAddr, k.watchAddr)
 
-	sortTx(inTxsMempool)
-	sortTx(inTxs)
-	sortTx(outTxsMempool)
-	sortTx(outTxs)
+	utils.SortTx(inTxsMempool)
+	utils.SortTx(inTxs)
+	utils.SortTx(outTxsMempool)
+	utils.SortTx(outTxs)
 
 	k.mu.Lock()
 	k.Txs.InTxsMempool = inTxsMempool
@@ -104,9 +134,4 @@ func (k *Keeper) processKeep() {
 
 func (k *Keeper) Stop() {
 	k.ticker.Stop()
-}
-
-func sortTx(txs []types.Transaction) {
-	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Serialize() < txs[j].Serialize() })
-	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Timestamp.UnixNano() < txs[j].Timestamp.UnixNano() })
 }

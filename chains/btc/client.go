@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/types"
+	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -101,7 +101,7 @@ func (c *Client) FindAndSaveSinceBlockHash(fromTime time.Time) error {
 	return nil
 }
 
-func (c *Client) GetTransactions(params types.TxQueryParams, testNet bool) ([]types.Transaction, error) {
+func (c *Client) GetTransactions(params common.TxQueryParams, testNet bool) ([]common.Transaction, error) {
 	var err error
 	allTxs := make(map[string]*btcjson.GetTransactionResult, 1000)
 	batchTxs, err := c.ListSinceBlockMinConf(c.sinceHash, 1, true)
@@ -131,7 +131,7 @@ func (c *Client) GetTransactions(params types.TxQueryParams, testNet bool) ([]ty
 	return c.btcTxsToCmnTransactions(params, allTxs, testNet)
 }
 
-func (c *Client) GetMempoolTransactions(params types.TxQueryParams, testNet bool) ([]types.Transaction, error) {
+func (c *Client) GetMempoolTransactions(params common.TxQueryParams, testNet bool) ([]common.Transaction, error) {
 	unspents, err := c.GetSpendableOutputs(params, testNet, 0, 0)
 	if err != nil {
 		return nil, err
@@ -151,7 +151,7 @@ func (c *Client) GetMempoolTransactions(params types.TxQueryParams, testNet bool
 	if err != nil {
 		return nil, err
 	}
-	finalTxs := make([]types.Transaction, 0, len(parsedTxs))
+	finalTxs := make([]common.Transaction, 0, len(parsedTxs))
 	for _, parsedTx := range parsedTxs {
 		if (params.Type == TxTypeSend && parsedTx.From != params.Address) ||
 			(params.Type == TxTypeReceived && parsedTx.To != params.Address) {
@@ -176,7 +176,7 @@ func (c *Client) GetTxByTxID(txid string, testNet bool) (*Tx, error) {
 	return &tx, nil
 }
 
-func (c *Client) GetSpendableOutputs(params types.TxQueryParams, testNet bool, optionalMinMaxConfs ...int) ([]types.Transaction, error) {
+func (c *Client) GetSpendableOutputs(params common.TxQueryParams, testNet bool, optionalMinMaxConfs ...int) ([]common.Transaction, error) {
 	minConfs, maxConfs := int(0), 9999999
 	if 0 < len(optionalMinMaxConfs) {
 		if 2 < len(optionalMinMaxConfs) || len(optionalMinMaxConfs) == 1 {
@@ -197,21 +197,20 @@ func (c *Client) GetSpendableOutputs(params types.TxQueryParams, testNet bool, o
 		return nil, err
 	}
 	log.Debugf("listunspent response: %+v", list)
-	txs := make([]types.Transaction, 0, len(list))
+	txs := make([]common.Transaction, 0, len(list))
 	for _, unspent := range list {
 		if unspent.Address != params.Address {
 			continue
 		}
-		amount, err := types.NewAmountFromString(unspent.Amount.String())
+		amount, err := common.NewAmountFromString(unspent.Amount.String())
 		if err != nil {
 			log.Info(err)
 		}
-
-		tx := types.Transaction{
+		tx := common.Transaction{
 			TxID:          unspent.TxID,
 			To:            unspent.Address,
 			Amount:        amount,
-			Currency:      types.BTC,
+			Currency:      common.BTC,
 			Confirmations: unspent.Confirmations,
 			OutputIndex:   int(unspent.Vout),
 			Spent:         false,
@@ -221,8 +220,8 @@ func (c *Client) GetSpendableOutputs(params types.TxQueryParams, testNet bool, o
 	return txs, nil
 }
 
-func (c *Client) btcTxsToCmnTransactions(params types.TxQueryParams, list map[string]*btcjson.GetTransactionResult, testNet bool) ([]types.Transaction, error) {
-	txs := make([]types.Transaction, 0, len(list))
+func (c *Client) btcTxsToCmnTransactions(params common.TxQueryParams, list map[string]*btcjson.GetTransactionResult, testNet bool) ([]common.Transaction, error) {
+	txs := make([]common.Transaction, 0, len(list))
 	for _, res := range list {
 		if len(res.Details) == 0 ||
 			(0 < params.TimeFrom && res.BlockTime < params.TimeFrom) ||
@@ -253,7 +252,7 @@ func (c *Client) btcTxsToCmnTransactions(params types.TxQueryParams, list map[st
 			if err != nil {
 				log.Info(err)
 			}
-			amount, err := types.NewAmountFromString(value.Abs().String())
+			amount, err := common.NewAmountFromString(value.Abs().String())
 			if err != nil {
 				log.Info(err)
 			}
@@ -278,12 +277,12 @@ func (c *Client) btcTxsToCmnTransactions(params types.TxQueryParams, list map[st
 			if txTime == 0 {
 				txTime = res.Time
 			}
-			tx := types.Transaction{
+			tx := common.Transaction{
 				TxID:          res.TxID,
 				To:            details.Address,
 				From:          fromAddr,
 				Amount:        amount,
-				Currency:      types.BTC,
+				Currency:      common.BTC,
 				Timestamp:     time.Unix(txTime, 0),
 				Confirmations: res.Confirmations,
 				OutputIndex:   int(details.Vout),

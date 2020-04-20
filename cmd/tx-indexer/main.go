@@ -52,15 +52,15 @@ func main() {
 
 	btcKeeper.Start()
 
-	keeper := eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet)
+	ethKeeper := eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet)
 
 	token := "0xaff4481d10270f50f203e0763e2597776068cbc5"
 
 	tssAddr := "0x3Ec6671171710F13a1a980bc424672d873b38808"
 
-	keeper.SetTokenAndAddr(token, tssAddr)
+	ethKeeper.SetTokenAndAddr(token, tssAddr)
 
-	keeper.Start()
+	ethKeeper.Start()
 
 	//btcKeeper.StartNode()
 
@@ -74,9 +74,10 @@ func main() {
 	getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
 	broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
 	// ETH side
-	getERC20Txs := api.NewGet("/api/v1/eth/txs", keeper.GetTxs)
+	getERC20Txs := api.NewGet("/api/v1/eth/txs", ethKeeper.GetTxs)
+	broadcastETHTx := api.NewPOST("/api/v1/eth/broadcast", ethKeeper.BroadcastTx)
 
-	apiConfig.Actions = []*api.Action{getBTCTxs, broadcastBTCTx, getERC20Txs}
+	apiConfig.Actions = []*api.Action{getBTCTxs, broadcastBTCTx, getERC20Txs, broadcastETHTx}
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
 

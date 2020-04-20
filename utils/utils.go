@@ -2,7 +2,9 @@ package utils
 
 import (
 	"math/rand"
+	"sort"
 
+	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/btcsuite/btcd/wire"
 	"github.com/shopspring/decimal"
 )
@@ -11,6 +13,11 @@ const WitnessScaleFactor = 4
 
 func RandRange(min int, max int) int {
 	return rand.Intn(max-min) + min
+}
+
+func SortTx(txs []common.Transaction) {
+	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Serialize() < txs[j].Serialize() })
+	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Timestamp.UnixNano() < txs[j].Timestamp.UnixNano() })
 }
 
 func GetMaxMin(ranks map[string]uint64) (uint64, uint64, string, []string) {

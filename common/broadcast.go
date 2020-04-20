@@ -1,4 +1,4 @@
-package types
+package common
 
 type BroadcastParams struct {
 	HEX string `json:"hex"`
