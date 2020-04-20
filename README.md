@@ -15,7 +15,7 @@ $ go run ./cmd/tx-indexer --btc.node http://192.168.1.101:8332 --btc.testnet
       --btc.node string      The address for connect btc fullnode (default "http://192.168.1.230:8332")
       --btc.nodeSize int     The maximum node count for connect p2p (default 25)
       --btc.testnet          This is a btc testnet
-      --eth.node string      The address for connect eth fullnode (default "http://192.168.1.230:8332")
+      --eth.node string      The address for connect eth fullnode (default "http://192.168.1.230:8545")
       --eth.testnet          This is a eth testnet
       --log.level string     The log level (default "info")
   -l, --rest.listen string   The listen address for REST API (default "0.0.0.0:9096")
