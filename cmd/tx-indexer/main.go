@@ -70,11 +70,13 @@ func main() {
 		ListenREST: conf.RESTConfig.ListenAddr,
 		ListenWS:   conf.WSConfig.ListenAddr,
 	}
-
+	// BTC side
 	getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
+	broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
+	// ETH side
 	getERC20Txs := api.NewGet("/api/v1/eth/txs", keeper.GetTxs)
 
-	apiConfig.Actions = []*api.Action{getBTCTxs, getERC20Txs}
+	apiConfig.Actions = []*api.Action{getBTCTxs, broadcastBTCTx, getERC20Txs}
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
 

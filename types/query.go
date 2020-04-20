@@ -10,8 +10,3 @@ type TxQueryParams struct {
 	TimeFrom   int64  `json:"time_from"`
 	TimeTo     int64  `json:"time_to"`
 }
-
-type BroadcastParams struct {
-	ToAddr string `json:"address"`
-	Amount string `json:"amount"`
-}

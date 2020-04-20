@@ -24,10 +24,10 @@ type Keeper struct {
 }
 
 type State struct {
-	BtcInTxsMempool  []types.Transaction `json:"inTxsMempool"`
-	BtcInTxs         []types.Transaction `json:"inTxs"`
-	BtcOutTxsMempool []types.Transaction `json:"outTxsMempool"`
-	BtcOutTxs        []types.Transaction `json:"outTxs"`
+	InTxsMempool  []types.Transaction `json:"inTxsMempool"`
+	InTxs         []types.Transaction `json:"inTxs"`
+	OutTxsMempool []types.Transaction `json:"outTxsMempool"`
+	OutTxs        []types.Transaction `json:"outTxs"`
 }
 
 func NewKeeper(url string, isTestnet bool) *Keeper {
@@ -113,7 +113,7 @@ func (k *Keeper) Start() {
 }
 
 func (k *Keeper) processKeep() {
-	fromTime := time.Now().Add(-78 * time.Hour)
+	fromTime := time.Now().Add(-48 * time.Hour)
 	toTime := time.Now()
 	if err := k.client.FindAndSaveSinceBlockHash(fromTime); err != nil {
 		log.Warningf("bitcoind error finding best block hash: %s", err)
@@ -165,11 +165,43 @@ func (k *Keeper) processKeep() {
 	sortTx(btcOutTxs)
 
 	k.mu.Lock()
-	k.Txs.BtcInTxsMempool = btcInTxsMempool
-	k.Txs.BtcInTxs = btcInTxs
-	k.Txs.BtcOutTxsMempool = btcOutTxsMempool
-	k.Txs.BtcOutTxs = btcOutTxs
+	k.Txs.InTxsMempool = btcInTxsMempool
+	k.Txs.InTxs = btcInTxs
+	k.Txs.OutTxsMempool = btcOutTxsMempool
+	k.Txs.OutTxs = btcOutTxs
 	k.mu.Unlock()
+}
+
+func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
+	hex := types.BroadcastParams{}
+	res := types.BroadcastResponse{
+		Result: false,
+	}
+	err := r.DecodeJsonPayload(&hex)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	msgTx, err := DecodeToTx(hex.HEX)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	hash, err := k.client.SendRawTransaction(msgTx, false)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	res.TxHash = hash.String()
+	res.Result = true
+	res.Msg = "success"
+	w.WriteJson(res)
 }
 
 func (k *Keeper) StartNode() {

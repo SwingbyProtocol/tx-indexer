@@ -2,7 +2,6 @@ package eth
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"strings"
 	"time"
@@ -182,17 +181,7 @@ func (c *Client) GetTxs(tokenAddr common.Address, watchAddr common.Address) ([]t
 			}
 
 		case logApprovalSigHash.Hex():
-			fmt.Printf("Log Name: Approval\n")
-			var approvalEvent LogApproval
-			err := contractAbi.Unpack(&approvalEvent, "Approval", vLog.Data)
-			if err != nil {
-				log.Fatal(err)
-			}
-			approvalEvent.TokenOwner = common.HexToAddress(vLog.Topics[1].Hex())
-			approvalEvent.Spender = common.HexToAddress(vLog.Topics[2].Hex())
-			fmt.Printf("Token Owner: %s\n", approvalEvent.TokenOwner.Hex())
-			fmt.Printf("Spender: %s\n", approvalEvent.Spender.Hex())
-			fmt.Printf("Tokens: %s\n", approvalEvent.Tokens.String())
+			// Approval is not support
 		}
 	}
 	log.Info("sync done")
@@ -200,6 +189,5 @@ func (c *Client) GetTxs(tokenAddr common.Address, watchAddr common.Address) ([]t
 }
 
 func (c *Client) SetAddress(addr string) error {
-
 	return nil
 }

@@ -1,6 +1,8 @@
 package btc
 
 import (
+	"bytes"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -55,6 +57,22 @@ func MsgBlockToBlock(msgBlock *wire.MsgBlock, params *chaincfg.Params) Block {
 		block.Txs = append(block.Txs, &tx)
 	}
 	return block
+}
+
+func DecodeToTx(hexStr string) (*wire.MsgTx, error) {
+	if len(hexStr)%2 != 0 {
+		hexStr = "0" + hexStr
+	}
+	serializedTx, err := hex.DecodeString(hexStr)
+	if err != nil {
+		return nil, err
+	}
+	var msgTx wire.MsgTx
+	err = msgTx.Deserialize(bytes.NewReader(serializedTx))
+	if err != nil {
+		return nil, err
+	}
+	return &msgTx, nil
 }
 
 func btcTransactionsToChainTransactions(curHeight int64, txs []Tx, timeFromUnix, timeToUnix int64) ([]types.Transaction, error) {
