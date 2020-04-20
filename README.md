@@ -3,18 +3,18 @@ The Tx indexer is a memory cache for Bitcoin's pending TX getting via a P2P netw
 
 ## Usage
 ```
-$ go run ./cmd/tx-indexer -s 12 -c http://192.168.1.101:8332
+$ go run ./cmd/tx-indexer --btc.node http://192.168.1.101:8332 --btc.testnet
 ```
 ## Configs
 ```
-      --node.loglevel string   The loglevel (default "info")
-  -s, --node.prune int         Proune block size of this app (default 12)
-      --node.testnet           Using testnet
-      --p2p.connect string     The address for connect p2p network
-      --p2p.targetSize int     The maximum node count for connect p2p (default 25)
-  -c, --rest.connect string    The address for connect block finalizer (default "http://192.168.1.230:8332")
-  -l, --rest.listen string     The listen address for REST API (default "0.0.0.0:9096")
-  -w, --ws.listen string       The listen address for Websocket API (default "0.0.0.0:9099")
+      --btc.node string      The address for connect btc fullnode (default "http://192.168.1.230:8332")
+      --btc.nodeSize int     The maximum node count for connect p2p (default 25)
+      --btc.testnet          This is a btc testnet
+      --eth.node string      The address for connect eth fullnode (default "http://192.168.1.230:8332")
+      --eth.testnet          This is a eth testnet
+      --log.level string     The log level (default "info")
+  -l, --rest.listen string   The listen address for REST API (default "0.0.0.0:9096")
+  -w, --ws.listen string     The listen address for Websocket API (default "0.0.0.0:9099")
 
 ```
 ## Build 
@@ -32,13 +32,4 @@ $ make build-linux-amd64
 ### Build Docker container
 ```
 $ make docker
-```
-### Scripts
-```
-## bitcoind-node with prune mode
-# mainnet
-$ chmod +x scripts/docker_bitcoind.sh && scripts/docker_bitcoind.sh  
-
-# testnet
-$ chmod +x scripts/docker_bitcoind_testnet.sh && scripts/docker_bitcoind_testnet.sh
 ```
