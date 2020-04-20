@@ -1,6 +1,11 @@
 # Tx-indexer
 Tx-indexer is a modular blockchain transaction monitoring tool. You can monitor send/receive tx for a specific address over a specific period, multiple coins are supported and unified in a common tx format.
 
+## Supporting coins
+- [x] BTC
+- [x] ERC20
+- [ ] BNB/BEP-2
+
 ## Usage
 ```
 $ go run ./cmd/tx-indexer --btc.node http://192.168.1.101:8332 --btc.testnet
