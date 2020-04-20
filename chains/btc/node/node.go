@@ -1,4 +1,4 @@
-package btc
+package node
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SwingbyProtocol/tx-indexer/chains/btc/types"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -40,9 +41,9 @@ type NodeConfig struct {
 	// form "major.minor.revision" e.g. "2.6.41".
 	UserAgentVersion string
 	// Chan for Tx
-	TxChan chan *Tx
+	TxChan chan *types.Tx
 	// Chan for Block
-	BChan chan *Block
+	BChan chan *types.Block
 }
 
 type Node struct {
@@ -54,8 +55,8 @@ type Node struct {
 	connectedRanks map[string]uint64
 	connectedPeers map[string]*peer.Peer
 	invtxs         map[string]*wire.MsgTx
-	txChan         chan *Tx
-	bChan          chan *Block
+	txChan         chan *types.Tx
+	bChan          chan *types.Block
 }
 
 func NewNode(config *NodeConfig) *Node {

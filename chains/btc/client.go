@@ -7,7 +7,9 @@ import (
 	"sort"
 	"time"
 
+	"github.com/SwingbyProtocol/tx-indexer/btc/types"
 	"github.com/SwingbyProtocol/tx-indexer/common"
+	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
@@ -140,14 +142,14 @@ func (c *Client) GetMempoolTransactions(params common.TxQueryParams, testNet boo
 	if testNet {
 		btcNet = &chaincfg.TestNet3Params
 	}
-	txs := make([]Tx, len(unspents))
+	txs := make([]types.Tx, len(unspents))
 	for _, unspent := range unspents {
 		hash, _ := chainhash.NewHashFromStr(unspent.TxID)
 		txData, _ := c.GetRawTransaction(hash)
-		tx := MsgTxToTx(txData.MsgTx(), btcNet)
+		tx := utils.MsgTxToTx(txData.MsgTx(), btcNet)
 		txs = append(txs, tx)
 	}
-	parsedTxs, err := btcTransactionsToChainTransactions(0, txs, params.TimeFrom, params.TimeTo)
+	parsedTxs, err := utils.BtcTransactionsToChainTransactions(0, txs, params.TimeFrom, params.TimeTo)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +164,7 @@ func (c *Client) GetMempoolTransactions(params common.TxQueryParams, testNet boo
 	return finalTxs, nil
 }
 
-func (c *Client) GetTxByTxID(txid string, testNet bool) (*Tx, error) {
+func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {
 	btcNet := &chaincfg.MainNetParams
 	if testNet {
 		btcNet = &chaincfg.TestNet3Params
@@ -172,7 +174,7 @@ func (c *Client) GetTxByTxID(txid string, testNet bool) (*Tx, error) {
 		return nil, err
 	}
 	txData, err := c.GetRawTransaction(hash)
-	tx := MsgTxToTx(txData.MsgTx(), btcNet)
+	tx := utils.MsgTxToTx(txData.MsgTx(), btcNet)
 	return &tx, nil
 }
 

@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/SwingbyProtocol/tx-indexer/btc/types"
+	"github.com/SwingbyProtocol/tx-indexer/chains/btc/node"
 	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/ant0ine/go-json-rest/rest"
@@ -184,7 +186,7 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 		w.WriteJson(res)
 		return
 	}
-	msgTx, err := DecodeToTx(hex.HEX)
+	msgTx, err := utils.DecodeToTx(hex.HEX)
 	if err != nil {
 		res.Msg = err.Error()
 		w.WriteHeader(400)
@@ -206,10 +208,10 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 
 func (k *Keeper) StartNode() {
 
-	txChan := make(chan *Tx)
-	BChan := make(chan *Block)
+	txChan := make(chan *types.Tx)
+	BChan := make(chan *types.Block)
 
-	nodeConfig := &NodeConfig{
+	nodeConfig := &node.NodeConfig{
 		IsTestnet:        k.tesnet,
 		TargetOutbound:   25,
 		UserAgentName:    "Tx-indexer",
@@ -218,9 +220,9 @@ func (k *Keeper) StartNode() {
 		BChan:            BChan,
 	}
 	// Node initialize
-	node := NewNode(nodeConfig)
+	n := node.NewNode(nodeConfig)
 	// Node Start
-	node.Start()
+	n.Start()
 
 	go func() {
 		for {

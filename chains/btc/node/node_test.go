@@ -1,13 +1,15 @@
-package btc
+package node
 
 import (
 	"testing"
 	"time"
+
+	"github.com/SwingbyProtocol/tx-indexer/chains/btc/types"
 )
 
 func TestNode(t *testing.T) {
-	txChan := make(chan *Tx)
-	BChan := make(chan *Block)
+	txChan := make(chan *types.Tx)
+	BChan := make(chan *types.Block)
 
 	nodeConfig := &NodeConfig{
 		IsTestnet:        true,

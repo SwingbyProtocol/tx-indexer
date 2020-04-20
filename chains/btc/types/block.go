@@ -1,4 +1,4 @@
-package btc
+package types
 
 type ChainInfo struct {
 	Chain         string `json:"chain"`

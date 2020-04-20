@@ -1,8 +1,4 @@
-package btc
-
-import (
-	"github.com/SwingbyProtocol/tx-indexer/utils"
-)
+package types
 
 type Tx struct {
 	Txid         string  `json:"txid"`
@@ -28,12 +24,12 @@ type Vin struct {
 }
 
 type Vout struct {
-	Value        interface{}             `json:"value"`
-	Spent        bool                    `json:"spent"`
-	Txs          []string                `json:"txs"`
-	Addresses    []string                `json:"addresses"`
-	N            int                     `json:"n"`
-	Scriptpubkey *utils.ScriptPubkeyInfo `json:"scriptPubkey"`
+	Value        interface{}       `json:"value"`
+	Spent        bool              `json:"spent"`
+	Txs          []string          `json:"txs"`
+	Addresses    []string          `json:"addresses"`
+	N            int               `json:"n"`
+	Scriptpubkey *ScriptPubkeyInfo `json:"scriptPubkey"`
 }
 
 func (tx *Tx) GetTxID() string {
@@ -59,10 +55,20 @@ func (tx *Tx) GetOutsAddrs() []string {
 			continue
 		}
 		addr := vout.Scriptpubkey.Addresses[0]
-		if utils.CheckExist(addr, addresses) == true {
+		if checkExist(addr, addresses) == true {
 			continue
 		}
 		addresses = append(addresses, addr)
 	}
 	return addresses
+}
+
+func checkExist(key string, array []string) bool {
+	isexist := false
+	for _, id := range array {
+		if id == key {
+			isexist = true
+		}
+	}
+	return isexist
 }

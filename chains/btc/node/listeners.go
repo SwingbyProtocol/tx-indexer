@@ -1,9 +1,10 @@
-package btc
+package node
 
 import (
 	"net"
 	"time"
 
+	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
 	log "github.com/sirupsen/logrus"
@@ -109,14 +110,14 @@ func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
 		return
 	}
 	node.addReceived(txHash)
-	tx := MsgTxToTx(msg, node.peerConfig.ChainParams)
+	tx := utils.MsgTxToTx(msg, node.peerConfig.ChainParams)
 	go func() {
 		node.txChan <- &tx
 	}()
 }
 
 func (node *Node) onBlock(p *peer.Peer, msg *wire.MsgBlock, buf []byte) {
-	block := MsgBlockToBlock(msg, node.peerConfig.ChainParams)
+	block := utils.MsgBlockToBlock(msg, node.peerConfig.ChainParams)
 	go func() {
 		node.bChan <- &block
 	}()
