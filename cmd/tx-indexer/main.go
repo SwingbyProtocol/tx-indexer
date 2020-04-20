@@ -52,9 +52,7 @@ func main() {
 
 	btcKeeper.Start()
 
-	uri := os.Getenv("ethRPC")
-
-	keeper := eth.NewKeeper(uri, true)
+	keeper := eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet)
 
 	token := "0xaff4481d10270f50f203e0763e2597776068cbc5"
 

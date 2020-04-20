@@ -9,12 +9,14 @@ import (
 
 const (
 	DefaultBTCNode = "http://192.168.1.230:8332"
+	DefaultETHNode = "http://192.168.1.230:8332"
 )
 
 // Config is app of conig
 type Config struct {
 	// Network parameters. Set mainnet, testnet, or regtest using this.
-	BTCConfig  BTCConfig  `mapstructure:"btc" json:"node"`
+	BTCConfig  BTCConfig  `mapstructure:"btc" json:"btc"`
+	ETHConfig  ETHConfig  `mapstructure:"eth" json:"eth"`
 	LogConfig  LogConfig  `mapstructure:"log" json:"log"`
 	RESTConfig RESTConfig `mapstructure:"rest" json:"rest"`
 	WSConfig   WSConfig   `mapstructure:"ws" json:"ws"`
@@ -22,8 +24,13 @@ type Config struct {
 
 type BTCConfig struct {
 	NodeAddr       string `mapstructure:"node" json:"node"`
-	Testnet        bool   `mapstructure:"testnet" json:"testnet`
+	Testnet        bool   `mapstructure:"testnet" json:"testnet"`
 	TargetOutbound uint32 `mapstructure:"nodeSize" json:"targetSize"`
+}
+
+type ETHConfig struct {
+	NodeAddr string `mapstructure:"node" json:"node"`
+	Testnet  bool   `mapstructure:"testnet" json:"testnet"`
 }
 
 type LogConfig struct {
@@ -50,9 +57,14 @@ func init() {
 	// Set BTC Network
 	pflag.Bool("btc.testnet", false, "This is a btc testnet")
 	// The trusted btc node
-	pflag.String("btc.node", DefaultBTCNode, "The address for connect block finalizer")
+	pflag.String("btc.node", DefaultBTCNode, "The address for connect btc fullnode")
 	// The target number of outbound peers. Defaults to 25.
 	pflag.Int("btc.nodeSize", 25, "The maximum node count for connect p2p")
+
+	// Add ETH config
+	pflag.String("eth.node", DefaultETHNode, "The address for connect eth fullnode")
+
+	pflag.Bool("eth.testnet", false, "This is a eth testnet")
 
 	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
 	// Bind ws flags
