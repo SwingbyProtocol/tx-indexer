@@ -69,7 +69,7 @@ func (k *Keeper) Start() {
 		log.Fatal("Error: eth address is not set")
 	}
 	// Every call try to store latest 5 blocks
-	k.ticker = time.NewTicker(2 * time.Second)
+	k.ticker = time.NewTicker(12 * time.Second)
 	k.processKeep()
 	go func() {
 		for {
