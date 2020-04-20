@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
+	"github.com/SwingbyProtocol/tx-indexer/chains/eth/token"
+	"github.com/SwingbyProtocol/tx-indexer/chains/eth/types"
 	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -22,26 +24,6 @@ type Client struct {
 	blockTimes map[uint64]uint64
 }
 
-type LogTransfer struct {
-	From   eth_common.Address
-	To     eth_common.Address
-	Tokens *big.Int
-}
-
-type LogApproval struct {
-	TokenOwner eth_common.Address
-	Spender    eth_common.Address
-	Tokens     *big.Int
-}
-
-type MempoolResponse struct {
-	Result *Result `json:"result"`
-}
-
-type Result struct {
-	Pending map[string]map[string]Tx `json:"pending"`
-}
-
 func NewClinet(uri string) *Client {
 	client, err := ethclient.Dial(uri)
 	if err != nil {
@@ -51,7 +33,7 @@ func NewClinet(uri string) *Client {
 }
 
 func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_common.Address) ([]common.Transaction, []common.Transaction) {
-	var res MempoolResponse
+	var res types.MempoolResponse
 	body := `{"jsonrpc":"2.0","method":"txpool_content","params":[],"id":1}`
 	api := api.NewResolver(c.uri, 20)
 	err := api.PostRequest("", body, &res)
@@ -76,8 +58,8 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_commo
 			if len(data) != 68 {
 				continue
 			}
-			tokenAbi, err := abi.JSON(strings.NewReader(TokenABI))
-			var logTx LogTransfer
+			tokenAbi, err := abi.JSON(strings.NewReader(token.TokenABI))
+			var logTx types.LogTransfer
 			err = tokenAbi.Unpack(&logTx, "Transfer", data[36:68])
 			if err != nil {
 				log.Info(err)
@@ -125,7 +107,7 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 	if err != nil {
 		log.Fatal(err)
 	}
-	contractAbi, err := abi.JSON(strings.NewReader(TokenABI))
+	contractAbi, err := abi.JSON(strings.NewReader(token.TokenABI))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -141,7 +123,7 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 	for _, vLog := range logs {
 		switch vLog.Topics[0].Hex() {
 		case logTransferSigHash.Hex():
-			var transferEvent LogTransfer
+			var transferEvent types.LogTransfer
 			err := contractAbi.Unpack(&transferEvent, "Transfer", vLog.Data)
 			if err != nil {
 				log.Fatal(err)

@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/SwingbyProtocol/tx-indexer/chains/eth/types"
 	"github.com/ethereum/go-ethereum/common"
 	log "github.com/sirupsen/logrus"
 )
@@ -40,7 +41,7 @@ func TestClient(t *testing.T) {
 			}`
 
 	uri := os.Getenv("ethRPC")
-	var res MempoolResponse
+	var res types.MempoolResponse
 	if err := json.Unmarshal([]byte(testCase), &res); err != nil {
 		log.Info(err)
 	}

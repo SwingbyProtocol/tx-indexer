@@ -1,5 +1,5 @@
 # Tx-indexer
-The Tx indexer is a memory cache for Bitcoin's pending TX getting via a P2P network. this is suitable to be placed before applications that require real-time processing. The prune function keeps data up to the last few blocks. A subsequent block txs is excluded from the index.
+Tx-indexer is a modular blockchain transaction monitoring tool. You can monitor send/receive tx for a specific address over a specific period, multiple coins are supported and unified in a common tx format.
 
 ## Usage
 ```

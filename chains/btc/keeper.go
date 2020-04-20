@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/btc/types"
 	"github.com/SwingbyProtocol/tx-indexer/chains/btc/node"
+	"github.com/SwingbyProtocol/tx-indexer/chains/btc/types"
 	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/ant0ine/go-json-rest/rest"

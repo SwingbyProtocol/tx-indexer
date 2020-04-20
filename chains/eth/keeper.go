@@ -2,7 +2,6 @@ package eth
 
 import (
 	"context"
-	"encoding/hex"
 	"sync"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/ant0ine/go-json-rest/rest"
 	eth_common "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 	log "github.com/sirupsen/logrus"
@@ -97,7 +97,7 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 		return
 	}
 	var tx *types.Transaction
-	rawtx, err := hex.DecodeString(req.HEX)
+	rawtx, err := hexutil.Decode(req.HEX)
 	rlp.DecodeBytes(rawtx, &tx)
 	err = k.client.SendTransaction(context.Background(), tx)
 	if err != nil {

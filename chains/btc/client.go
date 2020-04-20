@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/btc/types"
+	"github.com/SwingbyProtocol/tx-indexer/chains/btc/types"
 	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/btcjson"

@@ -107,18 +107,6 @@ func (node *Node) Stop() {
 	node.start = false
 }
 
-func (node *Node) ValidateTx(tx *btcutil.Tx) error {
-	err := utils.CheckNonStandardTx(tx)
-	if err != nil {
-		return err
-	}
-	err = utils.OutputRejector(tx.MsgTx())
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func (node *Node) DecodeToTx(hexStr string) (*btcutil.Tx, error) {
 	if len(hexStr)%2 != 0 {
 		hexStr = "0" + hexStr

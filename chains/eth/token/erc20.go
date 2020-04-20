@@ -1,4 +1,4 @@
-package eth
+package token
 
 import (
 	"math/big"

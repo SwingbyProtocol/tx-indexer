@@ -1,4 +1,4 @@
-package eth
+package types
 
 type Tx struct {
 	Hash        string `json:"hash"`
