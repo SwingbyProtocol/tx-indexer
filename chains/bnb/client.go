@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
+	"github.com/SwingbyProtocol/tx-indexer/chains/bnb/types"
 	"github.com/SwingbyProtocol/tx-indexer/common"
 	bnb_rpc "github.com/binance-chain/go-sdk/client/rpc"
 	bnb_types "github.com/binance-chain/go-sdk/common/types"
@@ -40,58 +41,6 @@ const (
 	transactionQueryEndpoint          = "/api/v1/txs"
 	multiSendTransactionQueryEndpoint = "/api/v1/sub-tx-list"
 	multiSendQueryConcurrency         = 3
-)
-
-type (
-	TransactionsRes struct {
-		Txs []Transaction `json:"txArray"`
-	}
-	MultiSendTransactionsRes struct {
-		Txs   []Transaction `json:"subTxDtoList"`
-		Total int           `json:"totalNum"`
-	}
-
-	/*
-		"txHash": "D2B366183D0F57BB51BAC7FE56BF9F57AA6012003846C933E5211F94B5722419",
-		"blockHeight": 60666033,
-		"txType": "TRANSFER",
-		"timeStamp": 1579010160880,
-		"fromAddr": "tbnb1gls26vjjqqjw7wfgs07707yr58lc8z8sxml4hk",
-		"toAddr": "tbnb1egsdny4jd4snznpsef0c0g9h7y8hqp9gsfmg34",
-		"value": 0.15049325,
-		"txAsset": "BTC.B-918",
-		"txFee": 0.00037500,
-		"txAge": 99673,
-		"code": 0,
-		"log": "Msg 0: ",
-		"confirmBlocks": 0,
-		"memo": "tb1qr50lnf829my2r0yrsps0wd462uf60zfk2sal0q",
-		"source": 0,
-		"hasChildren": 0
-	*/
-	Transaction struct {
-		TxHash        string      `json:"txHash"`
-		BlockHeight   int64       `json:"blockHeight"`
-		TxType        string      `json:"txType"`
-		Timestamp     int64       `json:"timeStamp"`
-		TxFee         json.Number `json:"txFee"`
-		TxAge         int64       `json:"txAge"`
-		Code          int64       `json:"code"`
-		Log           string      `json:"log"`
-		ConfirmBlocks int         `json:"confirmBlocks"`
-		Memo          string      `json:"memo"`
-		Source        int64       `json:"source"`
-		// for transfers
-		FromAddr string      `json:"fromAddr"`
-		ToAddr   string      `json:"toAddr"`
-		Value    json.Number `json:"value"`
-		TxAsset  string      `json:"txAsset"`
-		// for multi-send txs
-		HasChildren int `json:"hasChildren"`
-		// for multi-send child txs, an exception case where the field name is `asset` instead of `txAsset`
-		ChildTxAsset string `json:"asset"`
-		OutputIndex  int    `json:"-"`
-	}
 )
 
 func NewClient(rpcApi *url.URL, httpApi *url.URL, network bnb_types.ChainNetwork, optionalTickInterval ...time.Duration) *Client {
@@ -132,7 +81,7 @@ func (ps *Client) GetTransactions(params common.TxQueryParams) ([]common.Transac
 		query["side"] = params.Type
 	}
 	// fetch the raw txs from the api, iterating over the pages until we reach the end (max page size is 100)
-	var allTxsRes, lastTxsRes TransactionsRes
+	var allTxsRes, lastTxsRes types.TransactionsRes
 	for lastTxsRes.Txs == nil || len(lastTxsRes.Txs) == pageSize { // 100 = max page size
 		query["page"] = fmt.Sprintf("%d", page)
 		log.Debugf("Querying BNB endpoint %s (page: %d): %+v", transactionQueryEndpoint, page, query)
@@ -143,7 +92,7 @@ func (ps *Client) GetTransactions(params common.TxQueryParams) ([]common.Transac
 		// marshal from json
 		// binance explorer does not use status codes (they are always 200)
 		// so errors can cause for an unmarshal failure
-		lastTxsRes = TransactionsRes{}
+		lastTxsRes = types.TransactionsRes{}
 		if err := json.Unmarshal(resp, &lastTxsRes); err != nil {
 			log.Warningf("BNB Query error - failed to marshal: %s", err)
 			log.Warningf("BNB Query error - invalid json: %s", string(resp))
@@ -169,9 +118,9 @@ func (ps *Client) GetTransactions(params common.TxQueryParams) ([]common.Transac
 	}
 	// get multi-send TXS
 	errChan := make(chan error, len(allTxsRes.Txs))
-	resChan := make(chan []Transaction, len(allTxsRes.Txs))
+	resChan := make(chan []types.Transaction, len(allTxsRes.Txs))
 	sem := semaphore.NewWeighted(multiSendQueryConcurrency)
-	transactions := make([]Transaction, 0, len(allTxsRes.Txs)*25) // with some buffer
+	transactions := make([]types.Transaction, 0, len(allTxsRes.Txs)*25) // with some buffer
 	multiStarted := 0
 	for i, tx := range allTxsRes.Txs {
 		// if (0 < params.TimeFrom && tx.Timestamp < params.TimeFrom*1000) ||
@@ -214,7 +163,7 @@ func (ps *Client) GetTransactions(params common.TxQueryParams) ([]common.Transac
 	close(errChan)
 	close(resChan)
 	// filter send/receive
-	newTransactions := make([]Transaction, 0, len(transactions))
+	newTransactions := make([]types.Transaction, 0, len(transactions))
 	for _, tx := range transactions {
 		if params.Type == TxTypeSend && tx.FromAddr != params.Address {
 			// only want send txs - not a send tx
@@ -281,7 +230,7 @@ func (ps *Client) Tick(t time.Time) {
 
 // ----- //
 
-func (ps *Client) getMultiSendTx(parent Transaction, sem *semaphore.Weighted, output chan []Transaction, errChan chan error) {
+func (ps *Client) getMultiSendTx(parent types.Transaction, sem *semaphore.Weighted, output chan []types.Transaction, errChan chan error) {
 	page, pageSize := 1, 1000 // the max appears to be 1000
 	if err := sem.Acquire(context.Background(), 1); err != nil {
 		errChan <- err
@@ -299,7 +248,7 @@ func (ps *Client) getMultiSendTx(parent Transaction, sem *semaphore.Weighted, ou
 		errChan <- err
 		return
 	}
-	var rawTxs MultiSendTransactionsRes
+	var rawTxs types.MultiSendTransactionsRes
 	// binance explorer does not use status codes (they are always 200)
 	// so errors can cause for an unmarshal failure
 	if err := json.Unmarshal(mRes, &rawTxs); err != nil {
@@ -328,7 +277,7 @@ func (ps *Client) getMultiSendTx(parent Transaction, sem *semaphore.Weighted, ou
 	output <- rawTxs.Txs
 }
 
-func bnbTransactionToChainTransaction(txs []Transaction) ([]common.Transaction, error) {
+func bnbTransactionToChainTransaction(txs []types.Transaction) ([]common.Transaction, error) {
 	newTxs := make([]common.Transaction, 0, len(txs))
 	for _, tx := range txs {
 		amount, err := common.NewAmountFromString(string(tx.Value))

@@ -31,7 +31,7 @@ func (tx Transaction) Serialize() string {
 
 func (tx Transaction) MarshalJSON() ([]byte, error) {
 	newTx := struct {
-		TxID          string      `json:"txID"`
+		TxID          string      `json:"txId"`
 		From          string      `json:"from"`
 		To            string      `json:"to"`
 		Amount        interface{} `json:"amount"`
