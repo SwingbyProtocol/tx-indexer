@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/common"
+	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/wire"
@@ -57,8 +57,8 @@ func MsgBlockToBlock(msgBlock *wire.MsgBlock, params *chaincfg.Params) Block {
 	return block
 }
 
-func btcTransactionsToChainTransactions(curHeight int64, txs []Tx, timeFromUnix, timeToUnix int64) ([]common.Transaction, error) {
-	newTxs := make([]common.Transaction, 0, 64)
+func btcTransactionsToChainTransactions(curHeight int64, txs []Tx, timeFromUnix, timeToUnix int64) ([]types.Transaction, error) {
+	newTxs := make([]types.Transaction, 0, 64)
 	for _, tx := range txs {
 		if len(tx.Vin) == 0 {
 			continue
@@ -110,16 +110,16 @@ func btcTransactionsToChainTransactions(curHeight int64, txs []Tx, timeFromUnix,
 			if 0 < confirms {
 				confirms++ // count its including block as one confirmation
 			}
-			amount, _ := common.NewAmountFromFloat64(vOut.Value.(float64))
+			amount, _ := types.NewAmountFromFloat64(vOut.Value.(float64))
 
 			log.Debugf("TX %s confirms: %d", tx.Txid, confirms)
-			newTxs = append(newTxs, common.Transaction{
+			newTxs = append(newTxs, types.Transaction{
 				TxID:          strings.ToLower(tx.Txid),
 				From:          fundingVIn.Addresses[0], // TODO: may be multiple addresses for multisig transactions
 				To:            vOut.Addresses[0],       // TODO: may be multiple addresses for multisig transactions
 				Amount:        amount,
 				Timestamp:     time.Unix(txTime, 0),
-				Currency:      common.BTC,
+				Currency:      types.BTC,
 				Confirmations: confirms,
 				OutputIndex:   idx,
 				Spent:         vOut.Spent,

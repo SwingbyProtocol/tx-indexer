@@ -10,6 +10,7 @@ import (
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
 	"github.com/SwingbyProtocol/tx-indexer/chains/btc"
+	"github.com/SwingbyProtocol/tx-indexer/chains/eth"
 	"github.com/SwingbyProtocol/tx-indexer/config"
 	log "github.com/sirupsen/logrus"
 )
@@ -51,6 +52,18 @@ func main() {
 
 	btcKeeper.Start()
 
+	uri := os.Getenv("ethRPC")
+
+	keeper := eth.NewKeeper(uri, true)
+
+	token := "0xaff4481d10270f50f203e0763e2597776068cbc5"
+
+	tssAddr := "0x3Ec6671171710F13a1a980bc424672d873b38808"
+
+	keeper.SetTokenAndAddr(token, tssAddr)
+
+	keeper.Start()
+
 	//btcKeeper.StartNode()
 
 	// Define API config
@@ -60,9 +73,10 @@ func main() {
 		ListenWS:   conf.WSConfig.ListenAddr,
 	}
 
-	getTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
+	getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
+	getERC20Txs := api.NewGet("/api/v1/eth/txs", keeper.GetTxs)
 
-	apiConfig.Actions = []*api.Action{getTxs}
+	apiConfig.Actions = []*api.Action{getBTCTxs, getERC20Txs}
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
 

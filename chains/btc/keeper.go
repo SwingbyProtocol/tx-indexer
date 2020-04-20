@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/common"
+	"github.com/SwingbyProtocol/tx-indexer/types"
 	"github.com/ant0ine/go-json-rest/rest"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg"
@@ -24,10 +24,10 @@ type Keeper struct {
 }
 
 type State struct {
-	BtcInTxsMempool  []common.Transaction `json:"inTxsMempool"`
-	BtcInTxs         []common.Transaction `json:"inTxs"`
-	BtcOutTxsMempool []common.Transaction `json:"outTxsMempool"`
-	BtcOutTxs        []common.Transaction `json:"outTxs"`
+	BtcInTxsMempool  []types.Transaction `json:"inTxsMempool"`
+	BtcInTxs         []types.Transaction `json:"inTxs"`
+	BtcOutTxsMempool []types.Transaction `json:"outTxsMempool"`
+	BtcOutTxs        []types.Transaction `json:"outTxs"`
 }
 
 func NewKeeper(url string, isTestnet bool) *Keeper {
@@ -122,7 +122,7 @@ func (k *Keeper) processKeep() {
 	addr := k.GetAddr().EncodeAddress()
 	k.mu.RUnlock()
 	// ... incoming BTC txs (mempool)
-	btcInTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
+	btcInTxsMempool, err := k.client.GetMempoolTransactions(types.TxQueryParams{
 		Address: addr,
 		Type:    TxTypeReceived,
 		Mempool: true,
@@ -131,7 +131,7 @@ func (k *Keeper) processKeep() {
 		log.Info(err)
 	}
 	// ... incoming BTC txs
-	btcInTxs, err := k.client.GetTransactions(common.TxQueryParams{
+	btcInTxs, err := k.client.GetTransactions(types.TxQueryParams{
 		Address:  addr,
 		Type:     TxTypeReceived,
 		TimeFrom: fromTime.Unix(),
@@ -141,7 +141,7 @@ func (k *Keeper) processKeep() {
 		log.Info(err)
 	}
 	// ... outgoing BTC txs (mempool)
-	btcOutTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
+	btcOutTxsMempool, err := k.client.GetMempoolTransactions(types.TxQueryParams{
 		Address: addr,
 		Type:    TxTypeSend,
 		Mempool: true,
@@ -150,7 +150,7 @@ func (k *Keeper) processKeep() {
 		log.Info(err)
 	}
 	// ... outgoing BTC txs
-	btcOutTxs, err := k.client.GetTransactions(common.TxQueryParams{
+	btcOutTxs, err := k.client.GetTransactions(types.TxQueryParams{
 		Address:  addr,
 		Type:     TxTypeSend,
 		TimeFrom: fromTime.Unix(),
@@ -202,7 +202,7 @@ func (k *Keeper) Stop() {
 	k.ticker.Stop()
 }
 
-func sortTx(txs []common.Transaction) {
+func sortTx(txs []types.Transaction) {
 	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Serialize() < txs[j].Serialize() })
 	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Timestamp.UnixNano() < txs[j].Timestamp.UnixNano() })
 }

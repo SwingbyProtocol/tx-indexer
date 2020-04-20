@@ -1,4 +1,4 @@
-package common
+package types
 
 type TxQueryParams struct {
 	Address string `json:"address"`

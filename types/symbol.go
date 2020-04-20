@@ -1,4 +1,4 @@
-package common
+package types
 
 import "strings"
 
@@ -7,6 +7,7 @@ var (
 	BNB   = NewSymbol("BNB")
 	BTCB1 = NewSymbol("BTC.B")
 	BTCB2 = NewSymbol("BTCB")
+	ETH   = NewSymbol("ETH")
 )
 
 // If this list is updated please also update it in data/fees.go

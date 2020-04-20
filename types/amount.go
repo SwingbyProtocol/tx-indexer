@@ -1,4 +1,4 @@
-package common
+package types
 
 import (
 	"fmt"
@@ -84,6 +84,14 @@ func NewAmountFromInt64(val int64) (DynamicAmount, error) {
 		decimals: decimalScale,
 		value:    big.NewInt(val),
 		size:     int64(size),
+	}, nil
+}
+
+func NewAmountFromBigIntDirect(val *big.Int) (DynamicAmount, error) {
+	return DynamicAmount{
+		decimals: decimalScale,
+		value:    val,
+		size:     int64(0),
 	}, nil
 }
 
