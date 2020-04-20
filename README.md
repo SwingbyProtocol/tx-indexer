@@ -1,5 +1,5 @@
 # Tx-indexer
-Tx-indexer is a modular blockchain transaction monitoring tool. You can monitor send/receive tx for a specific address over a specific period, multiple coins are supported and unified in a common tx format.
+Tx-indexer is a modular blockchain transaction monitoring tool. the app can monitor send/receive tx for a specific address over a specific period, multiple coins are supported and unified in a common tx format.
 
 ## Supporting coins
 - [x] BTC
