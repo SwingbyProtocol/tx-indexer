@@ -17,6 +17,7 @@ type Config struct {
 	// Network parameters. Set mainnet, testnet, or regtest using this.
 	BTCConfig  BTCConfig  `mapstructure:"btc" json:"btc"`
 	ETHConfig  ETHConfig  `mapstructure:"eth" json:"eth"`
+	BNBConfig  BNBConfig  `mapstructure:"bnb" json:"bnb"`
 	LogConfig  LogConfig  `mapstructure:"log" json:"log"`
 	RESTConfig RESTConfig `mapstructure:"rest" json:"rest"`
 	WSConfig   WSConfig   `mapstructure:"ws" json:"ws"`
@@ -30,6 +31,12 @@ type BTCConfig struct {
 
 type ETHConfig struct {
 	NodeAddr string `mapstructure:"node" json:"node"`
+	Testnet  bool   `mapstructure:"testnet" json:"testnet"`
+}
+
+type BNBConfig struct {
+	NodeAddr string `mapstructure:"node" json:"node"`
+	APIAddr  string `mapstructure:"api" json:"api"`
 	Testnet  bool   `mapstructure:"testnet" json:"testnet"`
 }
 
@@ -61,10 +68,13 @@ func init() {
 	// The target number of outbound peers. Defaults to 25.
 	pflag.Int("btc.nodeSize", 25, "The maximum node count for connect p2p")
 
-	// Add ETH config
+	// Set ETH config
 	pflag.String("eth.node", DefaultETHNode, "The address for connect eth fullnode")
 
 	pflag.Bool("eth.testnet", false, "This is a eth testnet")
+
+	// Set BNB config
+	pflag.String("bnb.node", DefaultBTCNode, "The address for connect btc fullnode")
 
 	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
 	// Bind ws flags

@@ -30,12 +30,12 @@ type State struct {
 	OutTxs        []common.Transaction `json:"outTxs"`
 }
 
-func NewKeeper(urlStr string, isTestnet bool) *Keeper {
+func NewKeeper(urlStr string, apiUri string, isTestnet bool) *Keeper {
 	bnbRPCURI, err := url.ParseRequestURI(urlStr)
 	if err != nil {
 		panic(err)
 	}
-	bnbHTTPURI, err := url.ParseRequestURI(urlStr)
+	bnbHTTPURI, err := url.ParseRequestURI(apiUri)
 	if err != nil {
 		panic(err)
 	}
@@ -62,6 +62,12 @@ func (k *Keeper) SetTokenAndAddr(token string, addr string) error {
 	k.mu.Lock()
 	//	k.tokenAddr = eth_common.HexToAddress(token)
 	//	k.watchAddr = eth_common.HexToAddress(addr)
+	types.Network = types.TestNetwork
+	accAddr, err := types.AccAddressFromBech32(addr)
+	if err != nil {
+		log.Info(err)
+	}
+	k.watchAddr = accAddr
 	k.mu.Unlock()
 	return nil
 }

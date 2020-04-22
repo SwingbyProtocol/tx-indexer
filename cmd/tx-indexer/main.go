@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/SwingbyProtocol/tx-indexer/api"
+	"github.com/SwingbyProtocol/tx-indexer/chains/bnb"
 	"github.com/SwingbyProtocol/tx-indexer/chains/btc"
 	"github.com/SwingbyProtocol/tx-indexer/chains/eth"
 	"github.com/SwingbyProtocol/tx-indexer/config"
@@ -61,6 +62,10 @@ func main() {
 	ethKeeper.SetTokenAndAddr(token, tssAddr)
 
 	ethKeeper.Start()
+
+	bnbKeeper := bnb.NewKeeper(conf.BNBConfig.NodeAddr, conf.BNBConfig.APIAddr, conf.BTCConfig.Testnet)
+
+	bnbKeeper.SetTokenAndAddr("0xaff4481d10270f50f203e0763e2597776068cbc5", "tbnb1gls26vjjqqjw7wfgs07707yr58lc8z8sxml4hk")
 
 	//btcKeeper.StartNode()
 
