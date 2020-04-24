@@ -98,6 +98,12 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 	}
 	var tx *types.Transaction
 	rawtx, err := hexutil.Decode(req.HEX)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
 	rlp.DecodeBytes(rawtx, &tx)
 	err = k.client.SendTransaction(context.Background(), tx)
 	if err != nil {
@@ -115,7 +121,6 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 func (k *Keeper) processKeep() {
 	//fromTime := time.Now().Add(-78 * time.Hour)
 	//toTime := time.Now()
-
 	inTxsMempool, outTxsMempool := k.client.GetMempoolTxs(k.tokenAddr, k.watchAddr)
 	inTxs, outTxs := k.client.GetTxs(k.tokenAddr, k.watchAddr)
 
@@ -130,6 +135,8 @@ func (k *Keeper) processKeep() {
 	k.Txs.OutTxsMempool = outTxsMempool
 	k.Txs.OutTxs = outTxs
 	k.mu.Unlock()
+
+	log.Info("ETH txs scanning done")
 }
 
 func (k *Keeper) Stop() {

@@ -1,69 +1,112 @@
 package bnb
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"net/url"
-	"sort"
-	"strconv"
-	"strings"
 	"time"
 
-	"github.com/SwingbyProtocol/tx-indexer/api"
-	"github.com/SwingbyProtocol/tx-indexer/chains/bnb/types"
 	"github.com/SwingbyProtocol/tx-indexer/common"
-	bnb_rpc "github.com/binance-chain/go-sdk/client/rpc"
-	bnb_types "github.com/binance-chain/go-sdk/common/types"
+	"github.com/binance-chain/go-sdk/client/rpc"
+	"github.com/binance-chain/go-sdk/common/types"
+	"github.com/binance-chain/go-sdk/types/msg"
+	"github.com/binance-chain/go-sdk/types/tx"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/semaphore"
 )
 
 type Client struct {
-	httpUrl *url.URL
-	ticker  *time.Ticker
-	Client  bnb_rpc.Client
+	rpc.Client
 }
 
-const (
-	BnbRawAddrLen = bnb_types.AddrLen
-
-	BnbRawTxHashLen = 32
-
-	BnbSendTxType = "cosmos-sdk/Send"
-
-	TxTypeReceived = "RECEIVE"
-	TxTypeSend     = "SEND"
-)
-
-const (
-	rpcReqTimeout                     = 5 * time.Second
-	transactionQueryEndpoint          = "/api/v1/txs"
-	multiSendTransactionQueryEndpoint = "/api/v1/sub-tx-list"
-	multiSendQueryConcurrency         = 3
-)
-
-func NewClient(rpcApi *url.URL, httpApi *url.URL, network bnb_types.ChainNetwork, optionalTickInterval ...time.Duration) *Client {
-	log.Infof("BNB client connecting to (rpc: %s, http: %s)...", rpcApi, httpApi)
-	client := bnb_rpc.NewRPCClient(rpcApi.Host, network)
-	client.SetTimeOut(rpcReqTimeout)
-	var ticker *time.Ticker
-	if 0 < len(optionalTickInterval) {
-		ticker = time.NewTicker(optionalTickInterval[0])
-	}
-	c := &Client{
-		Client:  client,
-		ticker:  ticker,
-		httpUrl: httpApi,
-	}
+func NewClient(rpcApi *url.URL, network types.ChainNetwork, period time.Duration) *Client {
+	log.Infof("BNB client connecting to (rpc: %s)...", rpcApi.Host)
+	client := rpc.NewRPCClient(rpcApi.Host, network)
+	client.SetTimeOut(period)
+	c := &Client{client}
 	return c
 }
 
-func (ps *Client) RpcClient() bnb_rpc.Client {
-	return ps.Client
+func (c *Client) GetLatestBlockHeight() (int64, time.Time) {
+	resultBlock, err := c.Block(nil)
+	if err != nil {
+		log.Info(err)
+	}
+	return resultBlock.Block.Height, resultBlock.Block.Time
 }
 
-func (ps *Client) GetTransactions(params common.TxQueryParams) ([]common.Transaction, error) {
+func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64, blockTime time.Time) ([]common.Transaction, int) {
+	txs := []common.Transaction{}
+	query := fmt.Sprintf("tx.height >= %d AND tx.height <= %d", minHeight, maxHeight)
+	resultTxSearch, err := c.TxSearch(query, true, page, 1000)
+	if err != nil {
+		log.Info(err)
+		return txs, 0
+	}
+	txs = ReultBlockToComTxs(resultTxSearch, maxHeight, blockTime)
+	return txs, resultTxSearch.TotalCount
+}
+
+func ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64, blockTime time.Time) []common.Transaction {
+	newTxs := []common.Transaction{}
+	for _, txData := range resultTxSearch.Txs {
+		txbase := tx.StdTx{}
+		base, err := rpc.ParseTx(tx.Cdc, txData.Tx)
+		if err != nil {
+			log.Info(err)
+		}
+		txbase = base.(tx.StdTx)
+		thisHeight := txData.Height
+		for _, message := range txbase.GetMsgs() {
+			switch realMsg := message.(type) {
+			// only support send msg
+			case msg.SendMsg:
+				if len(realMsg.Inputs) != 1 {
+					continue
+				}
+				for i, output := range realMsg.Outputs {
+					if output.Coins[0].Denom != "BTC.B-888" {
+						continue
+					}
+					amount, err := common.NewAmountFromInt64(output.Coins[0].Amount)
+					if err != nil {
+						log.Info(err)
+					}
+					newTx := common.Transaction{
+						TxID:          txData.Hash.String(),
+						From:          realMsg.Inputs[0].Address.String(),
+						To:            output.Address.String(),
+						Amount:        amount,
+						Confirmations: maxHeight - thisHeight,
+						Currency:      common.BNB,
+						Memo:          txbase.Memo,
+						Spent:         false,
+						OutputIndex:   i,
+						Timestamp:     blockTime,
+					}
+					newTxs = append(newTxs, newTx)
+				}
+			}
+		}
+	}
+	return newTxs
+}
+
+/*
+	for _, block := range blocks.BlockMetas {
+		if block.Header.Time.Unix() < params.TimeTo {
+			heights = append(heights, block.Header.Height)
+		}
+		if block.Header.Time.Unix() > params.TimeFrom {
+			heights = append(heights, block.Header.Height)
+		}
+		//log.Infof("remain block -> %d time -> %d", block.Header.Height, block.Header.Time.Unix())
+	}
+*/
+
+// Stop the service.
+
+// ----- //
+
+/*
 	page, pageSize := 1, 100 // 100 = max
 	query := map[string]string{
 		"address": params.Address,
@@ -180,143 +223,4 @@ func (ps *Client) GetTransactions(params common.TxQueryParams) ([]common.Transac
 	log.Infof("BNB Query found %d transactions.", len(transactions))
 	log.Debugf("BNB Query results: %+v", transactions)
 	return bnbTransactionToChainTransaction(transactions)
-}
-
-// Start the service.
-// If it's already started or stopped, will return an error.
-// If OnStart() returns an error, it's returned by Start()
-// implements BaseService
-func (ps *Client) OnStart() error {
-	// ps.client is already called on create
-	log.Infof("%s starting. Bnb client connected.", ps.Client)
-	if ps.ticker != nil {
-		go func() {
-			for t := range ps.ticker.C {
-				ps.Tick(t)
-			}
-		}()
-		ps.Tick(time.Now())
-	}
-	return nil
-}
-
-// Stop the service.
-// If it's already stopped, will return an error.
-// OnStop must never error.
-// implements BaseService
-func (ps *Client) OnStop() {
-	//log.Infof("%s stopping.", ps.String())
-	err := ps.Client.Stop()
-	if err != nil {
-		panic(err)
-	}
-	if ps.ticker != nil {
-		ps.ticker.Stop()
-	}
-}
-
-// Reset the service.
-// Panics by default - must be overwritten to enable reset.
-// implements BaseService
-func (ps *Client) OnReset() error {
-	//log.Infof("%s resetting.", ps.String())
-	return nil
-}
-
-// Tick is called each `interval` (typically 1h)
-func (ps *Client) Tick(t time.Time) {
-	//log.Debugf("%s tick.", ps.String())
-}
-
-// ----- //
-
-func (ps *Client) getMultiSendTx(parent types.Transaction, sem *semaphore.Weighted, output chan []types.Transaction, errChan chan error) {
-	page, pageSize := 1, 1000 // the max appears to be 1000
-	if err := sem.Acquire(context.Background(), 1); err != nil {
-		errChan <- err
-		return
-	}
-	defer sem.Release(1)
-	mQuery := map[string]string{
-		"txHash": parent.TxHash,
-		"page":   fmt.Sprintf("%d", page),
-		"rows":   fmt.Sprintf("%d", pageSize),
-	}
-	mRes, err := ps.httpGet(multiSendTransactionQueryEndpoint, mQuery)
-	if err != nil {
-		log.Warningf("BNB multi-send Query error - failed to get: %s", err)
-		errChan <- err
-		return
-	}
-	var rawTxs types.MultiSendTransactionsRes
-	// binance explorer does not use status codes (they are always 200)
-	// so errors can cause for an unmarshal failure
-	if err := json.Unmarshal(mRes, &rawTxs); err != nil {
-		log.Warningf("BNB multi-send Query error - failed to unmarshal: %s", err)
-		log.Debug("invalid json:", string(mRes))
-		errChan <- err
-		return
-	}
-	if pageSize <= len(rawTxs.Txs) {
-		err := fmt.Errorf("bnb client saw %d multi-send outputs but our rows limit is %d", len(rawTxs.Txs), pageSize)
-		errChan <- err
-		return
-	}
-	// apply parent values to txs
-	for i := range rawTxs.Txs {
-		rawTxs.Txs[i].TxHash = parent.TxHash
-		rawTxs.Txs[i].ConfirmBlocks = parent.ConfirmBlocks
-		rawTxs.Txs[i].Memo = parent.Memo
-		rawTxs.Txs[i].Timestamp = parent.Timestamp
-		rawTxs.Txs[i].TxAge = parent.TxAge
-		rawTxs.Txs[i].Log = parent.Log
-		rawTxs.Txs[i].Code = parent.Code
-		rawTxs.Txs[i].BlockHeight = parent.BlockHeight
-		rawTxs.Txs[i].OutputIndex = i
-	}
-	output <- rawTxs.Txs
-}
-
-func bnbTransactionToChainTransaction(txs []types.Transaction) ([]common.Transaction, error) {
-	newTxs := make([]common.Transaction, 0, len(txs))
-	for _, tx := range txs {
-		amount, err := common.NewAmountFromString(string(tx.Value))
-		if err != nil {
-			// ignore if we cant parse amount
-			// this will be due to the currency not being supported
-			continue
-		}
-		// ignore if haschildren=1 since that is a multisend
-		// and we have already appended all multisend txs into the given
-		// list
-		if tx.HasChildren > 0 {
-			continue
-		}
-		timestamp := time.Unix(0, tx.Timestamp*int64(time.Millisecond))
-		assetStr := tx.TxAsset
-		if assetStr == "" {
-			assetStr = tx.ChildTxAsset
-		}
-		newTx := common.Transaction{
-			TxID:          strings.ToLower(tx.TxHash),
-			From:          strings.ToLower(tx.FromAddr),
-			To:            strings.ToLower(tx.ToAddr),
-			Amount:        amount,
-			Timestamp:     timestamp,
-			Currency:      common.NewSymbol(assetStr),
-			Confirmations: tx.TxAge,
-			Memo:          tx.Memo,
-			OutputIndex:   tx.OutputIndex,
-		}
-		newTxs = append(newTxs, newTx)
-	}
-	// make sure sorted by timestamp
-	sort.SliceStable(newTxs, func(i, j int) bool {
-		return newTxs[i].Timestamp.Before(newTxs[j].Timestamp)
-	})
-	return newTxs, nil
-}
-
-func (ps *Client) httpGet(endpoint string, query map[string]string) ([]byte, error) {
-	return api.Get(ps.httpUrl.String(), endpoint, query)
-}
+*/

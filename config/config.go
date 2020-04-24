@@ -17,7 +17,7 @@ type Config struct {
 	// Network parameters. Set mainnet, testnet, or regtest using this.
 	BTCConfig  BTCConfig  `mapstructure:"btc" json:"btc"`
 	ETHConfig  ETHConfig  `mapstructure:"eth" json:"eth"`
-	BNBConfig  BNBConfig  `mapstructure:"bnb" json:"bnb"`
+	BNCConfig  BNCConfig  `mapstructure:"bnc" json:"bnc"`
 	LogConfig  LogConfig  `mapstructure:"log" json:"log"`
 	RESTConfig RESTConfig `mapstructure:"rest" json:"rest"`
 	WSConfig   WSConfig   `mapstructure:"ws" json:"ws"`
@@ -34,9 +34,8 @@ type ETHConfig struct {
 	Testnet  bool   `mapstructure:"testnet" json:"testnet"`
 }
 
-type BNBConfig struct {
+type BNCConfig struct {
 	NodeAddr string `mapstructure:"node" json:"node"`
-	APIAddr  string `mapstructure:"api" json:"api"`
 	Testnet  bool   `mapstructure:"testnet" json:"testnet"`
 }
 
@@ -74,7 +73,9 @@ func init() {
 	pflag.Bool("eth.testnet", false, "This is a eth testnet")
 
 	// Set BNB config
-	pflag.String("bnb.node", DefaultBTCNode, "The address for connect btc fullnode")
+	pflag.String("bnc.node", DefaultBTCNode, "The address for connect bnc fullnode")
+
+	pflag.Bool("bnc.testnet", false, "This is a bnc testnet")
 
 	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
 	// Bind ws flags

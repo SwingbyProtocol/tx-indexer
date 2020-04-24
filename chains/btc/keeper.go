@@ -102,7 +102,7 @@ func (k *Keeper) Start() {
 		log.Fatal(err)
 	}
 	// Every call try to store latest 5 blocks
-	k.ticker = time.NewTicker(40 * time.Second)
+	k.ticker = time.NewTicker(80 * time.Second)
 	k.processKeep()
 	go func() {
 		for {

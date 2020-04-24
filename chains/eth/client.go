@@ -166,7 +166,6 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 			// Approval is not support
 		}
 	}
-	log.Info("sync done")
 	return inTxs, outTxs
 }
 

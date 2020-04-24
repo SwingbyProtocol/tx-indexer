@@ -29,7 +29,7 @@ func init() {
 			s := strings.Split(f.Function, ".")
 			funcname := s[len(s)-1]
 			//_, filename := path.Split(f.File)
-			paddedFuncname := fmt.Sprintf(" %-20v", funcname+"()")
+			paddedFuncname := fmt.Sprintf(" %-30v", funcname+"()")
 			//paddedFilename := fmt.Sprintf("%17v", filename)
 			return paddedFuncname, ""
 		},
@@ -47,11 +47,23 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
+	/* BNB/BEP-2 */
+
+	bnbKeeper := bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet)
+
+	bnbKeeper.SetWatchAddr("tbnb1z20t7rn6urh46m2tavny3ap9n0pvkf47mynuza")
+
+	go bnbKeeper.Start()
+
+	/* BTC */
+
 	btcKeeper := btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet)
 
 	btcKeeper.SetAddr("mr6ioeUxNMoavbr2VjaSbPAovzzgDT7Su9")
 
-	btcKeeper.Start()
+	go btcKeeper.Start()
+
+	/* ETH/ERC20 */
 
 	ethKeeper := eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet)
 
@@ -61,13 +73,7 @@ func main() {
 
 	ethKeeper.SetTokenAndAddr(token, tssAddr)
 
-	ethKeeper.Start()
-
-	bnbKeeper := bnb.NewKeeper(conf.BNBConfig.NodeAddr, conf.BNBConfig.APIAddr, conf.BTCConfig.Testnet)
-
-	bnbKeeper.SetTokenAndAddr("0xaff4481d10270f50f203e0763e2597776068cbc5", "tbnb1gls26vjjqqjw7wfgs07707yr58lc8z8sxml4hk")
-
-	//btcKeeper.StartNode()
+	go ethKeeper.Start()
 
 	// Define API config
 	// Define REST and WS api listener address
@@ -81,8 +87,18 @@ func main() {
 	// ETH side
 	getERC20Txs := api.NewGet("/api/v1/eth/txs", ethKeeper.GetTxs)
 	broadcastETHTx := api.NewPOST("/api/v1/eth/broadcast", ethKeeper.BroadcastTx)
+	// BNB side
+	getBNBTxs := api.NewGet("/api/v1/bnb/txs", bnbKeeper.GetTxs)
+	broadcastBNBTx := api.NewPOST("/api/v1/bnb/broadcast", bnbKeeper.BroadcastTx)
 
-	apiConfig.Actions = []*api.Action{getBTCTxs, broadcastBTCTx, getERC20Txs, broadcastETHTx}
+	apiConfig.Actions = []*api.Action{
+		getBTCTxs,
+		broadcastBTCTx,
+		getERC20Txs,
+		broadcastETHTx,
+		getBNBTxs,
+		broadcastBNBTx,
+	}
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
 
