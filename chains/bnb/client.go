@@ -63,12 +63,13 @@ func ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64, blo
 					continue
 				}
 				for i, output := range realMsg.Outputs {
-					if output.Coins[0].Denom != "BTC.B-888" {
-						continue
-					}
+					//if output.Coins[0].Denom != "BTC.B-888" {
+					//	continue
+					//}
 					amount, err := common.NewAmountFromInt64(output.Coins[0].Amount)
 					if err != nil {
 						log.Info(err)
+						continue
 					}
 					newTx := common.Transaction{
 						TxID:          txData.Hash.String(),
@@ -76,7 +77,7 @@ func ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64, blo
 						To:            output.Address.String(),
 						Amount:        amount,
 						Confirmations: maxHeight - thisHeight,
-						Currency:      common.BNB,
+						Currency:      common.NewSymbol(output.Coins[0].Denom),
 						Memo:          txbase.Memo,
 						Spent:         false,
 						OutputIndex:   i,

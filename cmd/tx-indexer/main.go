@@ -51,7 +51,7 @@ func main() {
 
 	bnbKeeper := bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet)
 
-	bnbKeeper.SetWatchAddr("tbnb1z20t7rn6urh46m2tavny3ap9n0pvkf47mynuza")
+	bnbKeeper.SetWatchAddr("tbnb1ws2z8n9ygrnaeqwng69cxfpnundneyjze9cjsy")
 
 	go bnbKeeper.Start()
 

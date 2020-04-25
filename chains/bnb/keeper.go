@@ -46,7 +46,12 @@ func NewKeeper(urlStr string, isTestnet bool) *Keeper {
 		client:  c,
 		testnet: isTestnet,
 		network: bnbNetwork,
-		Txs:     &State{},
+		Txs: &State{
+			InTxs:         []common.Transaction{},
+			InTxsMempool:  []common.Transaction{},
+			OutTxs:        []common.Transaction{},
+			OutTxsMempool: []common.Transaction{},
+		},
 	}
 	return k
 }
@@ -103,12 +108,14 @@ func (k *Keeper) processKeep() {
 	for _, tx := range txs {
 		txList = append(txList, tx)
 	}
+	//log.Info(itemCount)
 	pageSize := 1 + itemCount/1000
 	for page := 2; page <= pageSize; page++ {
 		txs, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, blockTime)
 		for _, tx := range txs {
 			txList = append(txList, tx)
 		}
+		//log.Info(c, page)
 	}
 	inTxs := []common.Transaction{}
 	outTxs := []common.Transaction{}
@@ -121,9 +128,7 @@ func (k *Keeper) processKeep() {
 		}
 	}
 	k.mu.Lock()
-	k.Txs.InTxsMempool = []common.Transaction{}
 	k.Txs.InTxs = inTxs
-	k.Txs.OutTxsMempool = []common.Transaction{}
 	k.Txs.OutTxs = outTxs
 	k.mu.Unlock()
 

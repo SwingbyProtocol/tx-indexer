@@ -33,15 +33,16 @@ func NewClinet(uri string) *Client {
 }
 
 func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_common.Address) ([]common.Transaction, []common.Transaction) {
+	inTxs := []common.Transaction{}
+	outTxs := []common.Transaction{}
 	var res types.MempoolResponse
 	body := `{"jsonrpc":"2.0","method":"txpool_content","params":[],"id":1}`
 	api := api.NewResolver(c.uri, 20)
 	err := api.PostRequest("", body, &res)
 	if err != nil {
 		log.Info(err)
+		return inTxs, outTxs
 	}
-	inTxs := []common.Transaction{}
-	outTxs := []common.Transaction{}
 	for key := range res.Result.Pending {
 		base := res.Result.Pending[key]
 		for key := range base {

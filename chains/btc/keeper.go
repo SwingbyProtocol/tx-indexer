@@ -41,7 +41,12 @@ func NewKeeper(url string, isTestnet bool) *Keeper {
 		mu:     new(sync.RWMutex),
 		client: c,
 		tesnet: isTestnet,
-		Txs:    &State{},
+		Txs: &State{
+			InTxs:         []common.Transaction{},
+			InTxsMempool:  []common.Transaction{},
+			OutTxs:        []common.Transaction{},
+			OutTxsMempool: []common.Transaction{},
+		},
 	}
 	return k
 }
