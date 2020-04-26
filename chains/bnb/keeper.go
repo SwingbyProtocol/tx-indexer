@@ -69,6 +69,7 @@ func (k *Keeper) SetWatchAddr(addr string) error {
 		log.Info(err)
 	}
 	k.watchAddr = accAddr
+	log.Infof("set bnb watch address -> %s", k.watchAddr.String())
 	k.mu.Unlock()
 	return nil
 }
@@ -103,7 +104,7 @@ func (k *Keeper) Start() {
 func (k *Keeper) processKeep() {
 	txList := []common.Transaction{}
 	maxHeight, blockTime := k.client.GetLatestBlockHeight()
-	minHeight := maxHeight - 132000
+	minHeight := maxHeight - 832000
 	txs, itemCount := k.client.GetBlockTransactions(1, minHeight, maxHeight, blockTime)
 	for _, tx := range txs {
 		txList = append(txList, tx)

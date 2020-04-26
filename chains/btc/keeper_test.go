@@ -14,7 +14,7 @@ func TestKeeper(t *testing.T) {
 
 	//timestamp := time.Now().Add(-20 * time.Hour)
 
-	k.SetAddr("mr6ioeUxNMoavbr2VjaSbPAovzzgDT7Su9")
+	k.SetWatchAddr("mr6ioeUxNMoavbr2VjaSbPAovzzgDT7Su9")
 
 	k.Start()
 }

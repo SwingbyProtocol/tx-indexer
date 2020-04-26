@@ -71,7 +71,7 @@ func (k *Keeper) StartReScanAddr(addr string, timestamp int64) error {
 	return nil
 }
 
-func (k *Keeper) SetAddr(addr string) error {
+func (k *Keeper) SetWatchAddr(addr string) error {
 	net := &chaincfg.MainNetParams
 	if k.tesnet {
 		net = &chaincfg.TestNet3Params
@@ -82,6 +82,7 @@ func (k *Keeper) SetAddr(addr string) error {
 	}
 	k.mu.Lock()
 	k.watchAddr = address
+	log.Infof("set btc watch address -> %s", k.watchAddr.String())
 	k.mu.Unlock()
 	return nil
 }

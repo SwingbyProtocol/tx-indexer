@@ -53,10 +53,12 @@ func (k *Keeper) StartReScanAddr(addr string, timestamp int64) error {
 	return nil
 }
 
-func (k *Keeper) SetTokenAndAddr(token string, addr string) error {
+func (k *Keeper) SetTokenAndWatchAddr(token string, addr string) error {
 	k.mu.Lock()
 	k.tokenAddr = eth_common.HexToAddress(token)
 	k.watchAddr = eth_common.HexToAddress(addr)
+	log.Infof("set eth watch address -> %s", k.watchAddr.String())
+	log.Infof("set erc20 token address -> %s", k.tokenAddr.String())
 	k.mu.Unlock()
 	return nil
 }

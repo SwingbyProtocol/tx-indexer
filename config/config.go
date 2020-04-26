@@ -8,8 +8,13 @@ import (
 )
 
 const (
-	DefaultBTCNode = "http://192.168.1.230:8332"
-	DefaultETHNode = "http://192.168.1.230:8332"
+	DefaultBTCNode         = "http://192.168.1.230:8332"
+	DefautlBTCWatchAddress = "mr6ioeUxNMoavbr2VjaSbPAovzzgDT7Su9"
+	DefaultETHNode         = "http://192.168.1.230:8332"
+	DefautlETHWatchAddress = "0x3Ec6671171710F13a1a980bc424672d873b38808"
+	DefaultERC20Token      = "0xaff4481d10270f50f203e0763e2597776068cbc5"
+	DefaultBNCNode         = "tcp://192.168.1.146:26657"
+	DefautlBNCWatchAddress = "tbnb1ws2z8n9ygrnaeqwng69cxfpnundneyjze9cjsy"
 )
 
 // Config is app of conig
@@ -25,18 +30,22 @@ type Config struct {
 
 type BTCConfig struct {
 	NodeAddr       string `mapstructure:"node" json:"node"`
+	WatchAddr      string `mapstructure:"watch" json:"watch"`
 	Testnet        bool   `mapstructure:"testnet" json:"testnet"`
 	TargetOutbound uint32 `mapstructure:"nodeSize" json:"targetSize"`
 }
 
 type ETHConfig struct {
-	NodeAddr string `mapstructure:"node" json:"node"`
-	Testnet  bool   `mapstructure:"testnet" json:"testnet"`
+	NodeAddr   string `mapstructure:"node" json:"node"`
+	WatchAddr  string `mapstructure:"watch" json:"watch"`
+	WatchToken string `mapstructure:"token" json:"token"`
+	Testnet    bool   `mapstructure:"testnet" json:"testnet"`
 }
 
 type BNCConfig struct {
-	NodeAddr string `mapstructure:"node" json:"node"`
-	Testnet  bool   `mapstructure:"testnet" json:"testnet"`
+	NodeAddr  string `mapstructure:"node" json:"node"`
+	WatchAddr string `mapstructure:"watch" json:"watch"`
+	Testnet   bool   `mapstructure:"testnet" json:"testnet"`
 }
 
 type LogConfig struct {
@@ -66,16 +75,24 @@ func init() {
 	pflag.String("btc.node", DefaultBTCNode, "The address for connect btc fullnode")
 	// The target number of outbound peers. Defaults to 25.
 	pflag.Int("btc.nodeSize", 25, "The maximum node count for connect p2p")
+	// The watch address
+	pflag.String("btc.watch", DefautlBTCWatchAddress, "The address for watch address")
 
 	// Set ETH config
 	pflag.String("eth.node", DefaultETHNode, "The address for connect eth fullnode")
 
 	pflag.Bool("eth.testnet", false, "This is a eth testnet")
 
+	pflag.String("eth.watch", DefautlETHWatchAddress, "The address for watch address")
+
+	pflag.String("eth.token", DefaultERC20Token, "The address for watch address")
+
 	// Set BNB config
-	pflag.String("bnc.node", DefaultBTCNode, "The address for connect bnc fullnode")
+	pflag.String("bnc.node", DefaultBNCNode, "The address for connect bnc fullnode")
 
 	pflag.Bool("bnc.testnet", false, "This is a bnc testnet")
+
+	pflag.String("bnc.watch", DefautlBNCWatchAddress, "This is a bnc testnet")
 
 	pflag.StringP("rest.listen", "l", "0.0.0.0:9096", "The listen address for REST API")
 	// Bind ws flags

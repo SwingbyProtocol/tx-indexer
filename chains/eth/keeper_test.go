@@ -14,7 +14,7 @@ func TestKeeper(t *testing.T) {
 
 	tssAddr := "0x3Ec6671171710F13a1a980bc424672d873b38808"
 
-	keeper.SetTokenAndAddr(token, tssAddr)
+	keeper.SetTokenAndWatchAddr(token, tssAddr)
 
 	keeper.Start()
 

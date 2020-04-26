@@ -51,7 +51,7 @@ func main() {
 
 	bnbKeeper := bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet)
 
-	bnbKeeper.SetWatchAddr("tbnb1ws2z8n9ygrnaeqwng69cxfpnundneyjze9cjsy")
+	bnbKeeper.SetWatchAddr(conf.BNCConfig.WatchAddr)
 
 	go bnbKeeper.Start()
 
@@ -59,7 +59,7 @@ func main() {
 
 	btcKeeper := btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet)
 
-	btcKeeper.SetAddr("mr6ioeUxNMoavbr2VjaSbPAovzzgDT7Su9")
+	btcKeeper.SetWatchAddr(conf.BTCConfig.WatchAddr)
 
 	go btcKeeper.Start()
 
@@ -67,11 +67,7 @@ func main() {
 
 	ethKeeper := eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet)
 
-	token := "0xaff4481d10270f50f203e0763e2597776068cbc5"
-
-	tssAddr := "0x3Ec6671171710F13a1a980bc424672d873b38808"
-
-	ethKeeper.SetTokenAndAddr(token, tssAddr)
+	ethKeeper.SetTokenAndWatchAddr(conf.ETHConfig.WatchToken, conf.ETHConfig.WatchAddr)
 
 	go ethKeeper.Start()
 
