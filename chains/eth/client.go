@@ -77,7 +77,7 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_commo
 				To:            logTx.To.String(),
 				Amount:        amount,
 				Confirmations: 0,
-				Currency:      common.ETH,
+				Currency:      common.NewSymbol("Sample Token"),
 				Memo:          "",
 				OutputIndex:   0,
 				Spent:         false,
