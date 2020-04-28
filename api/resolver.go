@@ -5,12 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -85,7 +81,6 @@ func (r *Resolver) PostRequest(query string, jsonBody string, res interface{}) e
 	req.Header.Set("Content-Type", "application/json")
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-
 	reqWithDeadline := req.WithContext(ctx)
 	resp, err := r.Client.Do(reqWithDeadline)
 	if err != nil {
@@ -93,49 +88,10 @@ func (r *Resolver) PostRequest(query string, jsonBody string, res interface{}) e
 		return err
 	}
 	decoder := json.NewDecoder(resp.Body)
-	decoder.Decode(res)
+	err = decoder.Decode(res)
+	if err != nil {
+		return err
+	}
 	resp.Body.Close()
 	return nil
-}
-
-func Post(baseUri, endpoint string, query map[string]string, body io.Reader) ([]byte, error) {
-	return request(baseUri, "POST", endpoint, query, body)
-}
-
-func Get(baseUri, endpoint string, query map[string]string) ([]byte, error) {
-	return request(baseUri, "GET", endpoint, query, nil)
-}
-
-func request(baseUri, method, endpoint string, query map[string]string, body io.Reader) ([]byte, error) {
-	ctx, _ := context.WithTimeout(context.Background(), httpReqTimeout)
-	baseUri = strings.TrimSuffix(baseUri, "/")
-	req, err := http.NewRequestWithContext(ctx, method, fmt.Sprintf("%s%s", baseUri, endpoint), body)
-	if err != nil {
-		return nil, err
-	}
-	if method == "POST" {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	// create query string
-	q := req.URL.Query()
-	for k, v := range query {
-		q.Add(k, v)
-	}
-	req.URL.RawQuery = q.Encode()
-	client := &http.Client{}
-	// send get request
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 && resp.StatusCode > 299 {
-		return nil, fmt.Errorf("expected a status code of 2xx but got %d", resp.StatusCode)
-	}
-	// read response
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	return respBody, nil
 }

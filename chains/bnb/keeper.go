@@ -103,16 +103,20 @@ func (k *Keeper) Start() {
 
 func (k *Keeper) processKeep() {
 	txList := []common.Transaction{}
-	maxHeight, blockTime := k.client.GetLatestBlockHeight()
+	maxHeight, blockTime, err := k.client.GetLatestBlockHeight()
+	if err != nil {
+		log.Info(err)
+		return
+	}
 	minHeight := maxHeight - 832000
-	txs, itemCount := k.client.GetBlockTransactions(1, minHeight, maxHeight, blockTime)
+	txs, itemCount := k.client.GetBlockTransactions(1, minHeight, maxHeight, *blockTime)
 	for _, tx := range txs {
 		txList = append(txList, tx)
 	}
 	//log.Info(itemCount)
 	pageSize := 1 + itemCount/1000
 	for page := 2; page <= pageSize; page++ {
-		txs, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, blockTime)
+		txs, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, *blockTime)
 		for _, tx := range txs {
 			txList = append(txList, tx)
 		}

@@ -25,12 +25,13 @@ func NewClient(rpcApi *url.URL, network types.ChainNetwork, period time.Duration
 	return c
 }
 
-func (c *Client) GetLatestBlockHeight() (int64, time.Time) {
+func (c *Client) GetLatestBlockHeight() (int64, *time.Time, error) {
 	resultBlock, err := c.Block(nil)
 	if err != nil {
-		log.Info(err)
+		return 0, nil, err
 	}
-	return resultBlock.Block.Height, resultBlock.Block.Time
+	log.Info(resultBlock)
+	return resultBlock.Block.Height, &resultBlock.Block.Time, nil
 }
 
 func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64, blockTime time.Time) ([]common.Transaction, int) {
@@ -38,7 +39,6 @@ func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64
 	query := fmt.Sprintf("tx.height >= %d AND tx.height <= %d", minHeight, maxHeight)
 	resultTxSearch, err := c.TxSearch(query, true, page, 1000)
 	if err != nil {
-		log.Info(err)
 		return txs, 0
 	}
 	txs = ReultBlockToComTxs(resultTxSearch, maxHeight, blockTime)
@@ -51,7 +51,7 @@ func ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64, blo
 		txbase := tx.StdTx{}
 		base, err := rpc.ParseTx(tx.Cdc, txData.Tx)
 		if err != nil {
-			log.Info(err)
+			return newTxs
 		}
 		txbase = base.(tx.StdTx)
 		thisHeight := txData.Height

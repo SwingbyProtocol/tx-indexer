@@ -43,6 +43,7 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_commo
 		log.Info(err)
 		return inTxs, outTxs
 	}
+	log.Info(res.Result)
 	for key := range res.Result.Pending {
 		base := res.Result.Pending[key]
 		for key := range base {
@@ -150,7 +151,7 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 				To:            to.String(),
 				Amount:        amount,
 				Confirmations: int64(conf),
-				Currency:      common.ETH,
+				Currency:      common.NewSymbol("Sample Token"),
 				Memo:          "",
 				OutputIndex:   0,
 				Spent:         false,
