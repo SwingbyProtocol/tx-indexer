@@ -64,7 +64,10 @@ func (r *Resolver) GetRequest(query string, res interface{}) error {
 		return errors.New(" -> " + code + " " + query)
 	}
 	decoder := json.NewDecoder(resp.Body)
-	decoder.Decode(res)
+	err = decoder.Decode(res)
+	if err != nil {
+		return err
+	}
 	resp.Body.Close()
 	return nil
 }
