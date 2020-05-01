@@ -17,7 +17,9 @@ import (
 )
 
 var (
-	apiServer = &api.API{}
+	bnbKeeper *bnb.Keeper
+	btcKeeper *btc.Keeper
+	ethKeeper *eth.Keeper
 )
 
 func init() {
@@ -47,53 +49,63 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
-	/* BNB/BEP-2 */
-
-	bnbKeeper := bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet)
-
-	bnbKeeper.SetWatchAddr(conf.BNCConfig.WatchAddr)
-
-	go bnbKeeper.Start()
-
-	/* BTC */
-
-	btcKeeper := btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet)
-
-	btcKeeper.SetWatchAddr(conf.BTCConfig.WatchAddr)
-
-	go btcKeeper.Start()
-
-	/* ETH/ERC20 */
-
-	ethKeeper := eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet)
-
-	ethKeeper.SetTokenAndWatchAddr(conf.ETHConfig.WatchToken, conf.ETHConfig.WatchAddr)
-
-	go ethKeeper.Start()
-
 	// Define API config
 	// Define REST and WS api listener address
 	apiConfig := &api.APIConfig{
 		ListenREST: conf.RESTConfig.ListenAddr,
 		ListenWS:   conf.WSConfig.ListenAddr,
+		Actions:    []*api.Action{},
 	}
-	// BTC side
-	getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
-	broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
-	// ETH side
-	getERC20Txs := api.NewGet("/api/v1/eth/txs", ethKeeper.GetTxs)
-	broadcastETHTx := api.NewPOST("/api/v1/eth/broadcast", ethKeeper.BroadcastTx)
-	// BNB side
-	getBNBTxs := api.NewGet("/api/v1/bnb/txs", bnbKeeper.GetTxs)
-	broadcastBNBTx := api.NewPOST("/api/v1/bnb/broadcast", bnbKeeper.BroadcastTx)
 
-	apiConfig.Actions = []*api.Action{
-		getBTCTxs,
-		broadcastBTCTx,
-		getERC20Txs,
-		broadcastETHTx,
-		getBNBTxs,
-		broadcastBNBTx,
+	/* BNB/BEP-2 */
+	if conf.BNCConfig.NodeAddr != config.DefaultBNCNode {
+
+		bnbKeeper = bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet)
+
+		bnbKeeper.SetWatchAddr(conf.BNCConfig.WatchAddr)
+
+		go bnbKeeper.Start()
+
+		// BNB side
+		getBNBTxs := api.NewGet("/api/v1/bnb/txs", bnbKeeper.GetTxs)
+		broadcastBNBTx := api.NewPOST("/api/v1/bnb/broadcast", bnbKeeper.BroadcastTx)
+
+		apiConfig.Actions = append(apiConfig.Actions, getBNBTxs)
+		apiConfig.Actions = append(apiConfig.Actions, broadcastBNBTx)
+	}
+
+	/* BTC */
+
+	if conf.BTCConfig.NodeAddr != config.DefaultBTCNode {
+
+		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet)
+
+		btcKeeper.SetWatchAddr(conf.BTCConfig.WatchAddr)
+
+		go btcKeeper.Start()
+
+		getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
+		broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
+
+		apiConfig.Actions = append(apiConfig.Actions, getBTCTxs)
+		apiConfig.Actions = append(apiConfig.Actions, broadcastBTCTx)
+	}
+
+	/* ETH/ERC20 */
+
+	if conf.ETHConfig.NodeAddr != config.DefaultETHNode {
+
+		ethKeeper = eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet)
+
+		ethKeeper.SetTokenAndWatchAddr(conf.ETHConfig.WatchToken, conf.ETHConfig.WatchAddr)
+
+		go ethKeeper.Start()
+
+		getERC20Txs := api.NewGet("/api/v1/eth/txs", ethKeeper.GetTxs)
+		broadcastETHTx := api.NewPOST("/api/v1/eth/broadcast", ethKeeper.BroadcastTx)
+
+		apiConfig.Actions = append(apiConfig.Actions, getERC20Txs)
+		apiConfig.Actions = append(apiConfig.Actions, broadcastETHTx)
 	}
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
