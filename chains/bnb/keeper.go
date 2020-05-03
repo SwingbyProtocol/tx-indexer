@@ -40,7 +40,7 @@ func NewKeeper(urlStr string, isTestnet bool) *Keeper {
 	if isTestnet {
 		bnbNetwork = types.TestNetwork
 	}
-	c := NewClient(bnbRPCURI, bnbNetwork, 2*time.Second)
+	c := NewClient(bnbRPCURI, bnbNetwork, 30*time.Second)
 	k := &Keeper{
 		mu:      new(sync.RWMutex),
 		client:  c,
@@ -69,7 +69,7 @@ func (k *Keeper) SetWatchAddr(addr string) error {
 		log.Info(err)
 	}
 	k.watchAddr = accAddr
-	log.Infof("set bnb watch address -> %s", k.watchAddr.String())
+	log.Infof("set bnb watch address -> %s isTestnet: %t", k.watchAddr.String(), k.testnet)
 	k.mu.Unlock()
 	return nil
 }
@@ -95,6 +95,10 @@ func (k *Keeper) Start() {
 		for {
 			select {
 			case <-k.ticker.C:
+				if !k.client.IsActive() {
+					log.Infof("bnc ws api is not active.. reset.")
+					//k.client.Reset()
+				}
 				k.processKeep()
 			}
 		}
@@ -108,18 +112,23 @@ func (k *Keeper) processKeep() {
 		log.Info(err)
 		return
 	}
-	minHeight := maxHeight - 832000
-	txs, itemCount := k.client.GetBlockTransactions(1, minHeight, maxHeight, *blockTime)
+	// set 48 hours
+	minHeight := maxHeight - 345600
+	txs, itemCount, err := k.client.GetBlockTransactions(1, minHeight, maxHeight, *blockTime)
+	if err != nil {
+		log.Info(err)
+		return
+	}
 	for _, tx := range txs {
 		txList = append(txList, tx)
 	}
-	//log.Info(itemCount)
 	pageSize := 1 + itemCount/1000
 	for page := 2; page <= pageSize; page++ {
-		txs, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, *blockTime)
+		txs, _, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, *blockTime)
 		for _, tx := range txs {
 			txList = append(txList, tx)
 		}
+		log.Infof("Tx scanning on the Binance chain -> total: %d, found: %d, per_page: 1000, page: %d", itemCount, len(txs), page)
 		//log.Info(c, page)
 	}
 	inTxs := []common.Transaction{}

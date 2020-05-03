@@ -30,19 +30,19 @@ func (c *Client) GetLatestBlockHeight() (int64, *time.Time, error) {
 	if err != nil {
 		return 0, nil, err
 	}
-	log.Info(resultBlock)
+	//log.Info(resultBlock)
 	return resultBlock.Block.Height, &resultBlock.Block.Time, nil
 }
 
-func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64, blockTime time.Time) ([]common.Transaction, int) {
+func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64, blockTime time.Time) ([]common.Transaction, int, error) {
 	txs := []common.Transaction{}
 	query := fmt.Sprintf("tx.height >= %d AND tx.height <= %d", minHeight, maxHeight)
 	resultTxSearch, err := c.TxSearch(query, true, page, 1000)
 	if err != nil {
-		return txs, 0
+		return txs, 0, err
 	}
 	txs = ReultBlockToComTxs(resultTxSearch, maxHeight, blockTime)
-	return txs, resultTxSearch.TotalCount
+	return txs, resultTxSearch.TotalCount, nil
 }
 
 func ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64, blockTime time.Time) []common.Transaction {
