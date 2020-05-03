@@ -22,4 +22,4 @@ replace github.com/btcsuite/btcd => github.com/SwingbyProtocol/btcd v0.20.1-beta
 
 replace github.com/tendermint/go-amino => github.com/binance-chain/bnc-go-amino v0.14.1-binance.1
 
-replace github.com/zondax/hid => github.com/binance-chain/hid v0.9.1-0.20190807012304-e1ffd6f0a3cc
+replace github.com/zondax/ledger-go => github.com/binance-chain/ledger-go v0.9.1
