@@ -11,12 +11,11 @@ require (
 	github.com/ethereum/go-ethereum v1.9.13
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.2
-	github.com/shopspring/decimal v0.0.0-20200419222939-1884f454f8ea
-	github.com/sirupsen/logrus v1.5.0
+	github.com/shopspring/decimal v1.2.0
+	github.com/sirupsen/logrus v1.6.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.3
-	google.golang.org/appengine v1.4.0
-	google.golang.org/genproto v0.0.0-20200423170343-7949de9c1215 // indirect
+	google.golang.org/genproto v0.0.0-20200430143042-b979b6f78d84 // indirect
 )
 
 replace github.com/btcsuite/btcd => github.com/SwingbyProtocol/btcd v0.20.1-beta.0.20200305144550-04c526190fa6
