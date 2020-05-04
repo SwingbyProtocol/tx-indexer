@@ -215,6 +215,7 @@ func BtcTransactionsToChainTransactions(curHeight int64, txs []types.Tx, timeFro
 				Amount:        amount,
 				Timestamp:     time.Unix(txTime, 0),
 				Currency:      common.BTC,
+				Height:        tx.Height,
 				Confirmations: confirms,
 				OutputIndex:   idx,
 				Spent:         vOut.Spent,

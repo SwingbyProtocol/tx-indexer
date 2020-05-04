@@ -9,9 +9,14 @@ import (
 	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/common"
+	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/ant0ine/go-json-rest/rest"
 	"github.com/binance-chain/go-sdk/common/types"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	interval = 10 * time.Second
 )
 
 type Keeper struct {
@@ -22,6 +27,8 @@ type Keeper struct {
 	network   types.ChainNetwork
 	testnet   bool
 	Txs       *State
+	isScan    bool
+	cache     map[string]common.Transaction
 }
 
 type State struct {
@@ -46,6 +53,7 @@ func NewKeeper(urlStr string, isTestnet bool) *Keeper {
 		client:  c,
 		testnet: isTestnet,
 		network: bnbNetwork,
+		cache:   make(map[string]common.Transaction),
 		Txs: &State{
 			InTxs:         []common.Transaction{},
 			InTxsMempool:  []common.Transaction{},
@@ -75,6 +83,7 @@ func (k *Keeper) SetWatchAddr(addr string) error {
 }
 
 /*
+
 func (k *Keeper) GetAddr() types.AccAddress {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
@@ -89,7 +98,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) Start() {
-	k.ticker = time.NewTicker(10 * time.Second)
+	k.ticker = time.NewTicker(interval)
 	k.processKeep()
 	go func() {
 		for {
@@ -114,38 +123,56 @@ func (k *Keeper) processKeep() {
 	}
 	// set 48 hours
 	minHeight := maxHeight - 345600
-	txs, itemCount, err := k.client.GetBlockTransactions(1, minHeight, maxHeight, *blockTime)
+	txs, itemCount, err := k.client.GetBlockTransactions(1, minHeight, maxHeight, 1, *blockTime)
 	if err != nil {
 		log.Info(err)
 		return
 	}
+	log.Infof("Tx scanning on the Binance chain -> total: %d, per_page 1, page: %d", itemCount, 1)
 	for _, tx := range txs {
 		txList = append(txList, tx)
 	}
-	pageSize := 1 + itemCount/1000
-	for page := 2; page <= pageSize; page++ {
-		txs, _, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, *blockTime)
+	limit := 1
+	perPage := 500
+	pageSize := 1 + itemCount/perPage
+	if k.isScan {
+		limit = pageSize - 1
+	}
+	for page := pageSize; page >= limit; page-- {
+		txs, _, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage, *blockTime)
 		for _, tx := range txs {
 			txList = append(txList, tx)
 		}
-		log.Infof("Tx scanning on the Binance chain -> total: %d, found: %d, per_page: 1000, page: %d", itemCount, len(txs), page)
+		log.Infof("Tx scanning on the Binance chain -> total: %d, found: %d, per_page: %d, page: %d", itemCount, len(txs), perPage, page)
 		//log.Info(c, page)
 	}
+	for _, tx := range txList {
+		k.mu.Lock()
+		k.cache[tx.Serialize()] = tx
+		k.mu.Unlock()
+	}
+	k.mu.RLock()
+	loadTxs := k.cache
+	k.mu.RUnlock()
 	inTxs := []common.Transaction{}
 	outTxs := []common.Transaction{}
-	for _, tx := range txList {
+	for _, tx := range loadTxs {
 		if tx.From == k.watchAddr.String() {
+			tx.Confirmations = maxHeight - tx.Height
 			outTxs = append(outTxs, tx)
 		}
 		if tx.To == k.watchAddr.String() {
+			tx.Confirmations = maxHeight - tx.Height
 			inTxs = append(inTxs, tx)
 		}
 	}
+	utils.SortTx(inTxs)
+	utils.SortTx(outTxs)
 	k.mu.Lock()
 	k.Txs.InTxs = inTxs
 	k.Txs.OutTxs = outTxs
+	k.isScan = true
 	k.mu.Unlock()
-
 	log.Info("BNC txs scanning done")
 }
 

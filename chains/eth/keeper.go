@@ -15,6 +15,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	interval = 15 * time.Second
+)
+
 type Keeper struct {
 	mu        *sync.RWMutex
 	client    *Client
@@ -79,7 +83,7 @@ func (k *Keeper) Start() {
 	if k.GetAddr().String() == new(eth_common.Address).String() {
 		log.Fatal("Error: eth address is not set")
 	}
-	k.ticker = time.NewTicker(15 * time.Second)
+	k.ticker = time.NewTicker(interval)
 	k.processKeep()
 	go func() {
 		for {

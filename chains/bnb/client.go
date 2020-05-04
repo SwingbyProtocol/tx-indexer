@@ -34,10 +34,10 @@ func (c *Client) GetLatestBlockHeight() (int64, *time.Time, error) {
 	return resultBlock.Block.Height, &resultBlock.Block.Time, nil
 }
 
-func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64, blockTime time.Time) ([]common.Transaction, int, error) {
+func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64, perPage int, blockTime time.Time) ([]common.Transaction, int, error) {
 	txs := []common.Transaction{}
 	query := fmt.Sprintf("tx.height >= %d AND tx.height <= %d", minHeight, maxHeight)
-	resultTxSearch, err := c.TxSearch(query, true, page, 1000)
+	resultTxSearch, err := c.TxSearch(query, true, page, perPage)
 	if err != nil {
 		return txs, 0, err
 	}
@@ -76,6 +76,7 @@ func ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64, blo
 						From:          realMsg.Inputs[0].Address.String(),
 						To:            output.Address.String(),
 						Amount:        amount,
+						Height:        thisHeight,
 						Confirmations: maxHeight - thisHeight,
 						Currency:      common.NewSymbol(output.Coins[0].Denom),
 						Memo:          txbase.Memo,

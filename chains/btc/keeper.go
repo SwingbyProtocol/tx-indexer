@@ -16,6 +16,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+const (
+	interval = 80 * time.Second
+)
+
 type Keeper struct {
 	mu        *sync.RWMutex
 	client    *Client
@@ -108,7 +112,7 @@ func (k *Keeper) Start() {
 		log.Fatal(err)
 	}
 	// Every call try to store latest 5 blocks
-	k.ticker = time.NewTicker(80 * time.Second)
+	k.ticker = time.NewTicker(interval)
 	k.processKeep()
 	go func() {
 		for {
