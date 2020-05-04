@@ -46,7 +46,7 @@ func (tx Transaction) MarshalJSON() ([]byte, error) {
 		TxID:          tx.TxID,
 		From:          tx.From,
 		To:            tx.To,
-		Amount:        tx.Amount.Uint(),
+		Amount:        tx.Amount.BigInt().String(),
 		Timestamp:     tx.Timestamp.Unix(),
 		Currency:      tx.Currency.String(),
 		Confirmations: tx.Confirmations,
