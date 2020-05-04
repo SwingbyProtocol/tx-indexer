@@ -22,9 +22,7 @@ COPY . .
 RUN make build-linux-amd64
 
 ######## Start a new stage from scratch #######
-FROM alpine:latest
-
-RUN apk --no-cache add ca-certificates
+FROM gcr.io/distroless/base-debian10
 
 WORKDIR /var/app
 
