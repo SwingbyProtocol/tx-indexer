@@ -60,6 +60,10 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_commo
 				continue
 			}
 			tokenAbi, err := abi.JSON(strings.NewReader(token.TokenABI))
+			if err != nil {
+				log.Info(err)
+				continue
+			}
 			var logTx types.LogTransfer
 			err = tokenAbi.Unpack(&logTx, "Transfer", data[36:68])
 			if err != nil {

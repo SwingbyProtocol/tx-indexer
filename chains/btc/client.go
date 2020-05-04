@@ -174,6 +174,9 @@ func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {
 		return nil, err
 	}
 	txData, err := c.GetRawTransaction(hash)
+	if err != nil {
+		return nil, err
+	}
 	tx := utils.MsgTxToTx(txData.MsgTx(), btcNet)
 	return &tx, nil
 }
