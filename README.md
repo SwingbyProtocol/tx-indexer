@@ -12,11 +12,17 @@ $ go run ./cmd/tx-indexer --btc.node http://192.168.1.101:8332 --btc.testnet
 ```
 ## Configs
 ```
+      --bnc.node string      The address for connect bnc fullnode (default "tcp://192.168.1.146:26657")
+      --bnc.testnet          This is a bnc testnet
+      --bnc.watch string     This is a bnc testnet (default "tbnb1ws2z8n9ygrnaeqwng69cxfpnundneyjze9cjsy")
       --btc.node string      The address for connect btc fullnode (default "http://192.168.1.230:8332")
       --btc.nodeSize int     The maximum node count for connect p2p (default 25)
       --btc.testnet          This is a btc testnet
-      --eth.node string      The address for connect eth fullnode (default "http://192.168.1.230:8545")
-      --eth.testnet          This is a eth testnet
+      --btc.watch string     The address for watch address (default "mr6ioeUxNMoavbr2VjaSbPAovzzgDT7Su9")
+      --eth.node string      The address for connect eth fullnode (default "http://192.168.1.230:8332")
+      --eth.testnet          This is a eth testnet (Goerli)
+      --eth.token string     The address for watch address (default "0xaff4481d10270f50f203e0763e2597776068cbc5")
+      --eth.watch string     The address for watch address (default "0x3Ec6671171710F13a1a980bc424672d873b38808")
       --log.level string     The log level (default "info")
   -l, --rest.listen string   The listen address for REST API (default "0.0.0.0:9096")
   -w, --ws.listen string     The listen address for Websocket API (default "0.0.0.0:9099")

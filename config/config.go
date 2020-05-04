@@ -81,7 +81,7 @@ func init() {
 	// Set ETH config
 	pflag.String("eth.node", DefaultETHNode, "The address for connect eth fullnode")
 
-	pflag.Bool("eth.testnet", false, "This is a eth testnet")
+	pflag.Bool("eth.testnet", false, "This is a eth testnet (Goerli)")
 
 	pflag.String("eth.watch", DefautlETHWatchAddress, "The address for watch address")
 
