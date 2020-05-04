@@ -37,6 +37,7 @@ func (tx Transaction) MarshalJSON() ([]byte, error) {
 		To            string      `json:"to"`
 		Amount        interface{} `json:"amount"`
 		Timestamp     int64       `json:"time"`
+		Height        int64       `json:"height"`
 		Currency      string      `json:"currency"`
 		Confirmations int64       `json:"confirmations"`
 		Memo          string      `json:"memo"`
@@ -49,6 +50,7 @@ func (tx Transaction) MarshalJSON() ([]byte, error) {
 		Amount:        tx.Amount.BigInt().String(),
 		Timestamp:     tx.Timestamp.Unix(),
 		Currency:      tx.Currency.String(),
+		Height:        tx.Height,
 		Confirmations: tx.Confirmations,
 		Memo:          tx.Memo,
 		OutputIndex:   tx.OutputIndex,
