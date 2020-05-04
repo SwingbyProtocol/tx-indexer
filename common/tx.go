@@ -17,6 +17,7 @@ type Transaction struct {
 	From          string
 	To            string
 	Amount        Amount
+	Decimals      int
 	Timestamp     time.Time
 	Currency      Symbol
 	Height        int64 // add height
@@ -36,6 +37,7 @@ func (tx Transaction) MarshalJSON() ([]byte, error) {
 		From          string      `json:"from"`
 		To            string      `json:"to"`
 		Amount        interface{} `json:"amount"`
+		Decimals      int         `json:"decimals"`
 		Timestamp     int64       `json:"time"`
 		Height        int64       `json:"height"`
 		Currency      string      `json:"currency"`
@@ -48,6 +50,7 @@ func (tx Transaction) MarshalJSON() ([]byte, error) {
 		From:          tx.From,
 		To:            tx.To,
 		Amount:        tx.Amount.BigInt().String(),
+		Decimals:      tx.Decimals,
 		Timestamp:     tx.Timestamp.Unix(),
 		Currency:      tx.Currency.String(),
 		Height:        tx.Height,
