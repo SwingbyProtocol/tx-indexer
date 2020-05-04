@@ -71,14 +71,16 @@ func ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64, blo
 						log.Info(err)
 						continue
 					}
+					currency := common.NewSymbol(output.Coins[0].Denom, 8)
 					newTx := common.Transaction{
 						TxID:          txData.Hash.String(),
 						From:          realMsg.Inputs[0].Address.String(),
 						To:            output.Address.String(),
 						Amount:        amount,
+						Decimals:      currency.Decimlas(),
 						Height:        thisHeight,
 						Confirmations: maxHeight - thisHeight,
-						Currency:      common.NewSymbol(output.Coins[0].Denom),
+						Currency:      currency,
 						Memo:          txbase.Memo,
 						Spent:         false,
 						OutputIndex:   i,

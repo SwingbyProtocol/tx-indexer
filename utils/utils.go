@@ -213,6 +213,7 @@ func BtcTransactionsToChainTransactions(curHeight int64, txs []types.Tx, timeFro
 				From:          fundingVIn.Addresses[0], // TODO: may be multiple addresses for multisig transactions
 				To:            vOut.Addresses[0],       // TODO: may be multiple addresses for multisig transactions
 				Amount:        amount,
+				Decimals:      common.BTC.Decimlas(),
 				Timestamp:     time.Unix(txTime, 0),
 				Currency:      common.BTC,
 				Height:        tx.Height,

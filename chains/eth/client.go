@@ -75,14 +75,16 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_commo
 			if err != nil {
 				log.Info(err)
 			}
+			currency := common.NewSymbol("Sample Token", 18)
 			tx := common.Transaction{
 				TxID:          rawTx.Hash().String(),
 				From:          logTx.From.String(),
 				To:            logTx.To.String(),
 				Amount:        amount,
+				Decimals:      currency.Decimlas(),
 				Height:        0,
 				Confirmations: 0,
-				Currency:      common.NewSymbol("Sample Token"),
+				Currency:      currency,
 				Memo:          "",
 				OutputIndex:   0,
 				Spent:         false,
@@ -148,15 +150,16 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 			conf := latestBlock.Number().Uint64() - vLog.BlockNumber
 			from := eth_common.HexToAddress(vLog.Topics[1].String())
 			to := eth_common.HexToAddress(vLog.Topics[2].String())
-
+			currency := common.NewSymbol("Sample Token", 18)
 			tx := common.Transaction{
 				TxID:          vLog.TxHash.Hex(),
 				From:          from.String(),
 				To:            to.String(),
 				Amount:        amount,
+				Decimals:      currency.Decimlas(),
 				Height:        int64(vLog.BlockNumber),
 				Confirmations: int64(conf),
-				Currency:      common.NewSymbol("Sample Token"),
+				Currency:      currency,
 				Memo:          "",
 				OutputIndex:   0,
 				Spent:         false,
