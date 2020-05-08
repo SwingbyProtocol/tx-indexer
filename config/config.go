@@ -15,7 +15,7 @@ const (
 	DefaultERC20Token      = "0xaff4481d10270f50f203e0763e2597776068cbc5"
 	DefaultBNCNode         = "tcp://192.168.1.146:26657"
 	DefautlBNCWatchAddress = "tbnb1ws2z8n9ygrnaeqwng69cxfpnundneyjze9cjsy"
-	DefaultAccessToken     = "acc"
+	DefaultAccessToken     = "accessToken"
 )
 
 // Config is app of conig

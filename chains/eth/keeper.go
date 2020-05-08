@@ -2,6 +2,7 @@ package eth
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -20,13 +21,14 @@ const (
 )
 
 type Keeper struct {
-	mu        *sync.RWMutex
-	client    *Client
-	ticker    *time.Ticker
-	tokenAddr eth_common.Address
-	watchAddr eth_common.Address
-	tesnet    bool
-	Txs       *State
+	mu          *sync.RWMutex
+	client      *Client
+	ticker      *time.Ticker
+	accessToken string
+	tokenAddr   eth_common.Address
+	watchAddr   eth_common.Address
+	tesnet      bool
+	Txs         *State
 }
 
 type State struct {
@@ -36,12 +38,13 @@ type State struct {
 	OutTxs        []common.Transaction `json:"outTxs"`
 }
 
-func NewKeeper(url string, isTestnet bool) *Keeper {
+func NewKeeper(url string, isTestnet bool, accessToken string) *Keeper {
 	c := NewClinet(url)
 	k := &Keeper{
-		mu:     new(sync.RWMutex),
-		client: c,
-		tesnet: isTestnet,
+		mu:          new(sync.RWMutex),
+		client:      c,
+		tesnet:      isTestnet,
+		accessToken: accessToken,
 		Txs: &State{
 			InTxs:         []common.Transaction{},
 			InTxsMempool:  []common.Transaction{},
@@ -52,12 +55,42 @@ func NewKeeper(url string, isTestnet bool) *Keeper {
 	return k
 }
 
-func (k *Keeper) StartReScanAddr(addr string, timestamp int64) error {
-	// TODO: set rescan
-	return nil
+func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
+	req := common.ConfigParams{}
+	res := common.ConfigResponse{
+		Result: false,
+	}
+	err := r.DecodeJsonPayload(&req)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	if k.accessToken != req.AccessToken {
+		res.Msg = "AccessToken is not valid"
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	err = k.SetTokenAndWatchAddr(req.TargetToken, req.Address)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	res.Result = true
+	res.Msg = "success"
+	w.WriteJson(res)
 }
 
 func (k *Keeper) SetTokenAndWatchAddr(token string, addr string) error {
+	checkAddr := eth_common.IsHexAddress(addr)
+	checkToken := eth_common.IsHexAddress(token)
+	if !checkAddr || !checkToken {
+		return errors.New("watch address or target token address is not valid")
+	}
 	k.mu.Lock()
 	k.tokenAddr = eth_common.HexToAddress(token)
 	k.watchAddr = eth_common.HexToAddress(addr)
@@ -132,6 +165,11 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 func (k *Keeper) processKeep() {
 	//fromTime := time.Now().Add(-78 * time.Hour)
 	//toTime := time.Now()
+	err := k.client.SyncLatestBlocks()
+	if err != nil {
+		log.Info(err)
+		return
+	}
 	inTxsMempool, outTxsMempool := k.client.GetMempoolTxs(k.tokenAddr, k.watchAddr)
 	inTxs, outTxs := k.client.GetTxs(k.tokenAddr, k.watchAddr)
 

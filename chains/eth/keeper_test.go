@@ -8,7 +8,7 @@ import (
 func TestKeeper(t *testing.T) {
 	uri := os.Getenv("ethRPC")
 
-	keeper := NewKeeper(uri, true)
+	keeper := NewKeeper(uri, true, "test token")
 
 	token := "0xaff4481d10270f50f203e0763e2597776068cbc5"
 

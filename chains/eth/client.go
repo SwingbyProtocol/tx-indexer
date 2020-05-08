@@ -20,8 +20,9 @@ import (
 
 type Client struct {
 	*ethclient.Client
-	uri        string
-	blockTimes map[uint64]uint64
+	uri         string
+	blockTimes  map[uint64]uint64
+	latestBlock int64
 }
 
 func NewClinet(uri string) *Client {
@@ -29,7 +30,7 @@ func NewClinet(uri string) *Client {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return &Client{client, uri, make(map[uint64]uint64)}
+	return &Client{client, uri, make(map[uint64]uint64), 0}
 }
 
 func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_common.Address) ([]common.Transaction, []common.Transaction) {
@@ -86,7 +87,7 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_commo
 				Memo:          "",
 				OutputIndex:   0,
 				Spent:         false,
-				Timestamp:     time.Now(),
+				Timestamp:     time.Unix(0, 0),
 			}
 			if tx.From == watchAddr.String() {
 				outTxs = append(outTxs, tx)
@@ -99,11 +100,22 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_commo
 	return inTxs, outTxs
 }
 
+func (c *Client) SyncLatestBlocks() error {
+	latestBlock, err := c.BlockByNumber(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	c.latestBlock = latestBlock.Header().Number.Int64()
+	return nil
+}
+
 func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Address) ([]common.Transaction, []common.Transaction) {
 	inTxs := []common.Transaction{}
 	outTxs := []common.Transaction{}
+	// default 48 hours
+	fromHeight := int64(172800 / 12)
 	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(2533531),
+		FromBlock: big.NewInt(c.latestBlock - fromHeight),
 		ToBlock:   nil, //big.NewInt(6383840),
 		Addresses: []eth_common.Address{
 			tokenAddr,
@@ -121,11 +133,6 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 	logApprovalSig := []byte("Approval(address,address,uint256)")
 	logTransferSigHash := crypto.Keccak256Hash(logTransferSig)
 	logApprovalSigHash := crypto.Keccak256Hash(logApprovalSig)
-
-	latestBlock, err := c.BlockByNumber(context.Background(), nil)
-	if err != nil {
-		log.Info(err)
-	}
 	for _, vLog := range logs {
 		switch vLog.Topics[0].Hex() {
 		case logTransferSigHash.Hex():
@@ -145,7 +152,7 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 				}
 				c.blockTimes[vLog.BlockNumber] = block.Time()
 			}
-			conf := latestBlock.Number().Uint64() - vLog.BlockNumber
+			conf := uint64(c.latestBlock) - vLog.BlockNumber
 			from := eth_common.HexToAddress(vLog.Topics[1].String())
 			to := eth_common.HexToAddress(vLog.Topics[2].String())
 			currency := common.NewSymbol("Sample Token", 18)
@@ -173,8 +180,4 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 		}
 	}
 	return inTxs, outTxs
-}
-
-func (c *Client) SetAddress(addr string) error {
-	return nil
 }

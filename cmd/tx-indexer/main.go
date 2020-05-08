@@ -100,7 +100,7 @@ func main() {
 
 	if conf.ETHConfig.NodeAddr != config.DefaultETHNode {
 
-		ethKeeper = eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet)
+		ethKeeper = eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet, conf.AccessToken)
 
 		ethKeeper.SetTokenAndWatchAddr(conf.ETHConfig.WatchToken, conf.ETHConfig.WatchAddr)
 
@@ -108,9 +108,11 @@ func main() {
 
 		getERC20Txs := api.NewGet("/api/v1/eth/txs", ethKeeper.GetTxs)
 		broadcastETHTx := api.NewPOST("/api/v1/eth/broadcast", ethKeeper.BroadcastTx)
+		setETHConfig := api.NewPOST("/api/v1/eth/config", ethKeeper.SetConfig)
 
 		apiConfig.Actions = append(apiConfig.Actions, getERC20Txs)
 		apiConfig.Actions = append(apiConfig.Actions, broadcastETHTx)
+		apiConfig.Actions = append(apiConfig.Actions, setETHConfig)
 	}
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
