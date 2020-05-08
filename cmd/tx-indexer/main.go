@@ -48,6 +48,7 @@ func main() {
 	if loglevel == "debug" {
 		log.SetLevel(log.DebugLevel)
 	}
+	log.Infof("AccessToken: %s", conf.AccessToken)
 
 	// Define API config
 	// Define REST and WS api listener address
@@ -78,17 +79,21 @@ func main() {
 
 	if conf.BTCConfig.NodeAddr != config.DefaultBTCNode {
 
-		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet)
+		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet, conf.AccessToken)
 
-		btcKeeper.SetWatchAddr(conf.BTCConfig.WatchAddr)
-
+		err := btcKeeper.SetWatchAddr(conf.BTCConfig.WatchAddr, false, 0)
+		if err != nil {
+			log.Fatal(err)
+		}
 		go btcKeeper.Start()
 
 		getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
 		broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
+		setBTCConfig := api.NewPOST("/api/v1/btc/config", btcKeeper.SetConfig)
 
 		apiConfig.Actions = append(apiConfig.Actions, getBTCTxs)
 		apiConfig.Actions = append(apiConfig.Actions, broadcastBTCTx)
+		apiConfig.Actions = append(apiConfig.Actions, setBTCConfig)
 	}
 
 	/* ETH/ERC20 */

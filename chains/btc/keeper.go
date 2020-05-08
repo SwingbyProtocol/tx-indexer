@@ -17,16 +17,17 @@ import (
 )
 
 const (
-	interval = 80 * time.Second
+	interval = 30 * time.Second
 )
 
 type Keeper struct {
-	mu        *sync.RWMutex
-	client    *Client
-	ticker    *time.Ticker
-	watchAddr btcutil.Address
-	tesnet    bool
-	Txs       *State
+	mu          *sync.RWMutex
+	client      *Client
+	ticker      *time.Ticker
+	watchAddr   btcutil.Address
+	tesnet      bool
+	accessToken string
+	Txs         *State
 }
 
 type State struct {
@@ -36,15 +37,16 @@ type State struct {
 	OutTxs        []common.Transaction `json:"outTxs"`
 }
 
-func NewKeeper(url string, isTestnet bool) *Keeper {
+func NewKeeper(url string, isTestnet bool, accessToken string) *Keeper {
 	c, err := NewBtcClient(url)
 	if err != nil {
 		log.Fatal(err)
 	}
 	k := &Keeper{
-		mu:     new(sync.RWMutex),
-		client: c,
-		tesnet: isTestnet,
+		mu:          new(sync.RWMutex),
+		client:      c,
+		tesnet:      isTestnet,
+		accessToken: accessToken,
 		Txs: &State{
 			InTxs:         []common.Transaction{},
 			InTxsMempool:  []common.Transaction{},
@@ -55,27 +57,31 @@ func NewKeeper(url string, isTestnet bool) *Keeper {
 	return k
 }
 
-func (k *Keeper) StartReScanAddr(addr string, timestamp int64) error {
+func (k *Keeper) StartReScanAddr(timestamp int64) error {
+	k.mu.RLock()
+	addr := k.watchAddr.EncodeAddress()
+	k.mu.RUnlock()
 	// set rescan
+
 	opts := []btcjson.ImportMultiRequest{{
-		ScriptPubKey: btcjson.ImportMultiRequestScriptPubKey{Address: k.watchAddr.EncodeAddress()},
+		ScriptPubKey: btcjson.ImportMultiRequestScriptPubKey{Address: addr},
 		Timestamp:    &timestamp,
 		WatchOnly:    true,
 	}}
 	res := k.client.ImportMultiRescanAsync(opts, true)
 	// wait for the async importaddress result; log out any error that comes through
 	go func(res rpcclient.FutureImportAddressResult) {
-		log.Debugf("bitcoind ImportMulti rescan begin: %s", k.watchAddr.EncodeAddress())
+		log.Infof("bitcoind ImportMulti rescan begin: %s", addr)
 		if err := res.Receive(); err != nil {
-			log.Debugf("bitcoind ImportMulti returned an error: %s", err)
+			log.Infof("bitcoind ImportMulti returned an error: %s", err)
 			return
 		}
-		log.Debugf("bitcoind ImportMulti rescan done: %s", k.watchAddr.EncodeAddress())
+		log.Infof("bitcoind ImportMulti rescan done: %s", addr)
 	}(res)
 	return nil
 }
 
-func (k *Keeper) SetWatchAddr(addr string) error {
+func (k *Keeper) SetWatchAddr(addr string, rescan bool, timestamp int64) error {
 	net := &chaincfg.MainNetParams
 	if k.tesnet {
 		net = &chaincfg.TestNet3Params
@@ -86,8 +92,11 @@ func (k *Keeper) SetWatchAddr(addr string) error {
 	}
 	k.mu.Lock()
 	k.watchAddr = address
-	log.Infof("set btc watch address -> %s", k.watchAddr.String())
+	log.Infof("set btc watch address -> %s rescan: %t timestamp: %d", k.watchAddr.String(), rescan, timestamp)
 	k.mu.Unlock()
+	if rescan {
+		k.StartReScanAddr(timestamp)
+	}
 	return nil
 }
 
@@ -95,6 +104,36 @@ func (k *Keeper) GetAddr() btcutil.Address {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	return k.watchAddr
+}
+
+func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
+	req := common.ConfigParams{}
+	res := common.ConfigResponse{
+		Result: false,
+	}
+	err := r.DecodeJsonPayload(&req)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	if k.accessToken != req.AccessToken {
+		res.Msg = "AccessToken is not valid"
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	err = k.SetWatchAddr(req.Address, req.IsRescan, req.Timestamp)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	res.Result = true
+	res.Msg = "success"
+	w.WriteJson(res)
 }
 
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
@@ -125,14 +164,13 @@ func (k *Keeper) Start() {
 }
 
 func (k *Keeper) processKeep() {
+	// Default setting
 	fromTime := time.Now().Add(-48 * time.Hour)
 	toTime := time.Now()
 	if err := k.client.FindAndSaveSinceBlockHash(fromTime); err != nil {
 		log.Warningf("bitcoind error finding best block hash: %s", err)
 	}
-	k.mu.RLock()
 	addr := k.GetAddr().EncodeAddress()
-	k.mu.RUnlock()
 	// ... incoming BTC txs (mempool)
 	btcInTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
 		Address: addr,
@@ -141,16 +179,7 @@ func (k *Keeper) processKeep() {
 	}, k.tesnet)
 	if err != nil {
 		log.Info(err)
-	}
-	// ... incoming BTC txs
-	btcInTxs, err := k.client.GetTransactions(common.TxQueryParams{
-		Address:  addr,
-		Type:     TxTypeReceived,
-		TimeFrom: fromTime.Unix(),
-		TimeTo:   toTime.Unix(), // snap to epoch interval
-	}, k.tesnet)
-	if err != nil {
-		log.Info(err)
+		return
 	}
 	// ... outgoing BTC txs (mempool)
 	btcOutTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
@@ -160,17 +189,33 @@ func (k *Keeper) processKeep() {
 	}, k.tesnet)
 	if err != nil {
 		log.Info(err)
+		return
 	}
+
+	// ... incoming BTC txs
+	btcInTxs, err := k.client.GetTransactions(common.TxQueryParams{
+		Address:  addr,
+		Type:     TxTypeReceived,
+		TimeFrom: fromTime.Unix(),
+		TimeTo:   toTime.Unix(), // snap to epoch interval
+	}, k.tesnet)
+	if err != nil {
+		log.Info(err)
+		return
+	}
+
 	// ... outgoing BTC txs
 	btcOutTxs, err := k.client.GetTransactions(common.TxQueryParams{
 		Address:  addr,
 		Type:     TxTypeSend,
 		TimeFrom: fromTime.Unix(),
-		TimeTo:   0, // 0 = now. always find an outbound TX even when extremely recent (anti dupe tx)
+		TimeTo:   toTime.Unix(),
 	}, k.tesnet)
 	if err != nil {
 		log.Info(err)
+		return
 	}
+
 	utils.SortTx(btcInTxsMempool)
 	utils.SortTx(btcInTxs)
 	utils.SortTx(btcOutTxsMempool)
@@ -185,18 +230,18 @@ func (k *Keeper) processKeep() {
 }
 
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
-	hex := common.BroadcastParams{}
+	req := common.BroadcastParams{}
 	res := common.BroadcastResponse{
 		Result: false,
 	}
-	err := r.DecodeJsonPayload(&hex)
+	err := r.DecodeJsonPayload(&req)
 	if err != nil {
 		res.Msg = err.Error()
 		w.WriteHeader(400)
 		w.WriteJson(res)
 		return
 	}
-	msgTx, err := utils.DecodeToTx(hex.HEX)
+	msgTx, err := utils.DecodeToTx(req.HEX)
 	if err != nil {
 		res.Msg = err.Error()
 		w.WriteHeader(400)
@@ -217,10 +262,8 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) StartNode() {
-
 	txChan := make(chan *types.Tx)
 	BChan := make(chan *types.Block)
-
 	nodeConfig := &node.NodeConfig{
 		IsTestnet:        k.tesnet,
 		TargetOutbound:   25,
@@ -233,7 +276,6 @@ func (k *Keeper) StartNode() {
 	n := node.NewNode(nodeConfig)
 	// Node Start
 	n.Start()
-
 	go func() {
 		for {
 			tx := <-txChan

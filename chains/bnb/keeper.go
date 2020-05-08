@@ -158,11 +158,11 @@ func (k *Keeper) processKeep() {
 	outTxs := []common.Transaction{}
 	for _, tx := range loadTxs {
 		if tx.From == k.watchAddr.String() {
-			tx.Confirmations = maxHeight - tx.Height
+			//tx.Confirmations = maxHeight - tx.Height
 			outTxs = append(outTxs, tx)
 		}
 		if tx.To == k.watchAddr.String() {
-			tx.Confirmations = maxHeight - tx.Height
+			//tx.Confirmations = maxHeight - tx.Height
 			inTxs = append(inTxs, tx)
 		}
 	}

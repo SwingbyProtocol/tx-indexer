@@ -19,7 +19,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const WitnessScaleFactor = 4
+const (
+	WitnessScaleFactor = 4
+	coinbaseTx         = "0000000000000000000000000000000000000000000000000000000000000000"
+)
 
 func RandRange(min int, max int) int {
 	return rand.Intn(max-min) + min
@@ -77,20 +80,21 @@ func MsgTxToTx(msgTx *wire.MsgTx, params *chaincfg.Params) types.Tx {
 		Weight:       GetTransactionWeight(msgTx),
 		Receivedtime: time.Now().Unix(),
 	}
-
 	for _, txin := range msgTx.TxIn {
 		newVin := &types.Vin{
 			Txid:     txin.PreviousOutPoint.Hash.String(),
 			Vout:     txin.PreviousOutPoint.Index,
 			Sequence: txin.Sequence,
 		}
+		if newVin.Txid == coinbaseTx {
+			newVin.Addresses[0] = "coinbase"
+		}
 		tx.Vin = append(tx.Vin, newVin)
 	}
-
 	for i, txout := range msgTx.TxOut {
 		spi, _ := ScriptToPubkeyInfo(txout.PkScript, params)
 		newVout := &types.Vout{
-			Value:        float64(txout.Value),
+			Value:        txout.Value,
 			Spent:        false,
 			Txs:          []string{},
 			Addresses:    spi.Addresses,
@@ -205,7 +209,7 @@ func BtcTransactionsToChainTransactions(curHeight int64, txs []types.Tx, timeFro
 			if 0 < confirms {
 				confirms++ // count its including block as one confirmation
 			}
-			amount, _ := common.NewAmountFromFloat64(vOut.Value.(float64))
+			amount, _ := common.NewAmountFromInt64(vOut.Value)
 
 			log.Debugf("TX %s confirms: %d", tx.Txid, confirms)
 			newTxs = append(newTxs, common.Transaction{
@@ -213,10 +217,8 @@ func BtcTransactionsToChainTransactions(curHeight int64, txs []types.Tx, timeFro
 				From:          fundingVIn.Addresses[0], // TODO: may be multiple addresses for multisig transactions
 				To:            vOut.Addresses[0],       // TODO: may be multiple addresses for multisig transactions
 				Amount:        amount,
-				Decimals:      common.BTC.Decimlas(),
 				Timestamp:     time.Unix(txTime, 0),
 				Currency:      common.BTC,
-				Height:        tx.Height,
 				Confirmations: confirms,
 				OutputIndex:   idx,
 				Spent:         vOut.Spent,

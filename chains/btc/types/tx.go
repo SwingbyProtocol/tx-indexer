@@ -15,16 +15,15 @@ type Tx struct {
 }
 
 type Vin struct {
-	Txid      string      `json:"txid"`
-	Coinbase  string      `json:"coinbase,omitempty"`
-	Vout      uint32      `json:"vout"`
-	Addresses []string    `json:"addresses"`
-	Value     interface{} `json:"value"`
-	Sequence  uint32      `json:"sequence"`
+	Txid      string   `json:"txid"`
+	Vout      uint32   `json:"vout"`
+	Addresses []string `json:"addresses"`
+	Value     int64    `json:"value"`
+	Sequence  uint32   `json:"sequence"`
 }
 
 type Vout struct {
-	Value        interface{}       `json:"value"`
+	Value        int64             `json:"value"`
 	Spent        bool              `json:"spent"`
 	Txs          []string          `json:"txs"`
 	Addresses    []string          `json:"addresses"`

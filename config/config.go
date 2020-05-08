@@ -15,17 +15,19 @@ const (
 	DefaultERC20Token      = "0xaff4481d10270f50f203e0763e2597776068cbc5"
 	DefaultBNCNode         = "tcp://192.168.1.146:26657"
 	DefautlBNCWatchAddress = "tbnb1ws2z8n9ygrnaeqwng69cxfpnundneyjze9cjsy"
+	DefaultAccessToken     = "acc"
 )
 
 // Config is app of conig
 type Config struct {
 	// Network parameters. Set mainnet, testnet, or regtest using this.
-	BTCConfig  BTCConfig  `mapstructure:"btc" json:"btc"`
-	ETHConfig  ETHConfig  `mapstructure:"eth" json:"eth"`
-	BNCConfig  BNCConfig  `mapstructure:"bnc" json:"bnc"`
-	LogConfig  LogConfig  `mapstructure:"log" json:"log"`
-	RESTConfig RESTConfig `mapstructure:"rest" json:"rest"`
-	WSConfig   WSConfig   `mapstructure:"ws" json:"ws"`
+	BTCConfig   BTCConfig  `mapstructure:"btc" json:"btc"`
+	ETHConfig   ETHConfig  `mapstructure:"eth" json:"eth"`
+	BNCConfig   BNCConfig  `mapstructure:"bnc" json:"bnc"`
+	LogConfig   LogConfig  `mapstructure:"log" json:"log"`
+	RESTConfig  RESTConfig `mapstructure:"rest" json:"rest"`
+	WSConfig    WSConfig   `mapstructure:"ws" json:"ws"`
+	AccessToken string     `mapstructure:"accessToken" json:"accessToken"`
 }
 
 type BTCConfig struct {
@@ -67,6 +69,7 @@ type WSConfig struct {
 }
 
 func init() {
+	pflag.String("accessToken", DefaultAccessToken, "The access token for set config")
 	// Logger
 	pflag.String("log.level", "info", "The log level")
 	// Set BTC Network

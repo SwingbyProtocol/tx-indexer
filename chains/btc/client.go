@@ -26,8 +26,9 @@ const (
 
 type Client struct {
 	*rpcclient.Client
-	url       *url.URL
-	sinceHash *chainhash.Hash
+	url        *url.URL
+	sinceHash  *chainhash.Hash
+	vinAddress map[string]string
 }
 
 func NewBtcClient(path string) (*Client, error) {
@@ -53,7 +54,7 @@ func NewBtcClient(path string) (*Client, error) {
 	}
 	nHandlers := new(rpcclient.NotificationHandlers)
 	client, err := rpcclient.New(connCfg, nHandlers)
-	return &Client{client, u, nil}, err
+	return &Client{client, u, nil, make(map[string]string)}, err
 }
 
 // FindAndSaveSinceBlockHash tries to find the hash of the first block where the timestamp is greater or equal to `fromTime`,
@@ -138,47 +139,7 @@ func (c *Client) GetMempoolTransactions(params common.TxQueryParams, testNet boo
 	if err != nil {
 		return nil, err
 	}
-	btcNet := &chaincfg.MainNetParams
-	if testNet {
-		btcNet = &chaincfg.TestNet3Params
-	}
-	txs := make([]types.Tx, len(unspents))
-	for _, unspent := range unspents {
-		hash, _ := chainhash.NewHashFromStr(unspent.TxID)
-		txData, _ := c.GetRawTransaction(hash)
-		tx := utils.MsgTxToTx(txData.MsgTx(), btcNet)
-		txs = append(txs, tx)
-	}
-	parsedTxs, err := utils.BtcTransactionsToChainTransactions(0, txs, params.TimeFrom, params.TimeTo)
-	if err != nil {
-		return nil, err
-	}
-	finalTxs := make([]common.Transaction, 0, len(parsedTxs))
-	for _, parsedTx := range parsedTxs {
-		if (params.Type == TxTypeSend && parsedTx.From != params.Address) ||
-			(params.Type == TxTypeReceived && parsedTx.To != params.Address) {
-			continue
-		}
-		finalTxs = append(finalTxs, parsedTx)
-	}
-	return finalTxs, nil
-}
-
-func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {
-	btcNet := &chaincfg.MainNetParams
-	if testNet {
-		btcNet = &chaincfg.TestNet3Params
-	}
-	hash, err := chainhash.NewHashFromStr(txid)
-	if err != nil {
-		return nil, err
-	}
-	txData, err := c.GetRawTransaction(hash)
-	if err != nil {
-		return nil, err
-	}
-	tx := utils.MsgTxToTx(txData.MsgTx(), btcNet)
-	return &tx, nil
+	return unspents, nil
 }
 
 func (c *Client) GetSpendableOutputs(params common.TxQueryParams, testNet bool, optionalMinMaxConfs ...int) ([]common.Transaction, error) {
@@ -201,27 +162,40 @@ func (c *Client) GetSpendableOutputs(params common.TxQueryParams, testNet bool, 
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("listunspent response: %+v", list)
-	txs := make([]common.Transaction, 0, len(list))
+	rawTxs := []*types.Tx{}
 	for _, unspent := range list {
-		if unspent.Address != params.Address {
-			continue
-		}
-		amount, err := common.NewAmountFromString(unspent.Amount.String())
+		tx, _ := c.GetTxByTxID(unspent.TxID, testNet)
+		rawTxs = append(rawTxs, tx)
+	}
+	txs := []common.Transaction{}
+	for _, tx := range rawTxs {
+		// Get from address
+		from, err := c.getFirstVinAddr(tx.Txid, tx.Vin, testNet)
 		if err != nil {
 			log.Info(err)
 		}
-		tx := common.Transaction{
-			TxID:          unspent.TxID,
-			To:            unspent.Address,
-			Amount:        amount,
-			Currency:      common.BTC,
-			Height:        0,
-			Confirmations: unspent.Confirmations,
-			OutputIndex:   int(unspent.Vout),
-			Spent:         false,
+		for _, vout := range tx.Vout {
+			amount, err := common.NewAmountFromInt64(vout.Value)
+			if err != nil {
+				log.Info(err)
+				continue
+			}
+			tx := common.Transaction{
+				TxID:          tx.Txid,
+				From:          from,
+				To:            vout.Addresses[0],
+				Amount:        amount,
+				Currency:      common.BTC,
+				Timestamp:     time.Unix(0, 0),
+				Confirmations: 0,
+				OutputIndex:   int(vout.N),
+				Spent:         false,
+			}
+			if (params.Type == TxTypeSend && tx.From != params.Address) || (params.Type == TxTypeReceived && tx.To != params.Address) {
+				continue
+			}
+			txs = append(txs, tx)
 		}
-		txs = append(txs, tx)
 	}
 	return txs, nil
 }
@@ -274,10 +248,9 @@ func (c *Client) btcTxsToCmnTransactions(params common.TxQueryParams, list map[s
 					details.Category != TxTypeReceived {
 					continue
 				}
-				vinAddr, err := c.getFirstVinAddr(res.TxID, testNet)
-				if err == nil {
-					fromAddr = vinAddr
-				}
+				tx, _ := c.GetTxByTxID(res.TxID, testNet)
+				from, _ := c.getFirstVinAddr(tx.Txid, tx.Vin, testNet)
+				fromAddr = from
 			}
 			txTime := res.BlockTime
 			if txTime == 0 {
@@ -290,7 +263,6 @@ func (c *Client) btcTxsToCmnTransactions(params common.TxQueryParams, list map[s
 				Amount:        amount,
 				Currency:      common.BTC,
 				Timestamp:     time.Unix(txTime, 0),
-				Height:        res.BlockIndex,
 				Confirmations: res.Confirmations,
 				OutputIndex:   int(details.Vout),
 			}
@@ -301,17 +273,33 @@ func (c *Client) btcTxsToCmnTransactions(params common.TxQueryParams, list map[s
 	return txs, nil
 }
 
-func (c *Client) getFirstVinAddr(txID string, testNet bool) (string, error) {
-	// Only support bticoind full node not purne
-	rawTx, err := c.GetTxByTxID(txID, testNet)
+func (c *Client) getFirstVinAddr(txid string, vin []*types.Vin, testNet bool) (string, error) {
+	from := c.vinAddress[txid]
+	if from != "" {
+		return from, nil
+	}
+	inTx0, err := c.GetTxByTxID(vin[0].Txid, testNet)
 	if err != nil {
 		return "", err
 	}
-	inTx0, err := c.GetTxByTxID(rawTx.Vin[0].Txid, testNet)
-	if err != nil {
-		return "", err
-	}
-	target := inTx0.Vout[rawTx.Vin[0].Vout]
-	addr := target.Addresses[0]
+	addr := inTx0.Vout[vin[0].Vout].Addresses[0]
+	c.vinAddress[txid] = addr
 	return addr, nil
+}
+
+func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {
+	btcNet := &chaincfg.MainNetParams
+	if testNet {
+		btcNet = &chaincfg.TestNet3Params
+	}
+	hash, err := chainhash.NewHashFromStr(txid)
+	if err != nil {
+		return nil, err
+	}
+	txData, err := c.GetRawTransaction(hash)
+	if err != nil {
+		return nil, err
+	}
+	tx := utils.MsgTxToTx(txData.MsgTx(), btcNet)
+	return &tx, nil
 }
