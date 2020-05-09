@@ -123,28 +123,19 @@ func (k *Keeper) processKeep() {
 	}
 	// set 48 hours
 	minHeight := maxHeight - 345600
-	txs, itemCount, err := k.client.GetBlockTransactions(1, minHeight, maxHeight, 1, *blockTime)
-	if err != nil {
-		log.Info(err)
-		return
-	}
-	log.Infof("Tx scanning on the Binance chain -> total: %d, per_page 1, page: %d", itemCount, 1)
-	for _, tx := range txs {
-		txList = append(txList, tx)
-	}
-	limit := 1
-	perPage := 500
-	pageSize := 1 + itemCount/perPage
 	if k.isScan {
-		limit = pageSize - 1
+		minHeight = maxHeight - 12000
 	}
-	for page := pageSize; page >= limit; page-- {
-		txs, _, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage, *blockTime)
+	perPage := 500
+	pageSize := 100
+	for page := 1; page <= pageSize; page++ {
+		txs, itemCount, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage, *blockTime)
 		for _, tx := range txs {
 			txList = append(txList, tx)
 		}
 		log.Infof("Tx scanning on the Binance chain -> total: %d, found: %d, per_page: %d, page: %d", itemCount, len(txs), perPage, page)
 		//log.Info(c, page)
+		pageSize = 1 + itemCount/perPage
 	}
 	for _, tx := range txList {
 		k.mu.Lock()
