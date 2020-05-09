@@ -7,8 +7,3 @@ type ConfigParams struct {
 	IsRescan    bool   `json:"rescan"`
 	Timestamp   int64  `json:"timestamp"`
 }
-
-type Response struct {
-	Result bool   `json:"result"`
-	Msg    string `json:"msg,omitempty"`
-}

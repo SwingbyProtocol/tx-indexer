@@ -58,9 +58,7 @@ func NewKeeper(url string, isTestnet bool, accessToken string) *Keeper {
 
 func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
 	req := common.ConfigParams{}
-	res := common.Response{
-		Result: false,
-	}
+	res := common.Response{}
 	err := r.DecodeJsonPayload(&req)
 	if err != nil {
 		res.Msg = err.Error()
@@ -131,9 +129,7 @@ func (k *Keeper) Start() {
 
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 	req := common.BroadcastParams{}
-	res := common.BroadcastResponse{
-		Result: false,
-	}
+	res := common.BroadcastResponse{}
 	err := r.DecodeJsonPayload(&req)
 	if err != nil {
 		res.Msg = err.Error()

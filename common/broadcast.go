@@ -5,7 +5,6 @@ type BroadcastParams struct {
 }
 
 type BroadcastResponse struct {
+	Response
 	TxHash string `json:"txHash,omitempty"`
-	Result bool   `json:"result"`
-	Msg    string `json:"msg,omitempty"`
 }
