@@ -57,7 +57,7 @@ func NewKeeper(url string, isTestnet bool, accessToken string) *Keeper {
 
 func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
 	req := common.ConfigParams{}
-	res := common.ConfigResponse{
+	res := common.Response{
 		Result: false,
 	}
 	err := r.DecodeJsonPayload(&req)

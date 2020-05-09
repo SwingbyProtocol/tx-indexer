@@ -8,7 +8,7 @@ type ConfigParams struct {
 	Timestamp   int64  `json:"timestamp"`
 }
 
-type ConfigResponse struct {
+type Response struct {
 	Result bool   `json:"result"`
 	Msg    string `json:"msg,omitempty"`
 }

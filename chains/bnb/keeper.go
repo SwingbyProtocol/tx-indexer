@@ -20,25 +20,27 @@ const (
 )
 
 type Keeper struct {
-	mu        *sync.RWMutex
-	client    *Client
-	ticker    *time.Ticker
-	watchAddr types.AccAddress
-	network   types.ChainNetwork
-	testnet   bool
-	Txs       *State
-	isScan    bool
-	cache     map[string]common.Transaction
+	mu          *sync.RWMutex
+	client      *Client
+	ticker      *time.Ticker
+	watchAddr   types.AccAddress
+	network     types.ChainNetwork
+	testnet     bool
+	accessToken string
+	Txs         *State
+	isScanEnd   bool
+	cache       map[string]common.Transaction
 }
 
 type State struct {
+	common.Response
 	InTxsMempool  []common.Transaction `json:"inTxsMempool"`
 	InTxs         []common.Transaction `json:"inTxs"`
 	OutTxsMempool []common.Transaction `json:"outTxsMempool"`
 	OutTxs        []common.Transaction `json:"outTxs"`
 }
 
-func NewKeeper(urlStr string, isTestnet bool) *Keeper {
+func NewKeeper(urlStr string, isTestnet bool, accessToken string) *Keeper {
 	bnbRPCURI, err := url.ParseRequestURI(urlStr)
 	if err != nil {
 		log.Fatal(err)
@@ -49,11 +51,12 @@ func NewKeeper(urlStr string, isTestnet bool) *Keeper {
 	}
 	c := NewClient(bnbRPCURI, bnbNetwork, 30*time.Second)
 	k := &Keeper{
-		mu:      new(sync.RWMutex),
-		client:  c,
-		testnet: isTestnet,
-		network: bnbNetwork,
-		cache:   make(map[string]common.Transaction),
+		mu:          new(sync.RWMutex),
+		client:      c,
+		testnet:     isTestnet,
+		network:     bnbNetwork,
+		accessToken: accessToken,
+		cache:       make(map[string]common.Transaction),
 		Txs: &State{
 			InTxs:         []common.Transaction{},
 			InTxsMempool:  []common.Transaction{},
@@ -69,17 +72,52 @@ func (k *Keeper) StartReScanAddr(addr string, timestamp int64) error {
 	return nil
 }
 
-func (k *Keeper) SetWatchAddr(addr string) error {
+func (k *Keeper) SetWatchAddr(addr string, rescan bool) error {
 	k.mu.Lock()
 	types.Network = k.network
 	accAddr, err := types.AccAddressFromBech32(addr)
 	if err != nil {
 		log.Info(err)
+		k.mu.Unlock()
+		return err
 	}
 	k.watchAddr = accAddr
-	log.Infof("set bnb watch address -> %s isTestnet: %t", k.watchAddr.String(), k.testnet)
+	if rescan {
+		k.isScanEnd = false
+	}
+	log.Infof("set bnb watch address -> %s isTestnet: %t rescan: %t", k.watchAddr.String(), k.testnet, rescan)
 	k.mu.Unlock()
 	return nil
+}
+
+func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
+	req := common.ConfigParams{}
+	res := common.Response{
+		Result: false,
+	}
+	err := r.DecodeJsonPayload(&req)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	if k.accessToken != req.AccessToken {
+		res.Msg = "AccessToken is not valid"
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	err = k.SetWatchAddr(req.Address, true)
+	if err != nil {
+		res.Msg = err.Error()
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	res.Result = true
+	res.Msg = "success"
+	w.WriteJson(res)
 }
 
 /*
@@ -94,6 +132,14 @@ func (k *Keeper) GetAddr() types.AccAddress {
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
+	if !k.isScanEnd {
+		res := common.Response{
+			Result: false,
+			Msg:    "re-scanning",
+		}
+		w.WriteJson(res)
+		return
+	}
 	w.WriteJson(k.Txs)
 }
 
@@ -123,7 +169,7 @@ func (k *Keeper) processKeep() {
 	}
 	// set 48 hours
 	minHeight := maxHeight - 345600
-	if k.isScan {
+	if k.isScanEnd {
 		minHeight = maxHeight - 12000
 	}
 	perPage := 500
@@ -149,11 +195,11 @@ func (k *Keeper) processKeep() {
 	outTxs := []common.Transaction{}
 	for _, tx := range loadTxs {
 		if tx.From == k.watchAddr.String() {
-			//tx.Confirmations = maxHeight - tx.Height
+			tx.Confirmations = maxHeight - tx.Height
 			outTxs = append(outTxs, tx)
 		}
 		if tx.To == k.watchAddr.String() {
-			//tx.Confirmations = maxHeight - tx.Height
+			tx.Confirmations = maxHeight - tx.Height
 			inTxs = append(inTxs, tx)
 		}
 	}
@@ -162,7 +208,8 @@ func (k *Keeper) processKeep() {
 	k.mu.Lock()
 	k.Txs.InTxs = inTxs
 	k.Txs.OutTxs = outTxs
-	k.isScan = true
+	k.isScanEnd = true
+	k.Txs.Result = true
 	k.mu.Unlock()
 	log.Info("BNC txs scanning done")
 }

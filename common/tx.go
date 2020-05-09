@@ -19,6 +19,7 @@ type Transaction struct {
 	Amount        Amount
 	Timestamp     time.Time
 	Currency      Symbol
+	Height        int64
 	Confirmations int64
 	Memo          string
 	OutputIndex   int

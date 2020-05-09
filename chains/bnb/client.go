@@ -78,6 +78,7 @@ func ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64, blo
 						To:            output.Address.String(),
 						Amount:        amount,
 						Currency:      currency,
+						Height:        thisHeight,
 						Confirmations: maxHeight - thisHeight,
 						Memo:          txbase.Memo,
 						Spent:         false,

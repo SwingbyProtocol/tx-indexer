@@ -61,18 +61,20 @@ func main() {
 	/* BNB/BEP-2 */
 	if conf.BNCConfig.NodeAddr != config.DefaultBNCNode {
 
-		bnbKeeper = bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet)
+		bnbKeeper = bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet, conf.AccessToken)
 
-		bnbKeeper.SetWatchAddr(conf.BNCConfig.WatchAddr)
+		bnbKeeper.SetWatchAddr(conf.BNCConfig.WatchAddr, true)
 
 		go bnbKeeper.Start()
 
 		// BNB side
 		getBNBTxs := api.NewGet("/api/v1/bnb/txs", bnbKeeper.GetTxs)
 		broadcastBNBTx := api.NewPOST("/api/v1/bnb/broadcast", bnbKeeper.BroadcastTx)
+		setBNBConfig := api.NewPOST("/api/v1/bnb/config", bnbKeeper.SetConfig)
 
 		apiConfig.Actions = append(apiConfig.Actions, getBNBTxs)
 		apiConfig.Actions = append(apiConfig.Actions, broadcastBNBTx)
+		apiConfig.Actions = append(apiConfig.Actions, setBNBConfig)
 	}
 
 	/* BTC */
