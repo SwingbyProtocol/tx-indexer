@@ -31,6 +31,7 @@ type Keeper struct {
 }
 
 type State struct {
+	common.Response
 	InTxsMempool  []common.Transaction `json:"inTxsMempool"`
 	InTxs         []common.Transaction `json:"inTxs"`
 	OutTxsMempool []common.Transaction `json:"outTxsMempool"`
@@ -226,6 +227,7 @@ func (k *Keeper) processKeep() {
 	k.Txs.InTxs = btcInTxs
 	k.Txs.OutTxsMempool = btcOutTxsMempool
 	k.Txs.OutTxs = btcOutTxs
+	k.Txs.Result = true
 	k.mu.Unlock()
 }
 

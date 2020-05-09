@@ -32,6 +32,7 @@ type Keeper struct {
 }
 
 type State struct {
+	common.Response
 	InTxsMempool  []common.Transaction `json:"inTxsMempool"`
 	InTxs         []common.Transaction `json:"inTxs"`
 	OutTxsMempool []common.Transaction `json:"outTxsMempool"`
@@ -183,6 +184,7 @@ func (k *Keeper) processKeep() {
 	k.Txs.InTxs = inTxs
 	k.Txs.OutTxsMempool = outTxsMempool
 	k.Txs.OutTxs = outTxs
+	k.Txs.Result = true
 	k.mu.Unlock()
 
 	log.Info("ETH txs scanning done")
