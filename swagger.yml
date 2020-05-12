@@ -86,11 +86,11 @@ paths:
                 type: string
                 example: '0x3Ec6671171710F13a1a980bc424672d873b38808'
               rescan:
-                description: Rescan flag (Enabled only BTC chain)
+                description: Rescan flag (Enabled only on the BTC chain, BNB chain and ETH chain always true)
                 type: boolean
                 example: true
               timestamp:
-                description: Start time of rescan process (unix)
+                description: The start time of the scanning process (Unix)
                 type: integer
                 example: 1588951999
              

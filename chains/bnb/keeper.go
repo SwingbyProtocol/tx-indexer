@@ -136,6 +136,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 			Result: false,
 			Msg:    "re-scanning",
 		}
+		w.WriteHeader(400)
 		w.WriteJson(res)
 		return
 	}
