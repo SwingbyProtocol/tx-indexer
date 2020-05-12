@@ -1,0 +1,212 @@
+swagger: '2.0'
+info:
+  title: 'Tx-indexer API'
+  version: 0.0.1
+  description: 'Tx-indexer is a modular blockchain transaction monitoring tool. the app can monitor send/receive tx for a specific address over a specific period, multiple coins are supported and unified in a common tx format. repo: https://github.com/SwingbyProtocol/tx-indexer'
+  termsOfService: 'https://docs.swingby.network/terms.pdf'
+  contact:
+    name: 'Support'
+    email: 'support@swingby.network'
+  license:
+    name: 'AGPL 3.0'
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+schemes:
+  - https
+produces:
+  - application/json
+
+paths:
+  /api/v1/status:
+    get:
+      summary: Get API Status
+      description: Get API state 
+      operationId: getStatus
+      produces:
+        - application/json
+      responses:
+        '200':
+          description: Success
+          schema:
+            $ref: '#/definitions/ResultStatus'
+  /api/v1/{currency}/txs:
+    get:
+      summary: Get transaction
+      description: 
+        Get transactions (input/output)
+      operationId: getTxs
+      produces:
+        - application/json
+      parameters:
+        - in: path
+          name: currency   
+          required: true
+          type: string
+          description: Target currency e.g. "bnb", "eth", "btc"
+      responses:
+        '200':
+          description: Success
+          schema:
+            $ref: '#/definitions/ResultGetTxs'
+        '400':
+          description: Bad Request (Re scan)
+          schema:
+            $ref: '#/definitions/ResultRescan'
+
+  /api/v1/{currency}config:
+    post:
+      summary: Set config
+      description: "Set config state. Default sort logic: slice_stable(tx.Serialize()) then slice_stable(time)"
+      operationId: setconfig
+      produces:
+        - application/json
+      consumes:
+        - application/json
+      parameters:
+        - in: path
+          name: currency   
+          required: true
+          type: string
+          description: Target currency e.g. "bnb", "eth", "btc"
+        - in: body
+          name: body
+          required: true
+          schema:
+            type: object
+            properties:
+              accessToken:
+                description: AccessToken 
+                type: string
+                example: 'swingbyswingby'
+              targetToken: 
+                description: Target ERC20 token address (Enabled only on the Ethereum)
+                type: string
+                example: '0xaff4481d10270f50f203e0763e2597776068cbc5'
+              address:
+                description: Target address to watching
+                type: string
+                example: '0x3Ec6671171710F13a1a980bc424672d873b38808'
+              rescan:
+                description: Rescan flag (Enabled only BTC chain)
+                type: boolean
+                example: true
+              timestamp:
+                description: Start time of rescan process (unix)
+                type: integer
+                example: 1588951999
+             
+      responses:
+        '200':
+          description: Success
+          schema:
+            $ref: '#/definitions/ResultSuccessConfig'
+        '400':
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/ResultErrorConfig'
+
+definitions:
+  ResultStatus:
+    type: object
+    properties:
+      result:
+        type: boolean
+        title: result
+        example: true
+  ResultGetTxs:
+    type: object
+    properties:
+      result:
+        type: boolean
+        example: true
+      inTxsMempool:
+        type: array
+        items:
+          $ref: "#/definitions/Tx"
+      inTxs:
+        type: array
+        items:
+          $ref: "#/definitions/Tx"
+      outTxsMempool:
+        type: array
+        items:
+          $ref: "#/definitions/Tx"
+      outTx: 
+        type: array
+        items: 
+          $ref: '#/definitions/Tx'
+  ResultRescan:
+    type: object
+    properties:
+      result:
+        type: boolean
+        example: false
+      msg: 
+        type: string
+        example: "re-scanning"
+  ResultSuccessConfig:
+    type: object
+    properties:
+      result:
+        type: boolean
+        example: true
+      msg: 
+        type: string
+        example: "success"
+  ResultErrorConfig:
+    type: object
+    properties:
+      result:
+        type: boolean
+        example: false
+      msg: 
+        type: string
+        example: "<Error message()>"
+  Tx:
+    properties:
+      txId:         
+        type: string
+        title: TxId
+        example: 2f0f3d827a37de54a162db6226ee462f27dd26f7fddcbf36d109f4c5a42e1e56
+      from:                  
+        type: string
+        title: From
+        example: tb1qnc287t8hl3qgym6lha7mrfuqspn0ns45ce4d5m
+      to:            
+        type: string
+        title: To
+        example: 2MzwMRoQdT5gSGyqYgXAyoHRf7iZEZjf1GQ
+      amount:       
+        type: string
+        title: Amount
+        example: "1000000"
+      currency:     
+        type: string
+        title: Currency
+        example: BTC
+      decimals:  
+        type: integer   
+        title: Decimals
+        example: 8
+      time:    
+        type: integer
+        title: Timestamp (unix)
+        example: 1577488326
+      confirmations: 
+        type: integer
+        title: Confirmations
+        example: 1223
+      memo:      
+        type: string
+        title: Memo
+        example: ""
+      outputIndex: 
+        type: integer
+        title: OutputIndex
+        example: 0
+      spent:    
+        type: boolean
+        title: Spent
+        example: false     
+     
+
+ 

@@ -84,6 +84,7 @@ func (k *Keeper) SetWatchAddr(addr string, rescan bool) error {
 	k.watchAddr = accAddr
 	if rescan {
 		k.isScanEnd = false
+		k.cache = make(map[string]common.Transaction)
 	}
 	log.Infof("set bnb watch address -> %s isTestnet: %t rescan: %t", k.watchAddr.String(), k.testnet, rescan)
 	k.mu.Unlock()

@@ -12,7 +12,9 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/chains/bnb"
 	"github.com/SwingbyProtocol/tx-indexer/chains/btc"
 	"github.com/SwingbyProtocol/tx-indexer/chains/eth"
+	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/SwingbyProtocol/tx-indexer/config"
+	"github.com/ant0ine/go-json-rest/rest"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -57,6 +59,12 @@ func main() {
 		ListenWS:   conf.WSConfig.ListenAddr,
 		Actions:    []*api.Action{},
 	}
+
+	status := func(w rest.ResponseWriter, r *rest.Request) {
+		w.WriteJson(common.Response{Result: true})
+	}
+	getStatus := api.NewGet("/api/v1/status", status)
+	apiConfig.Actions = append(apiConfig.Actions, getStatus)
 
 	/* BNB/BEP-2 */
 	if conf.BNCConfig.NodeAddr != config.DefaultBNCNode {
