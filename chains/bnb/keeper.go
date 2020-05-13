@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -119,16 +120,14 @@ func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
 	w.WriteJson(res)
 }
 
-/*
-
-func (k *Keeper) GetAddr() types.AccAddress {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
-	return k.watchAddr
-}
-
-*/
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
+	from := r.URL.Query().Get("height_from")
+	fromNum, _ := strconv.Atoi(from)
+	to := r.URL.Query().Get("height_to")
+	toNum, _ := strconv.Atoi(to)
+	if toNum == 0 {
+		toNum = 100000000
+	}
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	if !k.isScanEnd {
@@ -140,7 +139,34 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		w.WriteJson(res)
 		return
 	}
-	w.WriteJson(k.Txs)
+	rangeInTxs := []common.Transaction{}
+	rangeOutTxs := []common.Transaction{}
+	for _, intx := range k.Txs.InTxs {
+		if int64(fromNum) > intx.Height {
+			continue
+		}
+		if int64(toNum) < intx.Height {
+			continue
+		}
+		rangeInTxs = append(rangeInTxs, intx)
+	}
+	for _, outTx := range k.Txs.OutTxs {
+		if int64(fromNum) > outTx.Height {
+			continue
+		}
+		if int64(toNum) < outTx.Height {
+			continue
+		}
+		rangeOutTxs = append(rangeOutTxs, outTx)
+	}
+	newTxs := State{
+		InTxsMempool:  []common.Transaction{},
+		InTxs:         rangeInTxs,
+		OutTxs:        rangeOutTxs,
+		OutTxsMempool: []common.Transaction{},
+		Response:      k.Txs.Response,
+	}
+	w.WriteJson(newTxs)
 }
 
 func (k *Keeper) Start() {
@@ -161,8 +187,7 @@ func (k *Keeper) Start() {
 }
 
 func (k *Keeper) processKeep() {
-	txList := []common.Transaction{}
-	maxHeight, blockTime, err := k.client.GetLatestBlockHeight()
+	maxHeight, _, err := k.client.GetLatestBlockHeight()
 	if err != nil {
 		log.Info(err)
 		return
@@ -172,21 +197,18 @@ func (k *Keeper) processKeep() {
 	if k.isScanEnd {
 		minHeight = maxHeight - 12000
 	}
-	perPage := 500
+	perPage := 1000
 	pageSize := 100
 	for page := 1; page <= pageSize; page++ {
-		txs, itemCount, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage, *blockTime)
+		txs, itemCount, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage)
 		for _, tx := range txs {
-			txList = append(txList, tx)
+			k.mu.Lock()
+			k.cache[tx.Serialize()] = tx
+			k.mu.Unlock()
 		}
 		log.Infof("Tx scanning on the Binance chain -> total: %d, found: %d, per_page: %d, page: %d", itemCount, len(txs), perPage, page)
 		//log.Info(c, page)
 		pageSize = 1 + itemCount/perPage
-	}
-	for _, tx := range txList {
-		k.mu.Lock()
-		k.cache[tx.Serialize()] = tx
-		k.mu.Unlock()
 	}
 	k.mu.RLock()
 	loadTxs := k.cache
@@ -194,12 +216,19 @@ func (k *Keeper) processKeep() {
 	inTxs := []common.Transaction{}
 	outTxs := []common.Transaction{}
 	for _, tx := range loadTxs {
-		if tx.From == k.watchAddr.String() {
+		if tx.From == k.watchAddr.String() || tx.To == k.watchAddr.String() {
 			tx.Confirmations = maxHeight - tx.Height
+			timestamp, err := k.client.GetBlockTimeStamp(tx.Height)
+			if err != nil {
+				log.Info(err)
+				continue
+			}
+			tx.Timestamp = *timestamp
+		}
+		if tx.From == k.watchAddr.String() {
 			outTxs = append(outTxs, tx)
 		}
 		if tx.To == k.watchAddr.String() {
-			tx.Confirmations = maxHeight - tx.Height
 			inTxs = append(inTxs, tx)
 		}
 	}
@@ -211,7 +240,7 @@ func (k *Keeper) processKeep() {
 	k.isScanEnd = true
 	k.Txs.Result = true
 	k.mu.Unlock()
-	log.Info("BNC txs scanning done")
+	log.Infof("BNC txs scanning done -> inTxs: %d outTxs: %d", len(inTxs), len(outTxs))
 }
 
 func (k *Keeper) Stop() {

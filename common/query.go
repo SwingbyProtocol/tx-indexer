@@ -10,3 +10,8 @@ type TxQueryParams struct {
 	TimeFrom   int64  `json:"time_from"`
 	TimeTo     int64  `json:"time_to"`
 }
+
+type APIQueryParams struct {
+	HeightFrom int64 `json:"height_from,omitempty"`
+	HeightTo   int64 `json:"height_to,omitempty"`
+}

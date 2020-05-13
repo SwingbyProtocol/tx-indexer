@@ -15,13 +15,14 @@ import (
 
 type Client struct {
 	rpc.Client
+	timestamp map[int64]*time.Time
 }
 
 func NewClient(rpcApi *url.URL, network types.ChainNetwork, period time.Duration) *Client {
 	log.Infof("BNB client connecting to (rpc: %s)...", rpcApi.Host)
 	client := rpc.NewRPCClient(rpcApi.Host, network)
 	client.SetTimeOut(period)
-	c := &Client{client}
+	c := &Client{client, make(map[int64]*time.Time)}
 	return c
 }
 
@@ -34,18 +35,26 @@ func (c *Client) GetLatestBlockHeight() (int64, *time.Time, error) {
 	return resultBlock.Block.Height, &resultBlock.Block.Time, nil
 }
 
-func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64, perPage int, blockTime time.Time) ([]common.Transaction, int, error) {
+func (c *Client) GetBlockTimeStamp(height int64) (*time.Time, error) {
+	blocks, err := c.BlockchainInfo(height, height)
+	if err != nil {
+		return nil, err
+	}
+	return &blocks.BlockMetas[0].Header.Time, nil
+}
+
+func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64, perPage int) ([]common.Transaction, int, error) {
 	txs := []common.Transaction{}
 	query := fmt.Sprintf("tx.height >= %d AND tx.height <= %d", minHeight, maxHeight)
 	resultTxSearch, err := c.TxSearch(query, true, page, perPage)
 	if err != nil {
 		return txs, 0, err
 	}
-	txs = ReultBlockToComTxs(resultTxSearch, maxHeight, blockTime)
+	txs = c.ReultBlockToComTxs(resultTxSearch, maxHeight)
 	return txs, resultTxSearch.TotalCount, nil
 }
 
-func ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64, blockTime time.Time) []common.Transaction {
+func (c *Client) ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64) []common.Transaction {
 	newTxs := []common.Transaction{}
 	for _, txData := range resultTxSearch.Txs {
 		txbase := tx.StdTx{}
@@ -83,7 +92,7 @@ func ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64, blo
 						Memo:          txbase.Memo,
 						Spent:         false,
 						OutputIndex:   i,
-						Timestamp:     blockTime,
+						Timestamp:     time.Time{},
 					}
 					newTxs = append(newTxs, newTx)
 				}

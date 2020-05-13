@@ -33,6 +33,7 @@ type TransactionResponse struct {
 	Amount        string `json:"amount"`
 	Currency      string `json:"currency"`
 	Decimals      int    `json:"decimals"`
+	Height        int64  `json:"height"`
 	Timestamp     int64  `json:"time"`
 	Confirmations int64  `json:"confirmations"`
 	Memo          string `json:"memo"`
@@ -52,6 +53,7 @@ func (tx Transaction) MarshalJSON() ([]byte, error) {
 		Amount:        tx.Amount.BigInt().String(),
 		Currency:      tx.Currency.String(),
 		Decimals:      tx.Currency.Decimlas(),
+		Height:        tx.Height,
 		Timestamp:     tx.Timestamp.Unix(),
 		Confirmations: tx.Confirmations,
 		Memo:          tx.Memo,
