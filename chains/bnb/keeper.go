@@ -187,6 +187,16 @@ func (k *Keeper) Start() {
 }
 
 func (k *Keeper) processKeep() {
+	resultStatus, err := k.client.Status()
+	if err != nil {
+		log.Info(err)
+		return
+	}
+	if resultStatus.SyncInfo.CatchingUp {
+		// Still sync
+		log.Info("bnb chain still syncing...")
+		return
+	}
 	maxHeight, _, err := k.client.GetLatestBlockHeight()
 	if err != nil {
 		log.Info(err)
