@@ -1,6 +1,7 @@
 package btc
 
 import (
+	"strconv"
 	"sync"
 	"time"
 
@@ -26,6 +27,7 @@ type Keeper struct {
 	ticker      *time.Ticker
 	watchAddr   btcutil.Address
 	tesnet      bool
+	isScanEnd   bool
 	accessToken string
 	Txs         *State
 }
@@ -48,6 +50,7 @@ func NewKeeper(url string, isTestnet bool, accessToken string) *Keeper {
 		client:      c,
 		tesnet:      isTestnet,
 		accessToken: accessToken,
+		isScanEnd:   false,
 		Txs: &State{
 			InTxs:         []common.Transaction{},
 			InTxsMempool:  []common.Transaction{},
@@ -73,11 +76,18 @@ func (k *Keeper) StartReScanAddr(timestamp int64) error {
 	// wait for the async importaddress result; log out any error that comes through
 	go func(res rpcclient.FutureImportAddressResult) {
 		log.Infof("bitcoind ImportMulti rescan begin: %s", addr)
+		k.mu.Lock()
+		k.isScanEnd = false
+		k.mu.Unlock()
 		if err := res.Receive(); err != nil {
 			log.Infof("bitcoind ImportMulti returned an error: %s", err)
 			return
 		}
+		k.mu.Lock()
+		k.isScanEnd = true
+		k.mu.Unlock()
 		log.Infof("bitcoind ImportMulti rescan done: %s", addr)
+
 	}(res)
 	return nil
 }
@@ -93,6 +103,7 @@ func (k *Keeper) SetWatchAddr(addr string, rescan bool, timestamp int64) error {
 	}
 	k.mu.Lock()
 	k.watchAddr = address
+	k.isScanEnd = true
 	log.Infof("set btc watch address -> %s rescan: %t timestamp: %d", k.watchAddr.String(), rescan, timestamp)
 	k.mu.Unlock()
 	if rescan {
@@ -138,7 +149,52 @@ func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
-	w.WriteJson(k.Txs)
+	from := r.URL.Query().Get("height_from")
+	fromNum, _ := strconv.Atoi(from)
+	to := r.URL.Query().Get("height_to")
+	toNum, _ := strconv.Atoi(to)
+	if toNum == 0 {
+		toNum = 100000000
+	}
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	if !k.isScanEnd {
+		res := common.Response{
+			Result: false,
+			Msg:    "re-scanning",
+		}
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	rangeInTxs := []common.Transaction{}
+	rangeOutTxs := []common.Transaction{}
+	for _, intx := range k.Txs.InTxs {
+		if int64(fromNum) > intx.Height {
+			continue
+		}
+		if int64(toNum) < intx.Height {
+			continue
+		}
+		rangeInTxs = append(rangeInTxs, intx)
+	}
+	for _, outTx := range k.Txs.OutTxs {
+		if int64(fromNum) > outTx.Height {
+			continue
+		}
+		if int64(toNum) < outTx.Height {
+			continue
+		}
+		rangeOutTxs = append(rangeOutTxs, outTx)
+	}
+	newTxs := State{
+		InTxsMempool:  []common.Transaction{},
+		InTxs:         rangeInTxs,
+		OutTxs:        rangeOutTxs,
+		OutTxsMempool: []common.Transaction{},
+		Response:      k.Txs.Response,
+	}
+	w.WriteJson(newTxs)
 }
 
 func (k *Keeper) Start() {
