@@ -3,6 +3,7 @@ package eth
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"time"
 
@@ -28,6 +29,7 @@ type Keeper struct {
 	tokenAddr   eth_common.Address
 	watchAddr   eth_common.Address
 	tesnet      bool
+	isScanEnd   bool
 	Txs         *State
 }
 
@@ -46,6 +48,7 @@ func NewKeeper(url string, isTestnet bool, accessToken string) *Keeper {
 		client:      c,
 		tesnet:      isTestnet,
 		accessToken: accessToken,
+		isScanEnd:   true,
 		Txs: &State{
 			InTxs:         []common.Transaction{},
 			InTxsMempool:  []common.Transaction{},
@@ -106,9 +109,52 @@ func (k *Keeper) GetAddr() eth_common.Address {
 }
 
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
+	from := r.URL.Query().Get("height_from")
+	fromNum, _ := strconv.Atoi(from)
+	to := r.URL.Query().Get("height_to")
+	toNum, _ := strconv.Atoi(to)
+	if toNum == 0 {
+		toNum = 100000000
+	}
 	k.mu.RLock()
 	defer k.mu.RUnlock()
-	w.WriteJson(k.Txs)
+	if !k.isScanEnd {
+		res := common.Response{
+			Result: false,
+			Msg:    "re-scanning",
+		}
+		w.WriteHeader(400)
+		w.WriteJson(res)
+		return
+	}
+	rangeInTxs := []common.Transaction{}
+	rangeOutTxs := []common.Transaction{}
+	for _, intx := range k.Txs.InTxs {
+		if int64(fromNum) > intx.Height {
+			continue
+		}
+		if int64(toNum) < intx.Height {
+			continue
+		}
+		rangeInTxs = append(rangeInTxs, intx)
+	}
+	for _, outTx := range k.Txs.OutTxs {
+		if int64(fromNum) > outTx.Height {
+			continue
+		}
+		if int64(toNum) < outTx.Height {
+			continue
+		}
+		rangeOutTxs = append(rangeOutTxs, outTx)
+	}
+	newTxs := State{
+		InTxsMempool:  []common.Transaction{},
+		InTxs:         rangeInTxs,
+		OutTxs:        rangeOutTxs,
+		OutTxsMempool: []common.Transaction{},
+		Response:      k.Txs.Response,
+	}
+	w.WriteJson(newTxs)
 }
 
 func (k *Keeper) Start() {
