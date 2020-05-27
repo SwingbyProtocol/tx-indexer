@@ -167,6 +167,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		w.WriteJson(res)
 		return
 	}
+	//log.Info(k.Txs)
 	newTxs := State{
 		InTxsMempool:  common.Txs(k.Txs.InTxsMempool).GetRangeTxs(fromNum, toNum),
 		InTxs:         common.Txs(k.Txs.InTxs).GetRangeTxs(fromNum, toNum),
