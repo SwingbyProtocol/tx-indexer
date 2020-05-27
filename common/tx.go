@@ -23,7 +23,7 @@ func (txs Txs) GetRangeTxs(fromNum int, toNum int) []Transaction {
 		if int64(toNum) < tx.Height {
 			continue
 		}
-		rangeTxs = append(rangeTxs)
+		rangeTxs = append(rangeTxs, tx)
 	}
 	return rangeTxs
 }
