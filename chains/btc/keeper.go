@@ -167,31 +167,11 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		w.WriteJson(res)
 		return
 	}
-	rangeInTxs := []common.Transaction{}
-	rangeOutTxs := []common.Transaction{}
-	for _, intx := range k.Txs.InTxs {
-		if int64(fromNum) > intx.Height {
-			continue
-		}
-		if int64(toNum) < intx.Height {
-			continue
-		}
-		rangeInTxs = append(rangeInTxs, intx)
-	}
-	for _, outTx := range k.Txs.OutTxs {
-		if int64(fromNum) > outTx.Height {
-			continue
-		}
-		if int64(toNum) < outTx.Height {
-			continue
-		}
-		rangeOutTxs = append(rangeOutTxs, outTx)
-	}
 	newTxs := State{
-		InTxsMempool:  []common.Transaction{},
-		InTxs:         rangeInTxs,
-		OutTxs:        rangeOutTxs,
-		OutTxsMempool: []common.Transaction{},
+		InTxsMempool:  common.Txs(k.Txs.InTxsMempool).GetRangeTxs(fromNum, toNum),
+		InTxs:         common.Txs(k.Txs.InTxs).GetRangeTxs(fromNum, toNum),
+		OutTxs:        common.Txs(k.Txs.OutTxs).GetRangeTxs(fromNum, toNum),
+		OutTxsMempool: common.Txs(k.Txs.OutTxsMempool).GetRangeTxs(fromNum, toNum),
 		Response:      k.Txs.Response,
 	}
 	w.WriteJson(newTxs)

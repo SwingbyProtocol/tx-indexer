@@ -12,6 +12,22 @@ type UnspentTransactions struct {
 	Currency Symbol
 }
 
+type Txs []Transaction
+
+func (txs Txs) GetRangeTxs(fromNum int, toNum int) []Transaction {
+	rangeTxs := []Transaction{}
+	for _, tx := range txs {
+		if int64(fromNum) > tx.Height {
+			continue
+		}
+		if int64(toNum) < tx.Height {
+			continue
+		}
+		rangeTxs = append(rangeTxs)
+	}
+	return rangeTxs
+}
+
 type Transaction struct {
 	TxID          string
 	From          string
