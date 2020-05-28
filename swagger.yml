@@ -1,4 +1,4 @@
-swagger: '2.0'
+swagger: '3.0'
 info:
   title: 'Tx-indexer API'
   version: 0.0.1
@@ -37,20 +37,18 @@ paths:
       produces:
         - application/json
       parameters:
-        - in: query
-          name: height_from
-          schema:
-            type: integer
-	- in: query
-          name: height_to
-          schema:
-            type: integer
-
-        - in: path
-          name: currency   
-          required: true
+        - name: currency   
+          in: path
+          required: false
           type: string
           description: Target currency e.g. "bnb", "eth", "btc"
+        - name: height_from
+          in: query
+          required: false
+          type: integer
+        - name: height_to
+          in: query
+          type: integer
       responses:
         '200':
           description: Success
