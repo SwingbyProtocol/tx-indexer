@@ -37,6 +37,15 @@ paths:
       produces:
         - application/json
       parameters:
+        - in: query
+          name: height_from
+          schema:
+            type: integer
+	- in: query
+          name: height_to
+          schema:
+            type: integer
+
         - in: path
           name: currency   
           required: true
@@ -52,7 +61,7 @@ paths:
           schema:
             $ref: '#/definitions/ResultRescan'
 
-  /api/v1/{currency}config:
+  /api/v1/{currency}/config:
     post:
       summary: Set config
       description: "Set config state. Default sort logic: slice_stable(tx.Serialize()) then slice_stable(time)"
