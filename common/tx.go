@@ -28,6 +28,17 @@ func (txs Txs) GetRangeTxs(fromNum int, toNum int) []Transaction {
 	return rangeTxs
 }
 
+func (txs Txs) RemoveTxs(targetTime time.Time) []Transaction {
+	newTxs := []Transaction{}
+	for _, tx := range txs {
+		if targetTime.Unix() < tx.Timestamp.Unix() {
+			continue
+		}
+		newTxs = append(newTxs, tx)
+	}
+	return newTxs
+}
+
 type Transaction struct {
 	TxID          string
 	From          string

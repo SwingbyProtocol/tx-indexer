@@ -161,11 +161,21 @@ func (k *Keeper) Start() {
 					//k.client.Reset()
 				}
 				k.processKeep()
+				k.UpdateTxs()
 			}
 		}
 	}()
 }
 
+func (k *Keeper) UpdateTxs() {
+	before48Hour := time.Now().Add(-48 * time.Hour)
+	k.mu.Lock()
+	k.Txs.InTxsMempool = common.Txs(k.Txs.InTxsMempool).RemoveTxs(before48Hour)
+	k.Txs.InTxs = common.Txs(k.Txs.InTxs).RemoveTxs(before48Hour)
+	k.Txs.OutTxs = common.Txs(k.Txs.OutTxs).RemoveTxs(before48Hour)
+	k.Txs.OutTxsMempool = common.Txs(k.Txs.OutTxsMempool).RemoveTxs(before48Hour)
+	k.mu.Unlock()
+}
 func (k *Keeper) processKeep() {
 	resultStatus, err := k.client.Status()
 	if err != nil {
