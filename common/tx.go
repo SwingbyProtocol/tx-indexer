@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type UnspentTransactions struct {
@@ -36,6 +38,7 @@ func (txs Txs) RemoveTxs(targetTime time.Time) []Transaction {
 		}
 		newTxs = append(newTxs, tx)
 	}
+	log.Infof("Returns txs: %d removed: %d", len(newTxs), len(txs))
 	return newTxs
 }
 
