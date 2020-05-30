@@ -38,7 +38,7 @@ func (txs Txs) RemoveTxs(targetTime time.Time) []Transaction {
 		}
 		newTxs = append(newTxs, tx)
 	}
-	log.Infof("Returns txs: %d removed: %d", len(newTxs), len(txs))
+	log.Infof("Returns txs: %d removed: %d", len(newTxs), len(txs)-len(newTxs))
 	return newTxs
 }
 
