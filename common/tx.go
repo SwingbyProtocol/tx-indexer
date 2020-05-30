@@ -31,7 +31,7 @@ func (txs Txs) GetRangeTxs(fromNum int, toNum int) []Transaction {
 func (txs Txs) RemoveTxs(targetTime time.Time) []Transaction {
 	newTxs := []Transaction{}
 	for _, tx := range txs {
-		if targetTime.Unix() < tx.Timestamp.Unix() {
+		if tx.Timestamp.Unix() < targetTime.Unix() {
 			continue
 		}
 		newTxs = append(newTxs, tx)
