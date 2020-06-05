@@ -15,14 +15,13 @@ import (
 
 type Client struct {
 	rpc.Client
-	timestamp map[int64]*time.Time
 }
 
 func NewClient(rpcApi *url.URL, network types.ChainNetwork, period time.Duration) *Client {
 	log.Infof("BNB client connecting to (rpc: %s)...", rpcApi.Host)
 	client := rpc.NewRPCClient(rpcApi.Host, network)
 	client.SetTimeOut(period)
-	c := &Client{client, make(map[int64]*time.Time)}
+	c := &Client{client}
 	return c
 }
 
@@ -35,12 +34,12 @@ func (c *Client) GetLatestBlockHeight() (int64, *time.Time, error) {
 	return resultBlock.Block.Height, &resultBlock.Block.Time, nil
 }
 
-func (c *Client) GetBlockTimeStamp(height int64) (*time.Time, error) {
+func (c *Client) GetBlockTimeStamp(height int64) (time.Time, error) {
 	blocks, err := c.BlockchainInfo(height, height)
 	if err != nil {
-		return nil, err
+		return time.Time{}, err
 	}
-	return &blocks.BlockMetas[0].Header.Time, nil
+	return blocks.BlockMetas[0].Header.Time, nil
 }
 
 func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64, perPage int) ([]common.Transaction, int, error) {

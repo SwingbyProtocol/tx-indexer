@@ -16,7 +16,7 @@ type UnspentTransactions struct {
 
 type Txs []Transaction
 
-func (txs Txs) GetRangeTxs(fromNum int, toNum int) []Transaction {
+func (txs Txs) GetRangeTxs(fromNum int, toNum int) Txs {
 	rangeTxs := []Transaction{}
 	for _, tx := range txs {
 		if int64(fromNum) > tx.Height {
@@ -28,6 +28,28 @@ func (txs Txs) GetRangeTxs(fromNum int, toNum int) []Transaction {
 		rangeTxs = append(rangeTxs, tx)
 	}
 	return rangeTxs
+}
+
+func (txs Txs) Send(address string) Txs {
+	sendTxs := []Transaction{}
+	for _, tx := range txs {
+		if tx.From != address {
+			continue
+		}
+		sendTxs = append(sendTxs, tx)
+	}
+	return sendTxs
+}
+
+func (txs Txs) Receive(address string) []Transaction {
+	sendTxs := []Transaction{}
+	for _, tx := range txs {
+		if tx.To != address {
+			continue
+		}
+		sendTxs = append(sendTxs, tx)
+	}
+	return sendTxs
 }
 
 func (txs Txs) RemoveTxs(targetTime time.Time) []Transaction {

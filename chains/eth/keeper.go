@@ -30,6 +30,7 @@ type Keeper struct {
 	watchAddr   eth_common.Address
 	tesnet      bool
 	isScanEnd   bool
+	cache       map[string]common.Transaction
 	Txs         *State
 }
 
@@ -49,6 +50,7 @@ func NewKeeper(url string, isTestnet bool, accessToken string) *Keeper {
 		tesnet:      isTestnet,
 		accessToken: accessToken,
 		isScanEnd:   true,
+		cache:       make(map[string]common.Transaction),
 		Txs: &State{
 			InTxs:         []common.Transaction{},
 			InTxsMempool:  []common.Transaction{},

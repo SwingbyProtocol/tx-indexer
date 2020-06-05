@@ -10,14 +10,14 @@ import (
 	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/common"
-	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/ant0ine/go-json-rest/rest"
 	"github.com/binance-chain/go-sdk/common/types"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
-	interval = 10 * time.Second
+	interval   = 10 * time.Second
+	loadBlocks = 345600
 )
 
 type Keeper struct {
@@ -28,9 +28,9 @@ type Keeper struct {
 	network     types.ChainNetwork
 	testnet     bool
 	accessToken string
-	Txs         *State
+	Txs         map[string]common.Transaction
+	timestamps  map[int64]time.Time
 	isScanEnd   bool
-	cache       map[string]common.Transaction
 }
 
 type State struct {
@@ -57,13 +57,8 @@ func NewKeeper(urlStr string, isTestnet bool, accessToken string) *Keeper {
 		testnet:     isTestnet,
 		network:     bnbNetwork,
 		accessToken: accessToken,
-		cache:       make(map[string]common.Transaction),
-		Txs: &State{
-			InTxs:         []common.Transaction{},
-			InTxsMempool:  []common.Transaction{},
-			OutTxs:        []common.Transaction{},
-			OutTxsMempool: []common.Transaction{},
-		},
+		timestamps:  make(map[int64]time.Time),
+		Txs:         make(map[string]common.Transaction),
 	}
 	return k
 }
@@ -73,54 +68,8 @@ func (k *Keeper) StartReScanAddr(addr string, timestamp int64) error {
 	return nil
 }
 
-func (k *Keeper) SetWatchAddr(addr string, rescan bool) error {
-	k.mu.Lock()
-	types.Network = k.network
-	accAddr, err := types.AccAddressFromBech32(addr)
-	if err != nil {
-		log.Info(err)
-		k.mu.Unlock()
-		return err
-	}
-	k.watchAddr = accAddr
-	if rescan {
-		k.isScanEnd = false
-		k.cache = make(map[string]common.Transaction)
-	}
-	log.Infof("set bnb watch address -> %s isTestnet: %t rescan: %t", k.watchAddr.String(), k.testnet, rescan)
-	k.mu.Unlock()
-	return nil
-}
-
-func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
-	req := common.ConfigParams{}
-	res := common.Response{}
-	err := r.DecodeJsonPayload(&req)
-	if err != nil {
-		res.Msg = err.Error()
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	if k.accessToken != req.AccessToken {
-		res.Msg = "AccessToken is not valid"
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	err = k.SetWatchAddr(req.Address, true)
-	if err != nil {
-		res.Msg = err.Error()
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	res.Result = true
-	res.Msg = "success"
-	w.WriteJson(res)
-}
-
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
+	watch := r.URL.Query().Get("watch")
 	from := r.URL.Query().Get("height_from")
 	fromNum, _ := strconv.Atoi(from)
 	to := r.URL.Query().Get("height_to")
@@ -139,14 +88,23 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		w.WriteJson(res)
 		return
 	}
-	newTxs := State{
-		InTxsMempool:  common.Txs(k.Txs.InTxsMempool).GetRangeTxs(fromNum, toNum),
-		InTxs:         common.Txs(k.Txs.InTxs).GetRangeTxs(fromNum, toNum),
-		OutTxs:        common.Txs(k.Txs.OutTxs).GetRangeTxs(fromNum, toNum),
-		OutTxsMempool: common.Txs(k.Txs.OutTxsMempool).GetRangeTxs(fromNum, toNum),
-		Response:      k.Txs.Response,
+	txs := common.Txs{}
+	for _, tx := range k.Txs {
+		txs = append(txs, tx)
 	}
-	w.WriteJson(newTxs)
+	inTxs := txs.GetRangeTxs(fromNum, toNum).Receive(watch)
+	outTxs := txs.GetRangeTxs(fromNum, toNum).Send(watch)
+
+	w.WriteJson(State{
+		InTxsMempool:  []common.Transaction{},
+		OutTxsMempool: []common.Transaction{},
+		InTxs:         inTxs,
+		OutTxs:        outTxs,
+		Response: common.Response{
+			Msg:    "",
+			Result: true,
+		},
+	})
 }
 
 func (k *Keeper) Start() {
@@ -168,14 +126,21 @@ func (k *Keeper) Start() {
 }
 
 func (k *Keeper) UpdateTxs() {
-	before48Hour := time.Now().Add(-48 * time.Hour)
+	targetTime := time.Now().Add(-48 * time.Hour)
+	deleteList := []string{}
 	k.mu.Lock()
-	k.Txs.InTxsMempool = common.Txs(k.Txs.InTxsMempool).RemoveTxs(before48Hour)
-	k.Txs.InTxs = common.Txs(k.Txs.InTxs).RemoveTxs(before48Hour)
-	k.Txs.OutTxs = common.Txs(k.Txs.OutTxs).RemoveTxs(before48Hour)
-	k.Txs.OutTxsMempool = common.Txs(k.Txs.OutTxsMempool).RemoveTxs(before48Hour)
+	for _, tx := range k.Txs {
+		if tx.Timestamp.Unix() < targetTime.Unix() {
+			deleteList = append(deleteList, tx.TxID)
+			continue
+		}
+	}
+	for _, txID := range deleteList {
+		delete(k.Txs, txID)
+	}
 	k.mu.Unlock()
 }
+
 func (k *Keeper) processKeep() {
 	resultStatus, err := k.client.Status()
 	if err != nil {
@@ -192,55 +157,83 @@ func (k *Keeper) processKeep() {
 		log.Info(err)
 		return
 	}
-	// set 48 hours
-	minHeight := maxHeight - 345600
+	minHeight := maxHeight - loadBlocks
 	if k.isScanEnd {
 		minHeight = maxHeight - 12000
 	}
+	if !k.isScanEnd {
+		wg := new(sync.WaitGroup)
+		heights := make(chan int64)
+		for w := 1; w <= 200; w++ {
+			go k.SyncBlockTimes(wg, heights)
+		}
+		for h := maxHeight; h >= minHeight; h-- {
+			wg.Add(1)
+			heights <- h
+		}
+		close(heights)
+		wg.Wait()
+	}
 	perPage := 1000
 	pageSize := 100
+	k.mu.RLock()
+	loadTxs := k.Txs
+	k.mu.RUnlock()
 	for page := 1; page <= pageSize; page++ {
 		txs, itemCount, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage)
 		for _, tx := range txs {
-			k.mu.Lock()
-			k.cache[tx.Serialize()] = tx
-			k.mu.Unlock()
+			loadTxs[tx.Serialize()] = tx
 		}
 		log.Infof("Tx scanning on the Binance chain -> total: %d, found: %d, per_page: %d, page: %d", itemCount, len(txs), perPage, page)
 		//log.Info(c, page)
 		pageSize = 1 + itemCount/perPage
 	}
-	k.mu.RLock()
-	loadTxs := k.cache
-	k.mu.RUnlock()
-	inTxs := []common.Transaction{}
-	outTxs := []common.Transaction{}
 	for _, tx := range loadTxs {
-		if tx.From == k.watchAddr.String() || tx.To == k.watchAddr.String() {
-			tx.Confirmations = maxHeight - tx.Height
-			timestamp, err := k.client.GetBlockTimeStamp(tx.Height)
-			if err != nil {
-				log.Info(err)
-				continue
-			}
-			tx.Timestamp = *timestamp
+		tx.Confirmations = maxHeight - tx.Height
+		timestamp, err := k.GetBlockTime(tx.Height)
+		if err != nil {
+			log.Info(err)
+			continue
 		}
-		if tx.From == k.watchAddr.String() {
-			outTxs = append(outTxs, tx)
-		}
-		if tx.To == k.watchAddr.String() {
-			inTxs = append(inTxs, tx)
-		}
+		//log.Info(timestamp)
+		tx.Timestamp = timestamp
+		k.mu.Lock()
+		k.Txs[tx.Serialize()] = tx
+		k.mu.Unlock()
 	}
-	utils.SortTx(inTxs)
-	utils.SortTx(outTxs)
 	k.mu.Lock()
-	k.Txs.InTxs = inTxs
-	k.Txs.OutTxs = outTxs
 	k.isScanEnd = true
-	k.Txs.Result = true
 	k.mu.Unlock()
-	log.Infof("BNC txs scanning done -> inTxs: %d outTxs: %d", len(inTxs), len(outTxs))
+	log.Infof("BNC txs scanning done -> loadTxs: %d", len(loadTxs))
+}
+
+func (k *Keeper) GetBlockTime(height int64) (time.Time, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	if k.timestamps[height] != (time.Time{}) {
+		return k.timestamps[height], nil
+	}
+	timestamp, err := k.client.GetBlockTimeStamp(height)
+	if err != nil {
+		return time.Time{}, err
+	}
+	k.timestamps[height] = timestamp
+	return timestamp, nil
+}
+
+func (k *Keeper) SyncBlockTimes(wg *sync.WaitGroup, heights chan int64) {
+	for height := range heights {
+		timestamp, err := k.client.GetBlockTimeStamp(height)
+		if err != nil {
+			log.Info(err)
+			continue
+		}
+		k.mu.Lock()
+		k.timestamps[height] = timestamp
+		k.mu.Unlock()
+		wg.Done()
+		log.Infof("Sync blocktime height: %d", height)
+	}
 }
 
 func (k *Keeper) Stop() {

@@ -1,10 +1,10 @@
 # Tx-indexer
-Tx-indexer is a modular blockchain transaction monitoring tool. the app can monitor send/receive tx for a specific address over a specific period, multiple coins are supported and unified in a common tx format.
+Tx-indexer is a modular blockchain transaction monitoring tool. the app can monitor send/receive tx for addresses over a specific period, multiple coins are supported and unified in a common tx format.
 
 ## Supporting coins
 - [x] BTC
 - [x] ERC20
-- [ ] BNB/BEP-2
+- [x] BNB/BEP-2
 
 ## Usage
 ```
@@ -14,7 +14,6 @@ $ go run ./cmd/tx-indexer --btc.node http://192.168.1.101:8332 --btc.testnet
 ```
       --bnc.node string      The address for connect bnc fullnode (default "tcp://192.168.1.146:26657")
       --bnc.testnet          This is a bnc testnet
-      --bnc.watch string     This is a bnc testnet (default "tbnb1ws2z8n9ygrnaeqwng69cxfpnundneyjze9cjsy")
       --btc.node string      The address for connect btc fullnode (default "http://192.168.1.230:8332")
       --btc.nodeSize int     The maximum node count for connect p2p (default 25)
       --btc.testnet          This is a btc testnet
@@ -36,9 +35,6 @@ for linux-amd64
 ```
 $ make build-linux-amd64
 ```
-## API reffecrence
-
-- [Websocket client sample code](./examples/websocket_sample/websocket_sample.go)
 
 ### Build Docker container
 ```

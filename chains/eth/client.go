@@ -87,7 +87,7 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_commo
 				Memo:          "",
 				OutputIndex:   0,
 				Spent:         false,
-				Timestamp:     time.Unix(0, 0),
+				Timestamp:     time.Time{},
 			}
 			if tx.From == watchAddr.String() {
 				outTxs = append(outTxs, tx)
@@ -117,9 +117,9 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 	query := ethereum.FilterQuery{
 		FromBlock: big.NewInt(c.latestBlock - fromHeight),
 		ToBlock:   nil, //big.NewInt(6383840),
-		Addresses: []eth_common.Address{
-			tokenAddr,
-		},
+		//Addresses: []eth_common.Address{
+		//	tokenAddr,
+		//},
 	}
 	logs, err := c.FilterLogs(context.Background(), query)
 	if err != nil {
@@ -156,6 +156,7 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 			from := eth_common.HexToAddress(vLog.Topics[1].String())
 			to := eth_common.HexToAddress(vLog.Topics[2].String())
 			currency := common.NewSymbol("Sample Token", 18)
+			timestamp := time.Unix(int64(c.blockTimes[vLog.BlockNumber]), 0)
 			tx := common.Transaction{
 				TxID:          vLog.TxHash.Hex(),
 				From:          from.String(),
@@ -166,7 +167,7 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 				Memo:          "",
 				OutputIndex:   0,
 				Spent:         false,
-				Timestamp:     time.Unix(int64(c.blockTimes[vLog.BlockNumber]), 0),
+				Timestamp:     timestamp,
 			}
 			if tx.From == watchAddr.String() {
 				outTxs = append(outTxs, tx)
