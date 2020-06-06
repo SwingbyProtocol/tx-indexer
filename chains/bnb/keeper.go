@@ -28,7 +28,7 @@ type Keeper struct {
 	network     types.ChainNetwork
 	testnet     bool
 	accessToken string
-	Txs         map[string]common.Transaction
+	txs         map[string]common.Transaction
 	timestamps  map[int64]time.Time
 	isScanEnd   bool
 }
@@ -58,7 +58,7 @@ func NewKeeper(urlStr string, isTestnet bool, accessToken string) *Keeper {
 		network:     bnbNetwork,
 		accessToken: accessToken,
 		timestamps:  make(map[int64]time.Time),
-		Txs:         make(map[string]common.Transaction),
+		txs:         make(map[string]common.Transaction),
 	}
 	return k
 }
@@ -89,7 +89,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		return
 	}
 	txs := common.Txs{}
-	for _, tx := range k.Txs {
+	for _, tx := range k.txs {
 		txs = append(txs, tx)
 	}
 	inTxs := txs.GetRangeTxs(fromNum, toNum).Receive(watch)
@@ -129,14 +129,14 @@ func (k *Keeper) UpdateTxs() {
 	targetTime := time.Now().Add(-48 * time.Hour)
 	deleteList := []string{}
 	k.mu.Lock()
-	for _, tx := range k.Txs {
+	for _, tx := range k.txs {
 		if tx.Timestamp.Unix() < targetTime.Unix() {
 			deleteList = append(deleteList, tx.TxID)
 			continue
 		}
 	}
 	for _, txID := range deleteList {
-		delete(k.Txs, txID)
+		delete(k.txs, txID)
 	}
 	k.mu.Unlock()
 }
@@ -177,7 +177,7 @@ func (k *Keeper) processKeep() {
 	perPage := 1000
 	pageSize := 100
 	k.mu.RLock()
-	loadTxs := k.Txs
+	loadTxs := k.txs
 	k.mu.RUnlock()
 	for page := 1; page <= pageSize; page++ {
 		txs, itemCount, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage)
@@ -198,7 +198,7 @@ func (k *Keeper) processKeep() {
 		//log.Info(timestamp)
 		tx.Timestamp = timestamp
 		k.mu.Lock()
-		k.Txs[tx.Serialize()] = tx
+		k.txs[tx.Serialize()] = tx
 		k.mu.Unlock()
 	}
 	k.mu.Lock()

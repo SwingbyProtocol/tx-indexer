@@ -1,17 +1,19 @@
 package types
 
+import "time"
+
 type Tx struct {
-	Txid         string  `json:"txid"`
-	WitnessID    string  `json:"hash,omitempty"`
-	Height       int64   `json:"height,omitempty"`
-	Receivedtime int64   `json:"receivedtime,omitempty"`
-	MinedTime    int64   `json:"minedtime,omitempty"`
-	Mediantime   int64   `json:"mediantime,omitempty"`
-	Version      int32   `json:"version,omitempty"`
-	Weight       int64   `json:"weight,omitempty"`
-	Locktime     uint32  `json:"locktime,omitempty"`
-	Vin          []*Vin  `json:"vin,omitempty"`
-	Vout         []*Vout `json:"vout,omitempty"`
+	Txid         string    `json:"txid"`
+	WitnessID    string    `json:"hash,omitempty"`
+	Height       int64     `json:"height,omitempty"`
+	Receivedtime int64     `json:"receivedtime,omitempty"`
+	MinedTime    time.Time `json:"minedtime,omitempty"`
+	Mediantime   time.Time `json:"mediantime,omitempty"`
+	Version      int32     `json:"version,omitempty"`
+	Weight       int64     `json:"weight,omitempty"`
+	Locktime     uint32    `json:"locktime,omitempty"`
+	Vin          []*Vin    `json:"vin,omitempty"`
+	Vout         []*Vout   `json:"vout,omitempty"`
 }
 
 type Vin struct {
@@ -39,7 +41,7 @@ func (tx *Tx) GetWitnessID() string {
 	return tx.WitnessID
 }
 
-func (tx *Tx) AddBlockData(height int64, minedtime int64, medianTime int64) *Tx {
+func (tx *Tx) AddBlockData(height int64, minedtime time.Time, medianTime time.Time) *Tx {
 	tx.Height = height
 	tx.MinedTime = minedtime
 	tx.Mediantime = medianTime

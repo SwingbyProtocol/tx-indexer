@@ -27,9 +27,9 @@ type Keeper struct {
 	ticker      *time.Ticker
 	watchAddr   btcutil.Address
 	tesnet      bool
-	isScanEnd   bool
 	accessToken string
-	Txs         *State
+	txs         map[string]common.Transaction
+	isScanEnd   bool
 }
 
 type State struct {
@@ -50,13 +50,8 @@ func NewKeeper(url string, isTestnet bool, accessToken string) *Keeper {
 		client:      c,
 		tesnet:      isTestnet,
 		accessToken: accessToken,
+		txs:         make(map[string]common.Transaction),
 		isScanEnd:   false,
-		Txs: &State{
-			InTxs:         []common.Transaction{},
-			InTxsMempool:  []common.Transaction{},
-			OutTxs:        []common.Transaction{},
-			OutTxsMempool: []common.Transaction{},
-		},
 	}
 	return k
 }
@@ -149,6 +144,7 @@ func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
+	watch := r.URL.Query().Get("watch")
 	from := r.URL.Query().Get("height_from")
 	fromNum, _ := strconv.Atoi(from)
 	to := r.URL.Query().Get("height_to")
@@ -168,25 +164,27 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		return
 	}
 	//log.Info(k.Txs)
-	newTxs := State{
-		InTxsMempool:  common.Txs(k.Txs.InTxsMempool).GetRangeTxs(fromNum, toNum),
-		InTxs:         common.Txs(k.Txs.InTxs).GetRangeTxs(fromNum, toNum),
-		OutTxs:        common.Txs(k.Txs.OutTxs).GetRangeTxs(fromNum, toNum),
-		OutTxsMempool: common.Txs(k.Txs.OutTxsMempool).GetRangeTxs(fromNum, toNum),
-		Response:      k.Txs.Response,
+	txs := common.Txs{}
+	for _, tx := range k.txs {
+		txs = append(txs, tx)
 	}
-	w.WriteJson(newTxs)
+	inTxs := txs.GetRangeTxs(fromNum, toNum).Receive(watch)
+	outTxs := txs.GetRangeTxs(fromNum, toNum).Send(watch)
+
+	w.WriteJson(State{
+		InTxsMempool:  []common.Transaction{},
+		OutTxsMempool: []common.Transaction{},
+		InTxs:         inTxs,
+		OutTxs:        outTxs,
+		Response: common.Response{
+			Msg:    "",
+			Result: true,
+		},
+	})
 }
 
 func (k *Keeper) Start() {
-	if k.GetAddr() == nil {
-		return
-	}
-	_, err := k.client.GetBlockChainInfo()
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Every call try to store latest 5 blocks
+
 	k.ticker = time.NewTicker(interval)
 	k.processKeep()
 	go func() {
@@ -194,76 +192,110 @@ func (k *Keeper) Start() {
 			select {
 			case <-k.ticker.C:
 				k.processKeep()
+				k.UpdateTxs()
 			}
 		}
 	}()
 }
 
-func (k *Keeper) processKeep() {
-	// Default setting
-	fromTime := time.Now().Add(-48 * time.Hour)
-	toTime := time.Now()
-	if err := k.client.FindAndSaveSinceBlockHash(fromTime); err != nil {
-		log.Warningf("bitcoind error finding best block hash: %s", err)
-	}
-	addr := k.GetAddr().EncodeAddress()
-	// ... incoming BTC txs (mempool)
-	btcInTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
-		Address: addr,
-		Type:    TxTypeReceived,
-		Mempool: true,
-	}, k.tesnet)
-	if err != nil {
-		log.Info(err)
-		return
-	}
-	// ... outgoing BTC txs (mempool)
-	btcOutTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
-		Address: addr,
-		Type:    TxTypeSend,
-		Mempool: true,
-	}, k.tesnet)
-	if err != nil {
-		log.Info(err)
-		return
-	}
-
-	// ... incoming BTC txs
-	btcInTxs, err := k.client.GetTransactions(common.TxQueryParams{
-		Address:  addr,
-		Type:     TxTypeReceived,
-		TimeFrom: fromTime.Unix(),
-		TimeTo:   toTime.Unix(), // snap to epoch interval
-	}, k.tesnet)
-	if err != nil {
-		log.Info(err)
-		return
-	}
-
-	// ... outgoing BTC txs
-	btcOutTxs, err := k.client.GetTransactions(common.TxQueryParams{
-		Address:  addr,
-		Type:     TxTypeSend,
-		TimeFrom: fromTime.Unix(),
-		TimeTo:   toTime.Unix(),
-	}, k.tesnet)
-	if err != nil {
-		log.Info(err)
-		return
-	}
-
-	utils.SortTx(btcInTxsMempool)
-	utils.SortTx(btcInTxs)
-	utils.SortTx(btcOutTxsMempool)
-	utils.SortTx(btcOutTxs)
-
+func (k *Keeper) UpdateTxs() {
+	targetTime := time.Now().Add(-48 * time.Hour)
+	deleteList := []string{}
 	k.mu.Lock()
-	k.Txs.InTxsMempool = btcInTxsMempool
-	k.Txs.InTxs = btcInTxs
-	k.Txs.OutTxsMempool = btcOutTxsMempool
-	k.Txs.OutTxs = btcOutTxs
-	k.Txs.Result = true
+	for _, tx := range k.txs {
+		if tx.Timestamp.Unix() < targetTime.Unix() {
+			deleteList = append(deleteList, tx.TxID)
+			continue
+		}
+	}
+	for _, txID := range deleteList {
+		delete(k.txs, txID)
+	}
 	k.mu.Unlock()
+}
+
+func (k *Keeper) processKeep() {
+	depth := 4
+	k.mu.RLock()
+	if !k.isScanEnd {
+		depth = 120
+	}
+	k.mu.RUnlock()
+	txs := k.client.GetBlockTxs(true, depth)
+	log.Infof("Tx scanning on the BTC chain -> total: %d", len(txs))
+	k.mu.Lock()
+	for _, tx := range txs {
+		k.txs[tx.Serialize()] = tx
+	}
+	k.isScanEnd = true
+	k.mu.Unlock()
+
+	/*
+			//if err := k.client.FindAndSaveSinceBlockHash(fromTime); err != nil {
+			//	log.Warningf("bitcoind error finding best block hash: %s", err)
+			//}
+			//addr := k.GetAddr().EncodeAddress()
+			// ... incoming BTC txs (mempool)
+			//btcInTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
+			//	Address: addr,
+				Type:    TxTypeReceived,
+				Mempool: true,
+			}, k.tesnet)
+			if err != nil {
+				log.Info(err)
+				return
+			}
+			// ... outgoing BTC txs (mempool)
+			btcOutTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
+				Address: addr,
+				Type:    TxTypeSend,
+				Mempool: true,
+			}, k.tesnet)
+			if err != nil {
+				log.Info(err)
+				return
+			}
+
+			// ... incoming BTC txs
+			btcInTxs, err := k.client.GetTransactions(common.TxQueryParams{
+				Address:  addr,
+				Type:     TxTypeReceived,
+				TimeFrom: fromTime.Unix(),
+				TimeTo:   toTime.Unix(), // snap to epoch interval
+			}, k.tesnet)
+			if err != nil {
+				log.Info(err)
+				return
+			}
+
+
+
+		// ... outgoing BTC txs
+		btcOutTxs, err := k.client.GetTransactions(common.TxQueryParams{
+			Address:  addr,
+			Type:     TxTypeSend,
+			TimeFrom: fromTime.Unix(),
+			TimeTo:   toTime.Unix(),
+		}, k.tesnet)
+		if err != nil {
+			log.Info(err)
+			return
+		}
+
+		utils.SortTx(btcInTxsMempool)
+		utils.SortTx(btcInTxs)
+		utils.SortTx(btcOutTxsMempool)
+		utils.SortTx(btcOutTxs)
+
+		k.mu.Lock()
+		k.Txs.InTxsMempool = btcInTxsMempool
+		k.Txs.InTxs = btcInTxs
+		k.Txs.OutTxsMempool = btcOutTxsMempool
+		k.Txs.OutTxs = btcOutTxs
+		k.Txs.Result = true
+		k.mu.Unlock()
+
+	*/
 }
 
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {

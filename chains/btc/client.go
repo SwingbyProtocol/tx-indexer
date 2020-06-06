@@ -57,6 +57,79 @@ func NewBtcClient(path string) (*Client, error) {
 	return &Client{client, u, nil, make(map[string]string)}, err
 }
 
+func (c *Client) GetBlockTxs(testNet bool, depth int) []common.Transaction {
+	info, err := c.GetBlockChainInfo()
+	if err != nil {
+		log.Info("error", err)
+		return []common.Transaction{}
+	}
+	hash, _ := chainhash.NewHashFromStr(info.BestBlockHash)
+	rawTxs := c.GetTxs([]types.Tx{}, hash, int64(info.Blocks), depth, testNet)
+	txs := []common.Transaction{}
+	for _, tx := range rawTxs {
+		// Remove coinbase transaction
+		if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
+			continue
+		}
+		from, err := c.getFirstVinAddr(tx.Txid, tx.Vin, testNet)
+		if err != nil {
+			continue
+		}
+		for _, vout := range tx.Vout {
+			amount, err := common.NewAmountFromInt64(vout.Value)
+			if err != nil {
+				log.Info(err)
+				continue
+			}
+			// Check script
+			if len(vout.Addresses) == 0 {
+				continue
+			}
+			tx := common.Transaction{
+				TxID:          tx.Txid,
+				From:          from,
+				To:            vout.Addresses[0],
+				Amount:        amount,
+				Currency:      common.BTC,
+				Height:        tx.Height,
+				Timestamp:     tx.MinedTime,
+				Confirmations: 0,
+				OutputIndex:   int(vout.N),
+				Spent:         false,
+			}
+			//if (params.Type == TxTypeSend && tx.From != params.Address) || (params.Type == TxTypeReceived && tx.To != params.Address) {
+			//	continue
+			//}
+			txs = append(txs, tx)
+		}
+	}
+	return txs
+}
+
+func (c *Client) GetTxs(txs []types.Tx, hash *chainhash.Hash, height int64, depth int, testNet bool) []types.Tx {
+	btcNet := &chaincfg.MainNetParams
+	if testNet {
+		btcNet = &chaincfg.TestNet3Params
+	}
+	if depth == 0 {
+		return txs
+	}
+	depth--
+	block, err := c.Client.GetBlock(hash)
+	if err != nil {
+		return txs
+	}
+	log.Infof("BTC txs scaning.. block: %d", height)
+	for _, tx := range block.Transactions {
+		newTx := utils.MsgTxToTx(tx, btcNet)
+		newTx.Height = height
+		newTx.MinedTime = block.Header.Timestamp
+		txs = append(txs, newTx)
+	}
+	height--
+	return c.GetTxs(txs, &block.Header.PrevBlock, height, depth, testNet)
+}
+
 // FindAndSaveSinceBlockHash tries to find the hash of the first block where the timestamp is greater or equal to `fromTime`,
 // which represents the start time of the window of transactions that we are willing to look at on the blockchain.
 // This is a performance optimization to try to make lighter listsinceblock queries to the bitcoind node.
@@ -129,6 +202,7 @@ func (c *Client) GetTransactions(params common.TxQueryParams, testNet bool) ([]c
 		if allTxs[tx.TxID], err = c.GetTransaction(hash, true); err != nil {
 			return nil, err
 		}
+		log.Info(tx.TxID)
 	}
 	log.Infof("bitcoind returned %d txs for GetTransactions", len(allTxs))
 	return c.btcTxsToCmnTransactions(params, allTxs, testNet)
@@ -280,6 +354,7 @@ func (c *Client) getFirstVinAddr(txid string, vin []*types.Vin, testNet bool) (s
 	}
 	inTx0, err := c.GetTxByTxID(vin[0].Txid, testNet)
 	if err != nil {
+		log.Warnf("%s id:%s", err.Error(), txid)
 		return "", err
 	}
 	addr := inTx0.Vout[vin[0].Vout].Addresses[0]

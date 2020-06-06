@@ -91,10 +91,10 @@ func main() {
 
 		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet, conf.AccessToken)
 
-		err := btcKeeper.SetWatchAddr(conf.BTCConfig.WatchAddr, false, 0)
-		if err != nil {
-			log.Fatal(err)
-		}
+		//err := btcKeeper.SetWatchAddr(conf.BTCConfig.WatchAddr, false, 0)
+		//if err != nil {
+		//	log.Fatal(err)
+		//}
 		go btcKeeper.Start()
 
 		getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)

@@ -82,12 +82,13 @@ func MsgTxToTx(msgTx *wire.MsgTx, params *chaincfg.Params) types.Tx {
 	}
 	for _, txin := range msgTx.TxIn {
 		newVin := &types.Vin{
-			Txid:     txin.PreviousOutPoint.Hash.String(),
-			Vout:     txin.PreviousOutPoint.Index,
-			Sequence: txin.Sequence,
+			Txid:      txin.PreviousOutPoint.Hash.String(),
+			Vout:      txin.PreviousOutPoint.Index,
+			Addresses: []string{},
+			Sequence:  txin.Sequence,
 		}
 		if newVin.Txid == coinbaseTx {
-			newVin.Addresses[0] = "coinbase"
+			newVin.Addresses = []string{"coinbase"}
 		}
 		tx.Vin = append(tx.Vin, newVin)
 	}
@@ -184,9 +185,9 @@ func BtcTransactionsToChainTransactions(curHeight int64, txs []types.Tx, timeFro
 			}
 			// if the tx is just in the mempool `MinedTime` will be 0
 			txTime := int64(0)
-			if 0 < tx.MinedTime {
-				txTime = tx.MinedTime
-			}
+			//if 0 < tx.MinedTime {
+			//	txTime = tx.MinedTime
+			//}
 			// don't blindly trust our source :)
 			if (0 < timeFromUnix && txTime < timeFromUnix) ||
 				(0 < timeToUnix && timeToUnix < txTime) {
