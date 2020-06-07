@@ -22,14 +22,15 @@ const (
 )
 
 type Keeper struct {
-	mu          *sync.RWMutex
-	client      *Client
-	ticker      *time.Ticker
-	watchAddr   btcutil.Address
-	tesnet      bool
-	accessToken string
-	txs         map[string]common.Transaction
-	isScanEnd   bool
+	mu           *sync.RWMutex
+	client       *Client
+	ticker       *time.Ticker
+	watchAddr    btcutil.Address
+	tesnet       bool
+	accessToken  string
+	txs          map[string]common.Transaction
+	latestHeight int64
+	isScanEnd    bool
 }
 
 type State struct {
@@ -215,87 +216,26 @@ func (k *Keeper) UpdateTxs() {
 }
 
 func (k *Keeper) processKeep() {
-	depth := 4
+	depth := 16
 	k.mu.RLock()
 	if !k.isScanEnd {
 		depth = 120
 	}
 	k.mu.RUnlock()
-	txs := k.client.GetBlockTxs(true, depth)
+	latestHeight, txs := k.client.GetBlockTxs(true, depth)
 	log.Infof("Tx scanning on the BTC chain -> total: %d", len(txs))
 	k.mu.Lock()
 	for _, tx := range txs {
 		k.txs[tx.Serialize()] = tx
 	}
-	k.isScanEnd = true
+	for _, tx := range k.txs {
+		tx.Confirmations = latestHeight - tx.Height + 1
+		k.txs[tx.Serialize()] = tx
+	}
+	if !k.isScanEnd {
+		k.isScanEnd = true
+	}
 	k.mu.Unlock()
-
-	/*
-			//if err := k.client.FindAndSaveSinceBlockHash(fromTime); err != nil {
-			//	log.Warningf("bitcoind error finding best block hash: %s", err)
-			//}
-			//addr := k.GetAddr().EncodeAddress()
-			// ... incoming BTC txs (mempool)
-			//btcInTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
-			//	Address: addr,
-				Type:    TxTypeReceived,
-				Mempool: true,
-			}, k.tesnet)
-			if err != nil {
-				log.Info(err)
-				return
-			}
-			// ... outgoing BTC txs (mempool)
-			btcOutTxsMempool, err := k.client.GetMempoolTransactions(common.TxQueryParams{
-				Address: addr,
-				Type:    TxTypeSend,
-				Mempool: true,
-			}, k.tesnet)
-			if err != nil {
-				log.Info(err)
-				return
-			}
-
-			// ... incoming BTC txs
-			btcInTxs, err := k.client.GetTransactions(common.TxQueryParams{
-				Address:  addr,
-				Type:     TxTypeReceived,
-				TimeFrom: fromTime.Unix(),
-				TimeTo:   toTime.Unix(), // snap to epoch interval
-			}, k.tesnet)
-			if err != nil {
-				log.Info(err)
-				return
-			}
-
-
-
-		// ... outgoing BTC txs
-		btcOutTxs, err := k.client.GetTransactions(common.TxQueryParams{
-			Address:  addr,
-			Type:     TxTypeSend,
-			TimeFrom: fromTime.Unix(),
-			TimeTo:   toTime.Unix(),
-		}, k.tesnet)
-		if err != nil {
-			log.Info(err)
-			return
-		}
-
-		utils.SortTx(btcInTxsMempool)
-		utils.SortTx(btcInTxs)
-		utils.SortTx(btcOutTxsMempool)
-		utils.SortTx(btcOutTxs)
-
-		k.mu.Lock()
-		k.Txs.InTxsMempool = btcInTxsMempool
-		k.Txs.InTxs = btcInTxs
-		k.Txs.OutTxsMempool = btcOutTxsMempool
-		k.Txs.OutTxs = btcOutTxs
-		k.Txs.Result = true
-		k.mu.Unlock()
-
-	*/
 }
 
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {

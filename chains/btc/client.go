@@ -57,11 +57,14 @@ func NewBtcClient(path string) (*Client, error) {
 	return &Client{client, u, nil, make(map[string]string)}, err
 }
 
-func (c *Client) GetBlockTxs(testNet bool, depth int) []common.Transaction {
+func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []common.Transaction) {
 	info, err := c.GetBlockChainInfo()
 	if err != nil {
 		log.Info("error", err)
-		return []common.Transaction{}
+		return 0, []common.Transaction{}
+	}
+	if info.Blocks == 0 {
+		return 0, []common.Transaction{}
 	}
 	hash, _ := chainhash.NewHashFromStr(info.BestBlockHash)
 	rawTxs := c.GetTxs([]types.Tx{}, hash, int64(info.Blocks), depth, testNet)
@@ -103,7 +106,7 @@ func (c *Client) GetBlockTxs(testNet bool, depth int) []common.Transaction {
 			txs = append(txs, tx)
 		}
 	}
-	return txs
+	return int64(info.Blocks), txs
 }
 
 func (c *Client) GetTxs(txs []types.Tx, hash *chainhash.Hash, height int64, depth int, testNet bool) []types.Tx {
@@ -119,7 +122,7 @@ func (c *Client) GetTxs(txs []types.Tx, hash *chainhash.Hash, height int64, dept
 	if err != nil {
 		return txs
 	}
-	log.Infof("BTC txs scaning.. block: %d", height)
+	log.Infof("BTC txs scaning... block: %d", height)
 	for _, tx := range block.Transactions {
 		newTx := utils.MsgTxToTx(tx, btcNet)
 		newTx.Height = height

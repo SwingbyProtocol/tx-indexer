@@ -189,7 +189,7 @@ func (k *Keeper) processKeep() {
 		pageSize = 1 + itemCount/perPage
 	}
 	for _, tx := range loadTxs {
-		tx.Confirmations = maxHeight - tx.Height
+		tx.Confirmations = maxHeight - tx.Height + 1
 		timestamp, err := k.GetBlockTime(tx.Height)
 		if err != nil {
 			log.Info(err)

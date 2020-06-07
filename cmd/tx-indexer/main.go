@@ -97,6 +97,8 @@ func main() {
 		//}
 		go btcKeeper.Start()
 
+		go btcKeeper.StartNode()
+
 		getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
 		broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
 		setBTCConfig := api.NewPOST("/api/v1/btc/config", btcKeeper.SetConfig)
