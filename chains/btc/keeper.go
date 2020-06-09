@@ -239,7 +239,6 @@ func (k *Keeper) processKeep() {
 		k.isScanEnd = true
 	}
 	k.mu.Unlock()
-	k.StartNode()
 }
 
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
