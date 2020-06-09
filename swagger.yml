@@ -42,12 +42,19 @@ paths:
           required: false
           type: string
           description: Target currency e.g. "bnb", "eth", "btc"
+        - name: watch
+          in: query
+          required: true
+          type: string
+          description: Target address to watch in/out txs
         - name: height_from
           in: query
           required: false
           type: integer
+          description: height_from = <tx.height>
         - name: height_to
           in: query
+          required: false
           type: integer
       responses:
         '200':

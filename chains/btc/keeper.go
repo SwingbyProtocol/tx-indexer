@@ -150,6 +150,10 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	fromNum, _ := strconv.Atoi(from)
 	to := r.URL.Query().Get("height_to")
 	toNum, _ := strconv.Atoi(to)
+	page := r.URL.Query().Get("page")
+	pageNum, _ := strconv.Atoi(page)
+	limit := r.URL.Query().Get("limit")
+	limitNum, _ := strconv.Atoi(limit)
 	if toNum == 0 {
 		toNum = 100000000
 	}
@@ -169,13 +173,13 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	for _, tx := range k.txs {
 		txs = append(txs, tx)
 	}
-	rangeTxs := txs.GetRangeTxs(fromNum, toNum)
-	memPoolTxs := txs.GetRangeTxs(0, 0)
+	rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
+	memPoolTxs := txs.GetRangeTxs(0, 0).Sort()
 
-	inTxsMemPool := memPoolTxs.ReceiveMempool(watch)
-	outTxsMemPool := memPoolTxs.SendMempool(watch)
-	inTxs := rangeTxs.Receive(watch)
-	outTxs := rangeTxs.Send(watch)
+	inTxsMemPool := memPoolTxs.ReceiveMempool(watch).Page(pageNum, limitNum)
+	outTxsMemPool := memPoolTxs.SendMempool(watch).Page(pageNum, limitNum)
+	inTxs := rangeTxs.Receive(watch).Page(pageNum, limitNum)
+	outTxs := rangeTxs.Send(watch).Page(pageNum, limitNum)
 
 	w.WriteJson(State{
 		InTxsMempool:  inTxsMemPool,
@@ -192,6 +196,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 func (k *Keeper) Start() {
 	k.ticker = time.NewTicker(interval)
 	k.processKeep()
+	k.StartNode()
 	go func() {
 		for {
 			select {
@@ -223,11 +228,10 @@ func (k *Keeper) processKeep() {
 	depth := 16
 	k.mu.RLock()
 	if !k.isScanEnd {
-		depth = 120
+		depth = 260
 	}
 	k.mu.RUnlock()
 	latestHeight, txs := k.client.GetBlockTxs(true, depth)
-	log.Infof("Tx scanning on the BTC chain -> total: %d", len(txs))
 	k.mu.Lock()
 	for _, tx := range txs {
 		k.txs[tx.Serialize()] = tx
@@ -242,6 +246,7 @@ func (k *Keeper) processKeep() {
 	if !k.isScanEnd {
 		k.isScanEnd = true
 	}
+	log.Infof("BTC txs scanning done -> loadTxs: %d", len(k.txs))
 	k.mu.Unlock()
 }
 

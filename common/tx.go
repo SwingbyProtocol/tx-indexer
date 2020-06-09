@@ -3,6 +3,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -36,15 +37,21 @@ func (txs Txs) Send(address string) Txs {
 		if tx.From != address {
 			continue
 		}
+		if tx.Height == 0 {
+			continue
+		}
 		sendTxs = append(sendTxs, tx)
 	}
 	return sendTxs
 }
 
-func (txs Txs) Receive(address string) []Transaction {
+func (txs Txs) Receive(address string) Txs {
 	sendTxs := []Transaction{}
 	for _, tx := range txs {
 		if tx.To != address {
+			continue
+		}
+		if tx.Height == 0 {
 			continue
 		}
 		sendTxs = append(sendTxs, tx)
@@ -66,7 +73,7 @@ func (txs Txs) SendMempool(address string) Txs {
 	return sendTxs
 }
 
-func (txs Txs) ReceiveMempool(address string) []Transaction {
+func (txs Txs) ReceiveMempool(address string) Txs {
 	sendTxs := []Transaction{}
 	for _, tx := range txs {
 		if tx.To != address {
@@ -80,7 +87,37 @@ func (txs Txs) ReceiveMempool(address string) []Transaction {
 	return sendTxs
 }
 
-func (txs Txs) RemoveTxs(targetTime time.Time) []Transaction {
+func (txs Txs) Sort() Txs {
+	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Serialize() < txs[j].Serialize() })
+	sort.SliceStable(txs, func(i, j int) bool { return txs[i].Timestamp.UnixNano() > txs[j].Timestamp.UnixNano() })
+	return txs
+}
+
+func (txs Txs) Page(page int, limit int) Txs {
+	if len(txs) == 0 {
+		return txs
+	}
+	if page == 0 {
+		page = 1
+	}
+	if limit == 0 {
+		limit = 25
+	}
+	base := make(map[int]Txs)
+	index := 1
+	for count, tx := range txs {
+		if count >= 1 && count%limit == 0 {
+			index++
+		}
+		base[index] = append(base[index], tx)
+	}
+	if base[page] == nil {
+		return Txs{}
+	}
+	return base[page]
+}
+
+func (txs Txs) RemoveTxs(targetTime time.Time) Txs {
 	newTxs := []Transaction{}
 	for _, tx := range txs {
 		if tx.Timestamp.Unix() < targetTime.Unix() {
