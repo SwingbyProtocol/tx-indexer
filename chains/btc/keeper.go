@@ -232,6 +232,9 @@ func (k *Keeper) processKeep() {
 		k.txs[tx.Serialize()] = tx
 	}
 	for _, tx := range k.txs {
+		if tx.Height == 0 {
+			continue
+		}
 		tx.Confirmations = latestHeight - tx.Height + 1
 		k.txs[tx.Serialize()] = tx
 	}
@@ -308,20 +311,20 @@ func (k *Keeper) StartNode() {
 					continue
 				}
 
-				tx := common.Transaction{
+				newTx := common.Transaction{
 					TxID:          tx.Txid,
 					From:          from,
 					To:            vout.Addresses[0],
 					Amount:        amount,
 					Currency:      common.BTC,
 					Height:        0,
-					Timestamp:     time.Time{},
+					Timestamp:     tx.Receivedtime,
 					Confirmations: 0,
 					OutputIndex:   int(vout.N),
 					Spent:         false,
 				}
 				k.mu.Lock()
-				k.txs[tx.Serialize()] = tx
+				k.txs[newTx.Serialize()] = newTx
 				k.mu.Unlock()
 			}
 		}

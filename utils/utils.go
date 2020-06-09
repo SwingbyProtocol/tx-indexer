@@ -78,7 +78,7 @@ func MsgTxToTx(msgTx *wire.MsgTx, params *chaincfg.Params) types.Tx {
 		Version:      msgTx.Version,
 		Locktime:     msgTx.LockTime,
 		Weight:       GetTransactionWeight(msgTx),
-		Receivedtime: time.Now().Unix(),
+		Receivedtime: time.Now(),
 	}
 	for _, txin := range msgTx.TxIn {
 		newVin := &types.Vin{

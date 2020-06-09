@@ -6,7 +6,7 @@ type Tx struct {
 	Txid         string    `json:"txid"`
 	WitnessID    string    `json:"hash,omitempty"`
 	Height       int64     `json:"height,omitempty"`
-	Receivedtime int64     `json:"receivedtime,omitempty"`
+	Receivedtime time.Time `json:"receivedtime,omitempty"`
 	MinedTime    time.Time `json:"minedtime,omitempty"`
 	Mediantime   time.Time `json:"mediantime,omitempty"`
 	Version      int32     `json:"version,omitempty"`
