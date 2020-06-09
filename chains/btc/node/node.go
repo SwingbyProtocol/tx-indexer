@@ -20,7 +20,7 @@ import (
 )
 
 var (
-	DefualtNodeBootstrapCount = 17
+	DefualtNodeBootstrapCount = 10
 
 	DefaultNodeAddTimes = 4
 
