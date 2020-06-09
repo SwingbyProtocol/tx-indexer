@@ -357,7 +357,7 @@ func (c *Client) getFirstVinAddr(txid string, vin []*types.Vin, testNet bool) (s
 	}
 	inTx0, err := c.GetTxByTxID(vin[0].Txid, testNet)
 	if err != nil {
-		log.Warnf("%s id:%s", err.Error(), txid)
+		log.Warnf("%s tx:%s vin0:%s", err.Error(), txid, vin[0].Txid)
 		return "", err
 	}
 	addr := inTx0.Vout[vin[0].Vout].Addresses[0]
