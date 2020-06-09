@@ -170,9 +170,10 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		txs = append(txs, tx)
 	}
 	rangeTxs := txs.GetRangeTxs(fromNum, toNum)
+	memPoolTxs := txs.GetRangeTxs(0, 0)
 
-	inTxsMemPool := rangeTxs.ReceiveMempool(watch)
-	outTxsMemPool := rangeTxs.SendMempool(watch)
+	inTxsMemPool := memPoolTxs.ReceiveMempool(watch)
+	outTxsMemPool := memPoolTxs.SendMempool(watch)
 	inTxs := rangeTxs.Receive(watch)
 	outTxs := rangeTxs.Send(watch)
 
