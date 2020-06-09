@@ -73,7 +73,7 @@ func main() {
 
 		//bnbKeeper.SetWatchAddr(conf.BNCConfig.WatchAddr, true)
 
-		go bnbKeeper.Start()
+		bnbKeeper.Start()
 
 		// BNB side
 		getBNBTxs := api.NewGet("/api/v1/bnb/txs", bnbKeeper.GetTxs)
@@ -95,7 +95,7 @@ func main() {
 		//if err != nil {
 		//	log.Fatal(err)
 		//}
-		go btcKeeper.Start()
+		btcKeeper.Start()
 
 		getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
 		broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
