@@ -169,12 +169,16 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	for _, tx := range k.txs {
 		txs = append(txs, tx)
 	}
-	inTxs := txs.GetRangeTxs(fromNum, toNum).Receive(watch)
-	outTxs := txs.GetRangeTxs(fromNum, toNum).Send(watch)
+	rangeTxs := txs.GetRangeTxs(fromNum, toNum)
+
+	inTxsMemPool := rangeTxs.ReceiveMempool(watch)
+	outTxsMemPool := rangeTxs.SendMempool(watch)
+	inTxs := rangeTxs.Receive(watch)
+	outTxs := rangeTxs.Send(watch)
 
 	w.WriteJson(State{
-		InTxsMempool:  []common.Transaction{},
-		OutTxsMempool: []common.Transaction{},
+		InTxsMempool:  inTxsMemPool,
+		OutTxsMempool: outTxsMemPool,
 		InTxs:         inTxs,
 		OutTxs:        outTxs,
 		Response: common.Response{
@@ -185,7 +189,6 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) Start() {
-
 	k.ticker = time.NewTicker(interval)
 	k.processKeep()
 	go func() {
@@ -236,6 +239,7 @@ func (k *Keeper) processKeep() {
 		k.isScanEnd = true
 	}
 	k.mu.Unlock()
+	k.StartNode()
 }
 
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
@@ -286,7 +290,41 @@ func (k *Keeper) StartNode() {
 	go func() {
 		for {
 			tx := <-txChan
-			log.Info(tx.Txid)
+			// Remove coinbase transaction
+			if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
+				continue
+			}
+			from, err := k.client.getFirstVinAddr(tx.Txid, tx.Vin, k.tesnet)
+			if err != nil {
+				continue
+			}
+			for _, vout := range tx.Vout {
+				amount, err := common.NewAmountFromInt64(vout.Value)
+				if err != nil {
+					log.Info(err)
+					continue
+				}
+				// Check script
+				if len(vout.Addresses) == 0 {
+					continue
+				}
+
+				tx := common.Transaction{
+					TxID:          tx.Txid,
+					From:          from,
+					To:            vout.Addresses[0],
+					Amount:        amount,
+					Currency:      common.BTC,
+					Height:        tx.Height,
+					Timestamp:     tx.MinedTime,
+					Confirmations: 0,
+					OutputIndex:   int(vout.N),
+					Spent:         false,
+				}
+				k.mu.Lock()
+				k.txs[tx.Serialize()] = tx
+				k.mu.Unlock()
+			}
 		}
 	}()
 }

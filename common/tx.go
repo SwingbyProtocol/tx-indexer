@@ -52,6 +52,34 @@ func (txs Txs) Receive(address string) []Transaction {
 	return sendTxs
 }
 
+func (txs Txs) SendMempool(address string) Txs {
+	sendTxs := []Transaction{}
+	for _, tx := range txs {
+		if tx.From != address {
+			continue
+		}
+		if tx.Height != 0 {
+			continue
+		}
+		sendTxs = append(sendTxs, tx)
+	}
+	return sendTxs
+}
+
+func (txs Txs) ReceiveMempool(address string) []Transaction {
+	sendTxs := []Transaction{}
+	for _, tx := range txs {
+		if tx.To != address {
+			continue
+		}
+		if tx.Height != 0 {
+			continue
+		}
+		sendTxs = append(sendTxs, tx)
+	}
+	return sendTxs
+}
+
 func (txs Txs) RemoveTxs(targetTime time.Time) []Transaction {
 	newTxs := []Transaction{}
 	for _, tx := range txs {
