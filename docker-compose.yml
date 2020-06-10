@@ -6,5 +6,5 @@ services:
     volumes:
       - ./:/app
     ports:
-      - "80:12333"
+      - "8080:12333"
     command: serve /app/swagger.yml --port 12333 --no-open

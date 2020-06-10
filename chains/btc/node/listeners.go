@@ -87,24 +87,6 @@ func (node *Node) onInv(p *peer.Peer, msg *wire.MsgInv) {
 
 func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
 	// Update node rank
-	node.updateRank(p)
-	// Get now ranks counts
-	top, _, _, olders := node.GetRank()
-	if top >= DefaultNodeRankSize {
-		node.resetConnectedRank()
-		// Remove end peers
-		if len(olders) > 2 {
-			for i := 0; i < 2; i++ {
-				peer := node.GetConnectedPeer(olders[i])
-				if peer != nil {
-					log.Infof("Force disconnect... %s", peer.Addr())
-					peer.Disconnect()
-				}
-			}
-		}
-		// Finding new peer
-		go node.queryDNSSeeds()
-	}
 	txHash := msg.TxHash().String()
 	if node.isReceived(txHash) {
 		return
@@ -157,4 +139,25 @@ func (node *Node) onDisconneted(p *peer.Peer, conn net.Conn) {
 	delete(node.connectedPeers, conn.RemoteAddr().String())
 	node.mu.Unlock()
 	log.Infof("Peer %s disconnected", p)
+}
+
+func (node *Node) addReceived(hash string) {
+	node.mu.Lock()
+	node.receivedTxs[hash] = true
+	node.mu.Unlock()
+	go func() {
+		time.Sleep(4 * time.Minute)
+		node.mu.Lock()
+		delete(node.receivedTxs, hash)
+		node.mu.Unlock()
+	}()
+}
+
+func (node *Node) isReceived(hash string) bool {
+	node.mu.RLock()
+	defer node.mu.RUnlock()
+	if node.receivedTxs[hash] {
+		return true
+	}
+	return false
 }

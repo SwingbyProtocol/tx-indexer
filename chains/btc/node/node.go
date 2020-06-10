@@ -1,8 +1,6 @@
 package node
 
 import (
-	"bytes"
-	"encoding/hex"
 	"errors"
 	"net"
 	"strconv"
@@ -15,7 +13,6 @@ import (
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/peer"
 	"github.com/btcsuite/btcd/wire"
-	"github.com/btcsuite/btcutil"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -52,7 +49,7 @@ type Node struct {
 	mu             *sync.RWMutex
 	receivedTxs    map[string]bool
 	targetOutbound uint32
-	connectedRanks map[string]uint64
+	ticker         *time.Ticker
 	connectedPeers map[string]*peer.Peer
 	invtxs         map[string]*wire.MsgTx
 	txChan         chan *types.Tx
@@ -64,7 +61,6 @@ func NewNode(config *NodeConfig) *Node {
 		mu:             new(sync.RWMutex),
 		receivedTxs:    make(map[string]bool),
 		targetOutbound: config.TargetOutbound,
-		connectedRanks: make(map[string]uint64),
 		connectedPeers: make(map[string]*peer.Peer),
 		invtxs:         make(map[string]*wire.MsgTx),
 		txChan:         config.TxChan,
@@ -100,28 +96,117 @@ func NewNode(config *NodeConfig) *Node {
 
 func (node *Node) Start() {
 	node.start = true
-	go node.queryDNSSeeds()
+	node.ticker = time.NewTicker(12 * time.Second)
+	for {
+		<-node.ticker.C
+		peerCount := len(node.GetConnectedPeers())
+		log.Infof("Connected peers: %d", peerCount)
+		if peerCount >= DefualtNodeBootstrapCount {
+			continue
+		}
+		node.queryDNSSeeds()
+	}
 }
 
 func (node *Node) Stop() {
 	node.start = false
+	node.ticker.Stop()
+	peers := node.GetConnectedPeers()
+	for _, p := range peers {
+		p.Disconnect()
+	}
+	node.mu.Lock()
+	node.connectedPeers = make(map[string]*peer.Peer)
+	node.mu.Unlock()
+	log.Info("STOP: nodes subscriber stopped")
+	return
 }
 
-func (node *Node) DecodeToTx(hexStr string) (*btcutil.Tx, error) {
-	if len(hexStr)%2 != 0 {
-		hexStr = "0" + hexStr
+func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
+	node.mu.RLock()
+	peer := node.connectedPeers[addr]
+	node.mu.RUnlock()
+	return peer
+}
+
+func (node *Node) GetConnectedPeers() []*peer.Peer {
+	node.mu.RLock()
+	defer node.mu.RUnlock()
+	ret := []*peer.Peer{}
+	for _, p := range node.connectedPeers {
+		ret = append(ret, p)
 	}
-	serializedTx, err := hex.DecodeString(hexStr)
+	return ret
+}
+
+// Query the DNS seeds and pass the addresses into the address manager.
+func (node *Node) queryDNSSeeds() {
+	log.Info("QueryDNSSeeds start...")
+	log.Infof("Using network --> %s", node.peerConfig.ChainParams.Name)
+	for _, seed := range node.peerConfig.ChainParams.DNSSeeds {
+		go func(host string) {
+			var addrs []string
+			var err error
+			addrs, err = net.LookupHost(host)
+			if err != nil {
+				return
+			}
+			node.addRandomNodes(addrs)
+		}(seed.Host)
+	}
+}
+
+func (node *Node) addRandomNodes(addrs []string) {
+	for i := 0; i < DefaultNodeAddTimes; i++ {
+		key := utils.RandRange(0, len(addrs)-1)
+		addr := addrs[key]
+		port, err := strconv.Atoi(node.peerConfig.ChainParams.DefaultPort)
+		if err != nil {
+			log.Debug("port error")
+			continue
+		}
+		target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
+		dialer := net.Dialer{Timeout: DefaultNodeTimeout}
+		conn, err := dialer.Dial("tcp", target.String())
+		if err != nil {
+			log.Debugf("net.Dial: error %v\n", err)
+			continue
+		}
+		node.AddPeer(conn)
+	}
+}
+
+func (node *Node) AddPeer(conn net.Conn) {
+	conns := len(node.GetConnectedPeers())
+	if uint32(conns) >= node.targetOutbound {
+		log.Debugf("peer count is enough %d", conns)
+		conn.Close()
+		return
+	}
+	addr := conn.RemoteAddr().String()
+	if node.GetConnectedPeer(addr) != nil {
+		log.Debugf("peer is already joined %s", addr)
+		conn.Close()
+		return
+	}
+	p, err := peer.NewOutboundPeer(node.peerConfig, conn.RemoteAddr().String())
 	if err != nil {
-		return nil, err
+		p.Disconnect()
+		return
 	}
-	var msgTx wire.MsgTx
-	err = msgTx.Deserialize(bytes.NewReader(serializedTx))
-	if err != nil {
-		return nil, err
-	}
-	tx := btcutil.NewTx(&msgTx)
-	return tx, nil
+	// Associate the connection with the peer
+	p.AssociateConnection(conn)
+
+	// Create a new peer for this connection
+	node.mu.Lock()
+	node.connectedPeers[conn.RemoteAddr().String()] = p
+	node.mu.Unlock()
+
+	go func() {
+		p.WaitForDisconnect()
+		// onDisconnection will be called.
+		node.onDisconneted(p, conn)
+	}()
 }
 
 func (node *Node) AddInvMsgTx(txid string, msgTx *wire.MsgTx) {
@@ -164,122 +249,6 @@ func (node *Node) BroadcastTxInv(txid string) {
 	log.Infof("Broadcast inv msg success: %s", txid)
 }
 
-func (node *Node) GetConnectedPeer(addr string) *peer.Peer {
-	node.mu.RLock()
-	peer := node.connectedPeers[addr]
-	node.mu.RUnlock()
-	return peer
-}
-
-func (node *Node) GetConnectedPeers() []*peer.Peer {
-	node.mu.RLock()
-	defer node.mu.RUnlock()
-	ret := []*peer.Peer{}
-	for _, p := range node.connectedPeers {
-		ret = append(ret, p)
-	}
-	return ret
-}
-
-func (node *Node) GetRank() (uint64, uint64, string, []string) {
-	node.mu.RLock()
-	top, min, topAddr, olders := utils.GetMaxMin(node.connectedRanks)
-	node.mu.RUnlock()
-	return top, min, topAddr, olders
-}
-
-func (node *Node) AddPeer(conn net.Conn) {
-	conns := len(node.GetConnectedPeers())
-	if uint32(conns) >= node.targetOutbound {
-		log.Debugf("peer count is enough %d", conns)
-		conn.Close()
-		return
-	}
-	addr := conn.RemoteAddr().String()
-	if node.GetConnectedPeer(addr) != nil {
-		log.Debugf("peer is already joined %s", addr)
-		conn.Close()
-		return
-	}
-	p, err := peer.NewOutboundPeer(node.peerConfig, conn.RemoteAddr().String())
-	if err != nil {
-		p.Disconnect()
-		return
-	}
-	// Associate the connection with the peer
-	p.AssociateConnection(conn)
-
-	// Create a new peer for this connection
-	node.mu.Lock()
-	node.connectedPeers[conn.RemoteAddr().String()] = p
-	node.mu.Unlock()
-
-	go func() {
-		p.WaitForDisconnect()
-		// onDisconnection will be called.
-		node.onDisconneted(p, conn)
-	}()
-}
-
-// Query the DNS seeds and pass the addresses into the address manager.
-func (node *Node) queryDNSSeeds() {
-	log.Infof("Conncted peers -> %d", len(node.GetConnectedPeers()))
-	log.Infof("Using network --> %s", node.peerConfig.ChainParams.Name)
-	wg := new(sync.WaitGroup)
-	for _, seed := range node.peerConfig.ChainParams.DNSSeeds {
-		wg.Add(1)
-		go func(host string) {
-			var addrs []string
-			var err error
-			addrs, err = net.LookupHost(host)
-			if err != nil {
-				wg.Done()
-				return
-			}
-			node.addRandomNodes(addrs)
-			wg.Done()
-		}(seed.Host)
-	}
-	wg.Wait()
-	if len(node.GetConnectedPeers()) < DefualtNodeBootstrapCount {
-		//time.Sleep(2 * time.Second)
-		if !node.start {
-			peers := node.GetConnectedPeers()
-			for _, p := range peers {
-				p.Disconnect()
-			}
-			node.mu.Lock()
-			node.connectedPeers = make(map[string]*peer.Peer)
-			node.mu.Unlock()
-			log.Info("STOP: nodes subscriber stopped")
-			return
-		}
-		log.Info("start queryDNSSeeds")
-		go node.queryDNSSeeds()
-	}
-}
-
-func (node *Node) addRandomNodes(addrs []string) {
-	for i := 0; i < DefaultNodeAddTimes; i++ {
-		key := utils.RandRange(0, len(addrs)-1)
-		addr := addrs[key]
-		port, err := strconv.Atoi(node.peerConfig.ChainParams.DefaultPort)
-		if err != nil {
-			log.Debug("port error")
-			continue
-		}
-
-		target := &net.TCPAddr{IP: net.ParseIP(addr), Port: port}
-		dialer := net.Dialer{Timeout: DefaultNodeTimeout}
-		conn, err := dialer.Dial("tcp", target.String())
-		if err != nil {
-			log.Debugf("net.Dial: error %v\n", err)
-			continue
-		}
-		node.AddPeer(conn)
-	}
-}
-
 func (node *Node) pushTxMsg(p *peer.Peer, hash *chainhash.Hash, enc wire.MessageEncoding) error {
 	msgTx := node.GetInvMsgTx(hash.String())
 	if msgTx == nil {
@@ -298,35 +267,4 @@ func (node *Node) sendBroadcastInv(iv *wire.InvVect) {
 	for _, peer := range peers {
 		peer.QueueInventory(iv)
 	}
-}
-
-func (node *Node) updateRank(p *peer.Peer) {
-	node.mu.Lock()
-	node.connectedRanks[p.Addr()]++
-	node.mu.Unlock()
-}
-
-func (node *Node) resetConnectedRank() {
-	node.connectedRanks = make(map[string]uint64)
-}
-
-func (node *Node) addReceived(hash string) {
-	node.mu.Lock()
-	node.receivedTxs[hash] = true
-	node.mu.Unlock()
-	go func() {
-		time.Sleep(4 * time.Minute)
-		node.mu.Lock()
-		delete(node.receivedTxs, hash)
-		node.mu.Unlock()
-	}()
-}
-
-func (node *Node) isReceived(hash string) bool {
-	node.mu.RLock()
-	defer node.mu.RUnlock()
-	if node.receivedTxs[hash] {
-		return true
-	}
-	return false
 }

@@ -215,7 +215,6 @@ func (k *Keeper) UpdateTxs() {
 	for _, tx := range k.txs {
 		if tx.Timestamp.Unix() < targetTime.Unix() {
 			deleteList = append(deleteList, tx.TxID)
-			continue
 		}
 	}
 	for _, txID := range deleteList {
@@ -228,7 +227,7 @@ func (k *Keeper) processKeep() {
 	depth := 16
 	k.mu.RLock()
 	if !k.isScanEnd {
-		depth = 260
+		depth = 20
 	}
 	k.mu.RUnlock()
 	latestHeight, txs := k.client.GetBlockTxs(true, depth)
@@ -294,7 +293,7 @@ func (k *Keeper) StartNode() {
 	// Node initialize
 	n := node.NewNode(nodeConfig)
 	// Node Start
-	n.Start()
+	go n.Start()
 	go func() {
 		for {
 			tx := <-txChan
@@ -335,8 +334,4 @@ func (k *Keeper) StartNode() {
 			}
 		}
 	}()
-}
-
-func (k *Keeper) Stop() {
-	k.ticker.Stop()
 }
