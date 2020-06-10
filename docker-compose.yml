@@ -1,0 +1,10 @@
+version: '3.7'
+
+services:
+  api-docs:
+    image: quay.io/goswagger/swagger
+    volumes:
+      - ./:/app
+    ports:
+      - "80:12333"
+    command: serve /app/swagger.yml --port 12333 --no-open
