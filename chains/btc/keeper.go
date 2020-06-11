@@ -225,7 +225,7 @@ func (k *Keeper) processKeep() {
 	depth := 16
 	k.mu.RLock()
 	if !k.isScanEnd {
-		depth = 20
+		depth = 320
 	}
 	k.mu.RUnlock()
 	latestHeight, txs := k.client.GetBlockTxs(true, depth)
@@ -296,40 +296,44 @@ func (k *Keeper) StartNode() {
 		for {
 			tx := <-txChan
 			// Remove coinbase transaction
-			if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
-				continue
-			}
-			from, err := k.client.getFirstVinAddr(tx.Txid, tx.Vin, k.tesnet)
-			if err != nil {
-				continue
-			}
-			for _, vout := range tx.Vout {
-				amount, err := common.NewAmountFromInt64(vout.Value)
+			go func() {
+				time.Sleep(2 * time.Second)
+				if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
+					return
+				}
+				from, err := k.client.getFirstVinAddr(tx.Txid, tx.Vin, k.tesnet)
 				if err != nil {
-					log.Info(err)
-					continue
+					log.Info("Tx is not avaible to set vin0 %s", tx.Txid)
+					return
 				}
-				// Check script
-				if len(vout.Addresses) == 0 {
-					continue
-				}
+				for _, vout := range tx.Vout {
+					amount, err := common.NewAmountFromInt64(vout.Value)
+					if err != nil {
+						log.Info(err)
+						continue
+					}
+					// Check script
+					if len(vout.Addresses) == 0 {
+						continue
+					}
 
-				newTx := common.Transaction{
-					TxID:          tx.Txid,
-					From:          from,
-					To:            vout.Addresses[0],
-					Amount:        amount,
-					Currency:      common.BTC,
-					Height:        0,
-					Timestamp:     tx.Receivedtime,
-					Confirmations: 0,
-					OutputIndex:   int(vout.N),
-					Spent:         false,
+					newTx := common.Transaction{
+						TxID:          tx.Txid,
+						From:          from,
+						To:            vout.Addresses[0],
+						Amount:        amount,
+						Currency:      common.BTC,
+						Height:        0,
+						Timestamp:     tx.Receivedtime,
+						Confirmations: 0,
+						OutputIndex:   int(vout.N),
+						Spent:         false,
+					}
+					k.mu.Lock()
+					k.txs[newTx.Serialize()] = newTx
+					k.mu.Unlock()
 				}
-				k.mu.Lock()
-				k.txs[newTx.Serialize()] = newTx
-				k.mu.Unlock()
-			}
+			}()
 		}
 	}()
 }
