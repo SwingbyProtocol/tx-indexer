@@ -157,8 +157,6 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	if toNum == 0 {
 		toNum = 100000000
 	}
-	k.mu.RLock()
-	defer k.mu.RUnlock()
 	if !k.isScanEnd {
 		res := common.Response{
 			Result: false,
