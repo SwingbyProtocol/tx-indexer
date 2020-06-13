@@ -297,11 +297,14 @@ func (k *Keeper) StartNode() {
 			tx := <-txChan
 			// Remove coinbase transaction
 			go func() {
-				time.Sleep(2 * time.Second)
+				time.Sleep(3 * time.Second)
 				if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
 					return
 				}
-				from, err := k.client.getFirstVinAddr(tx.Txid, tx.Vin, k.tesnet)
+				k.mu.RLock()
+				isTestnet := k.tesnet
+				k.mu.RUnlock()
+				from, err := k.client.getFirstVinAddr(tx.Txid, tx.Vin, isTestnet)
 				if err != nil {
 					log.Info("Tx is not avaible to set vin0 %s", tx.Txid)
 					return
