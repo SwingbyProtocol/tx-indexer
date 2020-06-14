@@ -66,6 +66,27 @@ func main() {
 	getStatus := api.NewGet("/api/v1/status", status)
 	apiConfig.Actions = append(apiConfig.Actions, getStatus)
 
+	/* BTC */
+
+	if conf.BTCConfig.NodeAddr != config.DefaultBTCNode {
+
+		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet)
+
+		//err := btcKeeper.SetWatchAddr(conf.BTCConfig.WatchAddr, false, 0)
+		//if err != nil {
+		//	log.Fatal(err)
+		//}
+		btcKeeper.Start()
+
+		getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
+		broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
+		//setBTCConfig := api.NewPOST("/api/v1/btc/config", btcKeeper.SetConfig)
+
+		apiConfig.Actions = append(apiConfig.Actions, getBTCTxs)
+		apiConfig.Actions = append(apiConfig.Actions, broadcastBTCTx)
+		//apiConfig.Actions = append(apiConfig.Actions, setBTCConfig)
+	}
+
 	/* BNB/BEP-2 */
 	if conf.BNCConfig.NodeAddr != config.DefaultBNCNode {
 
@@ -83,27 +104,6 @@ func main() {
 		apiConfig.Actions = append(apiConfig.Actions, getBNBTxs)
 		apiConfig.Actions = append(apiConfig.Actions, broadcastBNBTx)
 		//apiConfig.Actions = append(apiConfig.Actions, setBNBConfig)
-	}
-
-	/* BTC */
-
-	if conf.BTCConfig.NodeAddr != config.DefaultBTCNode {
-
-		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet, conf.AccessToken)
-
-		//err := btcKeeper.SetWatchAddr(conf.BTCConfig.WatchAddr, false, 0)
-		//if err != nil {
-		//	log.Fatal(err)
-		//}
-		btcKeeper.Start()
-
-		getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
-		broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
-		setBTCConfig := api.NewPOST("/api/v1/btc/config", btcKeeper.SetConfig)
-
-		apiConfig.Actions = append(apiConfig.Actions, getBTCTxs)
-		apiConfig.Actions = append(apiConfig.Actions, broadcastBTCTx)
-		apiConfig.Actions = append(apiConfig.Actions, setBTCConfig)
 	}
 
 	/* ETH/ERC20 */

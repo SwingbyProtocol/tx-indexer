@@ -11,7 +11,6 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/ant0ine/go-json-rest/rest"
 	"github.com/btcsuite/btcd/btcjson"
-	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcutil"
 	log "github.com/sirupsen/logrus"
@@ -27,7 +26,6 @@ type Keeper struct {
 	ticker       *time.Ticker
 	watchAddr    btcutil.Address
 	tesnet       bool
-	accessToken  string
 	txs          map[string]common.Transaction
 	latestHeight int64
 	isScanEnd    bool
@@ -41,18 +39,17 @@ type State struct {
 	OutTxs        []common.Transaction `json:"outTxs"`
 }
 
-func NewKeeper(url string, isTestnet bool, accessToken string) *Keeper {
+func NewKeeper(url string, isTestnet bool) *Keeper {
 	c, err := NewBtcClient(url)
 	if err != nil {
 		log.Fatal(err)
 	}
 	k := &Keeper{
-		mu:          new(sync.RWMutex),
-		client:      c,
-		tesnet:      isTestnet,
-		accessToken: accessToken,
-		txs:         make(map[string]common.Transaction),
-		isScanEnd:   false,
+		mu:        new(sync.RWMutex),
+		client:    c,
+		tesnet:    isTestnet,
+		txs:       make(map[string]common.Transaction),
+		isScanEnd: false,
 	}
 	return k
 }
@@ -88,58 +85,10 @@ func (k *Keeper) StartReScanAddr(timestamp int64) error {
 	return nil
 }
 
-func (k *Keeper) SetWatchAddr(addr string, rescan bool, timestamp int64) error {
-	net := &chaincfg.MainNetParams
-	if k.tesnet {
-		net = &chaincfg.TestNet3Params
-	}
-	address, err := btcutil.DecodeAddress(addr, net)
-	if err != nil {
-		return err
-	}
-	k.mu.Lock()
-	k.watchAddr = address
-	k.isScanEnd = true
-	log.Infof("set btc watch address -> %s rescan: %t timestamp: %d", k.watchAddr.String(), rescan, timestamp)
-	k.mu.Unlock()
-	if rescan {
-		k.StartReScanAddr(timestamp)
-	}
-	return nil
-}
-
 func (k *Keeper) GetAddr() btcutil.Address {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	return k.watchAddr
-}
-
-func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
-	req := common.ConfigParams{}
-	res := common.Response{}
-	err := r.DecodeJsonPayload(&req)
-	if err != nil {
-		res.Msg = err.Error()
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	if k.accessToken != req.AccessToken {
-		res.Msg = "AccessToken is not valid"
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	err = k.SetWatchAddr(req.Address, req.IsRescan, req.Timestamp)
-	if err != nil {
-		res.Msg = err.Error()
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	res.Result = true
-	res.Msg = "success"
-	w.WriteJson(res)
 }
 
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {

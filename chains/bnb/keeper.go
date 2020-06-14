@@ -150,6 +150,9 @@ func (k *Keeper) processKeep() {
 	if resultStatus.SyncInfo.CatchingUp {
 		// Still sync
 		log.Info("bnb chain still syncing...")
+	}
+	if resultStatus.SyncInfo.LatestBlockHeight == 0 {
+		log.Info("Sync info latest block height is zero")
 		return
 	}
 	maxHeight, _, err := k.client.GetLatestBlockHeight()
