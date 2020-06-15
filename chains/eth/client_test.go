@@ -2,11 +2,9 @@ package eth
 
 import (
 	"encoding/json"
-	"os"
 	"testing"
 
 	"github.com/SwingbyProtocol/tx-indexer/chains/eth/types"
-	"github.com/ethereum/go-ethereum/common"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -40,15 +38,11 @@ func TestClient(t *testing.T) {
 			}
 			}`
 
-	uri := os.Getenv("ethRPC")
+	//uri := os.Getenv("ethRPC")
 	var res types.MempoolResponse
 	if err := json.Unmarshal([]byte(testCase), &res); err != nil {
 		log.Info(err)
 	}
-
-	cli := NewClinet(uri)
-	inTxs, outTxs := cli.GetMempoolTxs(common.HexToAddress("0xaff4481d10270f50f203e0763e2597776068cbc5"), common.HexToAddress("0xaff4481d10270f50f203e0763e2597776068cbc5"))
-	log.Info(inTxs, outTxs)
 
 	select {}
 }

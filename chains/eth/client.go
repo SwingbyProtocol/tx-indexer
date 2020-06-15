@@ -33,16 +33,15 @@ func NewClinet(uri string) *Client {
 	return &Client{client, uri, make(map[uint64]uint64), 0}
 }
 
-func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_common.Address) ([]common.Transaction, []common.Transaction) {
-	inTxs := []common.Transaction{}
-	outTxs := []common.Transaction{}
+func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, tokenName string, tokenDecimals int) []common.Transaction {
+	txs := []common.Transaction{}
 	var res types.MempoolResponse
 	body := `{"jsonrpc":"2.0","method":"txpool_content","params":[],"id":1}`
 	api := api.NewResolver(c.uri, 20)
 	err := api.PostRequest("", body, &res)
 	if err != nil {
 		log.Info(err)
-		return inTxs, outTxs
+		return txs
 	}
 	for key := range res.Result.Pending {
 		base := res.Result.Pending[key]
@@ -55,6 +54,7 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_commo
 			rawTx, _, err := c.TransactionByHash(context.Background(), eth_common.HexToHash(memTx.Hash))
 			if err != nil {
 				log.Info(err)
+				continue
 			}
 			data := rawTx.Data()
 			if len(data) != 68 {
@@ -69,35 +69,33 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, watchAddr eth_commo
 			err = tokenAbi.Unpack(&logTx, "Transfer", data[36:68])
 			if err != nil {
 				log.Info(err)
+				continue
 			}
 			logTx.From = eth_common.HexToAddress(memTx.From)
 			logTx.To = eth_common.BytesToAddress(eth_common.TrimLeftZeroes(data[4:36]))
 			amount, err := common.NewAmountFromBigIntDirect(logTx.Tokens)
 			if err != nil {
 				log.Info(err)
+				continue
 			}
-			currency := common.NewSymbol("Sample Token", 18)
+			currency := common.NewSymbol(tokenName, tokenDecimals)
 			tx := common.Transaction{
 				TxID:          rawTx.Hash().String(),
 				From:          logTx.From.String(),
 				To:            logTx.To.String(),
 				Amount:        amount,
 				Currency:      currency,
+				Height:        0,
 				Confirmations: 0,
 				Memo:          "",
 				OutputIndex:   0,
 				Spent:         false,
-				Timestamp:     time.Time{},
+				Timestamp:     time.Now(),
 			}
-			if tx.From == watchAddr.String() {
-				outTxs = append(outTxs, tx)
-			}
-			if tx.To == watchAddr.String() {
-				inTxs = append(inTxs, tx)
-			}
+			txs = append(txs, tx)
 		}
 	}
-	return inTxs, outTxs
+	return txs
 }
 
 func (c *Client) SyncLatestBlocks() error {
@@ -109,23 +107,22 @@ func (c *Client) SyncLatestBlocks() error {
 	return nil
 }
 
-func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Address) ([]common.Transaction, []common.Transaction) {
-	inTxs := []common.Transaction{}
-	outTxs := []common.Transaction{}
+func (c *Client) GetTxs(contractAddr eth_common.Address, tokenName string, decimals int) []common.Transaction {
+	txs := []common.Transaction{}
 	// default 48 hours
-	fromHeight := int64(172800 / 12)
+	fromHeight := int64(172800 / 8)
 	query := ethereum.FilterQuery{
 		FromBlock: big.NewInt(c.latestBlock - fromHeight),
 		ToBlock:   nil, //big.NewInt(6383840),
-		//Addresses: []eth_common.Address{
-		//	tokenAddr,
-		//},
+		Addresses: []eth_common.Address{
+			contractAddr,
+		},
 	}
-	logs, err := c.FilterLogs(context.Background(), query)
+	contractAbi, err := abi.JSON(strings.NewReader(token.TokenABI))
 	if err != nil {
 		log.Fatal(err)
 	}
-	contractAbi, err := abi.JSON(strings.NewReader(token.TokenABI))
+	logs, err := c.FilterLogs(context.Background(), query)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -139,23 +136,26 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 			var transferEvent types.LogTransfer
 			err := contractAbi.Unpack(&transferEvent, "Transfer", vLog.Data)
 			if err != nil {
-				log.Fatal(err)
+				log.Info(err)
+				continue
 			}
 			amount, err := common.NewAmountFromBigIntDirect(transferEvent.Tokens)
 			if err != nil {
 				log.Info(err)
+				continue
 			}
 			if c.blockTimes[vLog.BlockNumber] == 0 {
 				block, err := c.BlockByNumber(context.Background(), new(big.Int).SetUint64(vLog.BlockNumber))
 				if err != nil {
 					log.Info(err)
+					continue
 				}
 				c.blockTimes[vLog.BlockNumber] = block.Time()
 			}
-			conf := uint64(c.latestBlock) - vLog.BlockNumber
+			conf := int64(c.latestBlock) - int64(vLog.BlockNumber)
 			from := eth_common.HexToAddress(vLog.Topics[1].String())
 			to := eth_common.HexToAddress(vLog.Topics[2].String())
-			currency := common.NewSymbol("Sample Token", 18)
+			currency := common.NewSymbol(tokenName, decimals)
 			timestamp := time.Unix(int64(c.blockTimes[vLog.BlockNumber]), 0)
 			tx := common.Transaction{
 				TxID:          vLog.TxHash.Hex(),
@@ -163,22 +163,18 @@ func (c *Client) GetTxs(tokenAddr eth_common.Address, watchAddr eth_common.Addre
 				To:            to.String(),
 				Amount:        amount,
 				Currency:      currency,
-				Confirmations: int64(conf),
+				Height:        int64(vLog.BlockNumber),
+				Confirmations: conf,
 				Memo:          "",
 				OutputIndex:   0,
 				Spent:         false,
 				Timestamp:     timestamp,
 			}
-			if tx.From == watchAddr.String() {
-				outTxs = append(outTxs, tx)
-			}
-			if tx.To == watchAddr.String() {
-				inTxs = append(inTxs, tx)
-			}
+			txs = append(txs, tx)
 
 		case logApprovalSigHash.Hex():
 			// Approval is not support
 		}
 	}
-	return inTxs, outTxs
+	return txs
 }

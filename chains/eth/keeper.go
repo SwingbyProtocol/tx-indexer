@@ -2,13 +2,11 @@ package eth
 
 import (
 	"context"
-	"errors"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/SwingbyProtocol/tx-indexer/common"
-	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/ant0ine/go-json-rest/rest"
 	eth_common "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -22,16 +20,15 @@ const (
 )
 
 type Keeper struct {
-	mu          *sync.RWMutex
-	client      *Client
-	ticker      *time.Ticker
-	accessToken string
-	tokenAddr   eth_common.Address
-	watchAddr   eth_common.Address
-	tesnet      bool
-	isScanEnd   bool
-	cache       map[string]common.Transaction
-	Txs         *State
+	mu            *sync.RWMutex
+	client        *Client
+	ticker        *time.Ticker
+	tokenAddr     eth_common.Address
+	tokenName     string
+	tokenDecimals int
+	tesnet        bool
+	isScanEnd     bool
+	txs           map[string]common.Transaction
 }
 
 type State struct {
@@ -42,84 +39,39 @@ type State struct {
 	OutTxs        []common.Transaction `json:"outTxs"`
 }
 
-func NewKeeper(url string, isTestnet bool, accessToken string) *Keeper {
+func NewKeeper(url string, isTestnet bool) *Keeper {
 	c := NewClinet(url)
 	k := &Keeper{
-		mu:          new(sync.RWMutex),
-		client:      c,
-		tesnet:      isTestnet,
-		accessToken: accessToken,
-		isScanEnd:   true,
-		cache:       make(map[string]common.Transaction),
-		Txs: &State{
-			InTxs:         []common.Transaction{},
-			InTxsMempool:  []common.Transaction{},
-			OutTxs:        []common.Transaction{},
-			OutTxsMempool: []common.Transaction{},
-		},
+		mu:        new(sync.RWMutex),
+		client:    c,
+		tesnet:    isTestnet,
+		isScanEnd: true,
+		txs:       make(map[string]common.Transaction),
 	}
 	return k
 }
 
-func (k *Keeper) SetConfig(w rest.ResponseWriter, r *rest.Request) {
-	req := common.ConfigParams{}
-	res := common.Response{}
-	err := r.DecodeJsonPayload(&req)
-	if err != nil {
-		res.Msg = err.Error()
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	if k.accessToken != req.AccessToken {
-		res.Msg = "AccessToken is not valid"
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	err = k.SetTokenAndWatchAddr(req.TargetToken, req.Address)
-	if err != nil {
-		res.Msg = err.Error()
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	res.Result = true
-	res.Msg = "success"
-	w.WriteJson(res)
-}
-
-func (k *Keeper) SetTokenAndWatchAddr(token string, addr string) error {
-	checkAddr := eth_common.IsHexAddress(addr)
-	checkToken := eth_common.IsHexAddress(token)
-	if !checkAddr || !checkToken {
-		return errors.New("watch address or target token address is not valid")
-	}
-	k.mu.Lock()
+func (k *Keeper) SetToken(token string, tokenName string, decimlas int) {
 	k.tokenAddr = eth_common.HexToAddress(token)
-	k.watchAddr = eth_common.HexToAddress(addr)
-	log.Infof("set eth watch address -> %s", k.watchAddr.String())
-	log.Infof("set erc20 token address -> %s", k.tokenAddr.String())
-	k.mu.Unlock()
-	return nil
-}
-
-func (k *Keeper) GetAddr() eth_common.Address {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
-	return k.watchAddr
+	k.tokenName = tokenName
+	k.tokenDecimals = decimlas
 }
 
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	watch := r.URL.Query().Get("watch")
 	from := r.URL.Query().Get("height_from")
 	fromNum, _ := strconv.Atoi(from)
 	to := r.URL.Query().Get("height_to")
 	toNum, _ := strconv.Atoi(to)
+	page := r.URL.Query().Get("page")
+	pageNum, _ := strconv.Atoi(page)
+	limit := r.URL.Query().Get("limit")
+	limitNum, _ := strconv.Atoi(limit)
 	if toNum == 0 {
 		toNum = 100000000
 	}
-	k.mu.RLock()
-	defer k.mu.RUnlock()
 	if !k.isScanEnd {
 		res := common.Response{
 			Result: false,
@@ -129,20 +81,50 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		w.WriteJson(res)
 		return
 	}
-	newTxs := State{
-		InTxsMempool:  common.Txs(k.Txs.InTxsMempool).GetRangeTxs(fromNum, toNum),
-		InTxs:         common.Txs(k.Txs.InTxs).GetRangeTxs(fromNum, toNum),
-		OutTxs:        common.Txs(k.Txs.OutTxs).GetRangeTxs(fromNum, toNum),
-		OutTxsMempool: common.Txs(k.Txs.OutTxsMempool).GetRangeTxs(fromNum, toNum),
-		Response:      k.Txs.Response,
+	//log.Info(k.Txs)
+	txs := common.Txs{}
+	for _, tx := range k.txs {
+		txs = append(txs, tx)
 	}
-	w.WriteJson(newTxs)
+	rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
+	memPoolTxs := txs.GetRangeTxs(0, 0).Sort()
+
+	watchAddr := eth_common.HexToAddress(watch).String()
+
+	inTxsMemPool := memPoolTxs.ReceiveMempool(watchAddr).Page(pageNum, limitNum)
+	outTxsMemPool := memPoolTxs.SendMempool(watchAddr).Page(pageNum, limitNum)
+	inTxs := rangeTxs.Receive(watchAddr).Page(pageNum, limitNum)
+	outTxs := rangeTxs.Send(watchAddr).Page(pageNum, limitNum)
+
+	w.WriteJson(State{
+		InTxsMempool:  inTxsMemPool,
+		OutTxsMempool: outTxsMemPool,
+		InTxs:         inTxs,
+		OutTxs:        outTxs,
+		Response: common.Response{
+			Msg:    "",
+			Result: true,
+		},
+	})
+}
+
+func (k *Keeper) UpdateTxs() {
+	targetTime := time.Now().Add(-48 * time.Hour)
+	deleteList := []string{}
+	k.mu.Lock()
+	for _, tx := range k.txs {
+		if tx.Timestamp.Unix() < targetTime.Unix() {
+			deleteList = append(deleteList, tx.TxID)
+			continue
+		}
+	}
+	for _, txID := range deleteList {
+		delete(k.txs, txID)
+	}
+	k.mu.Unlock()
 }
 
 func (k *Keeper) Start() {
-	if k.GetAddr().String() == new(eth_common.Address).String() {
-		log.Fatal("Error: eth address is not set")
-	}
 	k.ticker = time.NewTicker(interval)
 	k.processKeep()
 	go func() {
@@ -150,9 +132,32 @@ func (k *Keeper) Start() {
 			select {
 			case <-k.ticker.C:
 				k.processKeep()
+				k.UpdateTxs()
 			}
 		}
 	}()
+}
+
+func (k *Keeper) processKeep() {
+	err := k.client.SyncLatestBlocks()
+	if err != nil {
+		log.Info(err)
+		return
+	}
+	txsMempool := k.client.GetMempoolTxs(k.tokenAddr, k.tokenName, k.tokenDecimals)
+	txs := k.client.GetTxs(k.tokenAddr, k.tokenName, k.tokenDecimals)
+	for _, tx := range txsMempool {
+		txs = append(txs, tx)
+	}
+	k.mu.Lock()
+	for _, tx := range txs {
+		k.txs[tx.Serialize()] = tx
+	}
+	for _, tx := range k.txs {
+		tx.Confirmations = k.client.latestBlock - tx.Height
+	}
+	log.Infof("ETH txs scanning done token is %s %d %d", k.tokenAddr.String(), len(txs), len(txsMempool))
+	k.mu.Unlock()
 }
 
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
@@ -185,33 +190,6 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 	res.Result = true
 	res.Msg = "success"
 	w.WriteJson(res)
-}
-
-func (k *Keeper) processKeep() {
-	//fromTime := time.Now().Add(-78 * time.Hour)
-	//toTime := time.Now()
-	err := k.client.SyncLatestBlocks()
-	if err != nil {
-		log.Info(err)
-		return
-	}
-	inTxsMempool, outTxsMempool := k.client.GetMempoolTxs(k.tokenAddr, k.watchAddr)
-	inTxs, outTxs := k.client.GetTxs(k.tokenAddr, k.watchAddr)
-
-	utils.SortTx(inTxsMempool)
-	utils.SortTx(inTxs)
-	utils.SortTx(outTxsMempool)
-	utils.SortTx(outTxs)
-
-	k.mu.Lock()
-	k.Txs.InTxsMempool = inTxsMempool
-	k.Txs.InTxs = inTxs
-	k.Txs.OutTxsMempool = outTxsMempool
-	k.Txs.OutTxs = outTxs
-	k.Txs.Result = true
-	k.mu.Unlock()
-
-	log.Info("ETH txs scanning done")
 }
 
 func (k *Keeper) Stop() {

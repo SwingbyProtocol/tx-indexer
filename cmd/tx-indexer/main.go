@@ -50,7 +50,6 @@ func main() {
 	if loglevel == "debug" {
 		log.SetLevel(log.DebugLevel)
 	}
-	log.Infof("AccessToken: %s", conf.AccessToken)
 
 	// Define API config
 	// Define REST and WS api listener address
@@ -110,19 +109,17 @@ func main() {
 
 	if conf.ETHConfig.NodeAddr != config.DefaultETHNode {
 
-		ethKeeper = eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet, conf.AccessToken)
+		ethKeeper = eth.NewKeeper(conf.ETHConfig.NodeAddr, conf.ETHConfig.Testnet)
 
-		ethKeeper.SetTokenAndWatchAddr(conf.ETHConfig.WatchToken, conf.ETHConfig.WatchAddr)
+		ethKeeper.SetToken(conf.ETHConfig.WatchToken, "Sample Test Token", 18)
 
 		go ethKeeper.Start()
 
 		getERC20Txs := api.NewGet("/api/v1/eth/txs", ethKeeper.GetTxs)
 		broadcastETHTx := api.NewPOST("/api/v1/eth/broadcast", ethKeeper.BroadcastTx)
-		setETHConfig := api.NewPOST("/api/v1/eth/config", ethKeeper.SetConfig)
 
 		apiConfig.Actions = append(apiConfig.Actions, getERC20Txs)
 		apiConfig.Actions = append(apiConfig.Actions, broadcastETHTx)
-		apiConfig.Actions = append(apiConfig.Actions, setETHConfig)
 	}
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
