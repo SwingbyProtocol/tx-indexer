@@ -21,33 +21,29 @@ const (
 // Config is app of conig
 type Config struct {
 	// Network parameters. Set mainnet, testnet, or regtest using this.
-	BTCConfig   BTCConfig  `mapstructure:"btc" json:"btc"`
-	ETHConfig   ETHConfig  `mapstructure:"eth" json:"eth"`
-	BNCConfig   BNCConfig  `mapstructure:"bnc" json:"bnc"`
-	LogConfig   LogConfig  `mapstructure:"log" json:"log"`
-	RESTConfig  RESTConfig `mapstructure:"rest" json:"rest"`
-	WSConfig    WSConfig   `mapstructure:"ws" json:"ws"`
-	AccessToken string     `mapstructure:"accessToken" json:"accessToken"`
+	BTCConfig  BTCConfig  `mapstructure:"btc" json:"btc"`
+	ETHConfig  ETHConfig  `mapstructure:"eth" json:"eth"`
+	BNCConfig  BNCConfig  `mapstructure:"bnc" json:"bnc"`
+	LogConfig  LogConfig  `mapstructure:"log" json:"log"`
+	RESTConfig RESTConfig `mapstructure:"rest" json:"rest"`
+	WSConfig   WSConfig   `mapstructure:"ws" json:"ws"`
 }
 
 type BTCConfig struct {
 	NodeAddr       string `mapstructure:"node" json:"node"`
-	WatchAddr      string `mapstructure:"watch" json:"watch"`
 	Testnet        bool   `mapstructure:"testnet" json:"testnet"`
 	TargetOutbound uint32 `mapstructure:"nodeSize" json:"targetSize"`
 }
 
 type ETHConfig struct {
 	NodeAddr   string `mapstructure:"node" json:"node"`
-	WatchAddr  string `mapstructure:"watch" json:"watch"`
 	WatchToken string `mapstructure:"token" json:"token"`
 	Testnet    bool   `mapstructure:"testnet" json:"testnet"`
 }
 
 type BNCConfig struct {
-	NodeAddr  string `mapstructure:"node" json:"node"`
-	WatchAddr string `mapstructure:"watch" json:"watch"`
-	Testnet   bool   `mapstructure:"testnet" json:"testnet"`
+	NodeAddr string `mapstructure:"node" json:"node"`
+	Testnet  bool   `mapstructure:"testnet" json:"testnet"`
 }
 
 type LogConfig struct {
@@ -69,7 +65,6 @@ type WSConfig struct {
 }
 
 func init() {
-	pflag.String("accessToken", DefaultAccessToken, "The access token for set config")
 	// Logger
 	pflag.String("log.level", "info", "The log level")
 	// Set BTC Network
@@ -85,8 +80,6 @@ func init() {
 	pflag.String("eth.node", DefaultETHNode, "The address for connect eth fullnode")
 
 	pflag.Bool("eth.testnet", false, "This is a eth testnet (Goerli)")
-
-	pflag.String("eth.watch", DefautlETHWatchAddress, "The address for watch address")
 
 	pflag.String("eth.token", DefaultERC20Token, "The address for watch address")
 

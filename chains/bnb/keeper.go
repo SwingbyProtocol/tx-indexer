@@ -41,7 +41,7 @@ type State struct {
 	OutTxs        []common.Transaction `json:"outTxs"`
 }
 
-func NewKeeper(urlStr string, isTestnet bool, accessToken string) *Keeper {
+func NewKeeper(urlStr string, isTestnet bool) *Keeper {
 	bnbRPCURI, err := url.ParseRequestURI(urlStr)
 	if err != nil {
 		log.Fatal(err)
@@ -52,13 +52,12 @@ func NewKeeper(urlStr string, isTestnet bool, accessToken string) *Keeper {
 	}
 	c := NewClient(bnbRPCURI, bnbNetwork, 30*time.Second)
 	k := &Keeper{
-		mu:          new(sync.RWMutex),
-		client:      c,
-		testnet:     isTestnet,
-		network:     bnbNetwork,
-		accessToken: accessToken,
-		timestamps:  make(map[int64]time.Time),
-		txs:         make(map[string]common.Transaction),
+		mu:         new(sync.RWMutex),
+		client:     c,
+		testnet:    isTestnet,
+		network:    bnbNetwork,
+		timestamps: make(map[int64]time.Time),
+		txs:        make(map[string]common.Transaction),
 	}
 	return k
 }

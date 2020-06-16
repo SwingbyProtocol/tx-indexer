@@ -3,7 +3,7 @@ Tx-indexer is a modular blockchain transaction monitoring tool. the app can moni
 
 ## Supporting coins
 - [x] BTC
-- [x] ERC20
+- [x] ERC20 (ETH is not support)
 - [x] BNB/BEP-2
 
 ## Usage
