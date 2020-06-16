@@ -9,7 +9,7 @@ import (
 
 const (
 	DefaultBTCNode    = "http://192.168.1.230:8332"
-	DefaultETHNode    = "http://192.168.1.230:8332"
+	DefaultETHNode    = "http://192.168.1.230:8545"
 	DefaultERC20Token = "0xaff4481d10270f50f203e0763e2597776068cbc5"
 	DefaultBNCNode    = "tcp://192.168.1.146:26657"
 )
@@ -74,7 +74,7 @@ func init() {
 
 	pflag.Bool("eth.testnet", false, "This is a eth testnet (Goerli)")
 
-	pflag.String("eth.token", DefaultERC20Token, "The address for watch address")
+	pflag.String("eth.token", DefaultERC20Token, "The token address for watch")
 
 	// Set BNB config
 	pflag.String("bnc.node", DefaultBNCNode, "The address for connect bnc fullnode")
