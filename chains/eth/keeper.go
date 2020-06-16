@@ -45,7 +45,7 @@ func NewKeeper(url string, isTestnet bool) *Keeper {
 		mu:        new(sync.RWMutex),
 		client:    c,
 		tesnet:    isTestnet,
-		isScanEnd: true,
+		isScanEnd: false,
 		txs:       make(map[string]common.Transaction),
 	}
 	return k
@@ -144,8 +144,15 @@ func (k *Keeper) processKeep() {
 		log.Info(err)
 		return
 	}
+	// default 48 hours
+	blocks := int64(172800 / 10)
+	k.mu.RLock()
+	if k.isScanEnd {
+		blocks = int64(7200 / 10)
+	}
+	k.mu.RUnlock()
 	txsMempool := k.client.GetMempoolTxs(k.tokenAddr, k.tokenName, k.tokenDecimals)
-	txs := k.client.GetTxs(k.tokenAddr, k.tokenName, k.tokenDecimals)
+	txs := k.client.GetTxs(k.tokenAddr, blocks, k.tokenName, k.tokenDecimals)
 	for _, tx := range txsMempool {
 		txs = append(txs, tx)
 	}
@@ -156,7 +163,8 @@ func (k *Keeper) processKeep() {
 	for _, tx := range k.txs {
 		tx.Confirmations = k.client.latestBlock - tx.Height
 	}
-	log.Infof("ETH txs scanning done token is %s %d %d", k.tokenAddr.String(), len(txs), len(txsMempool))
+	k.isScanEnd = true
+	log.Infof("ETH txs scanning done token is %s loadTxs: %d mempool: %d", k.tokenAddr.String(), len(k.txs), len(txsMempool))
 	k.mu.Unlock()
 }
 

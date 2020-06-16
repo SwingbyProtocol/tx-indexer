@@ -107,12 +107,10 @@ func (c *Client) SyncLatestBlocks() error {
 	return nil
 }
 
-func (c *Client) GetTxs(contractAddr eth_common.Address, tokenName string, decimals int) []common.Transaction {
+func (c *Client) GetTxs(contractAddr eth_common.Address, blocks int64, tokenName string, decimals int) []common.Transaction {
 	txs := []common.Transaction{}
-	// default 48 hours
-	fromHeight := int64(172800 / 8)
 	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(c.latestBlock - fromHeight),
+		FromBlock: big.NewInt(c.latestBlock - blocks),
 		ToBlock:   nil, //big.NewInt(6383840),
 		Addresses: []eth_common.Address{
 			contractAddr,
