@@ -91,8 +91,9 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	for _, tx := range k.txs {
 		txs = append(txs, tx)
 	}
-	inTxs := txs.GetRangeTxs(fromNum, toNum).Receive(watch)
-	outTxs := txs.GetRangeTxs(fromNum, toNum).Send(watch)
+	rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
+	inTxs := rangeTxs.Receive(watch)
+	outTxs := rangeTxs.Send(watch)
 
 	w.WriteJson(State{
 		InTxsMempool:  []common.Transaction{},
