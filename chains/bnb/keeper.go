@@ -88,9 +88,11 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		return
 	}
 	txs := common.Txs{}
+	k.mu.RLock()
 	for _, tx := range k.txs {
 		txs = append(txs, tx)
 	}
+	k.mu.RUnlock()
 	rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
 	inTxs := rangeTxs.Receive(watch)
 	outTxs := rangeTxs.Send(watch)
