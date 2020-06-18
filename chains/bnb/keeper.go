@@ -73,12 +73,21 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	fromNum, _ := strconv.Atoi(from)
 	to := r.URL.Query().Get("height_to")
 	toNum, _ := strconv.Atoi(to)
+	page := r.URL.Query().Get("page")
+	pageNum, _ := strconv.Atoi(page)
+	limit := r.URL.Query().Get("limit")
+	limitNum, _ := strconv.Atoi(limit)
 	if toNum == 0 {
 		toNum = 100000000
 	}
+	txs := common.Txs{}
 	k.mu.RLock()
-	defer k.mu.RUnlock()
-	if !k.isScanEnd {
+	isScan := k.isScanEnd
+	for _, tx := range k.txs {
+		txs = append(txs, tx)
+	}
+	k.mu.RUnlock()
+	if !isScan {
 		res := common.Response{
 			Result: false,
 			Msg:    "re-scanning",
@@ -87,16 +96,9 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		w.WriteJson(res)
 		return
 	}
-	txs := common.Txs{}
-	k.mu.RLock()
-	for _, tx := range k.txs {
-		txs = append(txs, tx)
-	}
-	k.mu.RUnlock()
 	rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
-	inTxs := rangeTxs.Receive(watch)
-	outTxs := rangeTxs.Send(watch)
-
+	inTxs := rangeTxs.Receive(watch).Page(pageNum, limitNum)
+	outTxs := rangeTxs.Send(watch).Page(pageNum, limitNum)
 	w.WriteJson(State{
 		InTxsMempool:  []common.Transaction{},
 		OutTxsMempool: []common.Transaction{},

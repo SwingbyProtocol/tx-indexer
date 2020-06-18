@@ -104,7 +104,15 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	if toNum == 0 {
 		toNum = 100000000
 	}
-	if !k.isScanEnd {
+	//log.Info(k.Txs)
+	txs := common.Txs{}
+	k.mu.RLock()
+	isScan := k.isScanEnd
+	for _, tx := range k.txs {
+		txs = append(txs, tx)
+	}
+	k.mu.RUnlock()
+	if !isScan {
 		res := common.Response{
 			Result: false,
 			Msg:    "re-scanning",
@@ -113,13 +121,6 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		w.WriteJson(res)
 		return
 	}
-	//log.Info(k.Txs)
-	txs := common.Txs{}
-	k.mu.RLock()
-	for _, tx := range k.txs {
-		txs = append(txs, tx)
-	}
-	k.mu.RUnlock()
 	rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
 	memPoolTxs := txs.GetRangeTxs(0, 0).Sort()
 

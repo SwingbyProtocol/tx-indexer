@@ -107,14 +107,20 @@ func main() {
 	}
 	// Create api server
 	apiServer := api.NewAPI(apiConfig)
+	// Start server
 	apiServer.Start()
 	// Start btcKeeper
-	btcKeeper.Start()
+	if btcKeeper != nil {
+		btcKeeper.Start()
+	}
 	// Start bnbKeeper
-	bnbKeeper.Start()
+	if bnbKeeper != nil {
+		bnbKeeper.Start()
+	}
 	// Start ethKeeper
-	ethKeeper.Start()
-
+	if ethKeeper != nil {
+		ethKeeper.Start()
+	}
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGKILL, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT, syscall.SIGSTOP)
 	<-c

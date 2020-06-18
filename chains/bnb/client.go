@@ -49,11 +49,11 @@ func (c *Client) GetBlockTransactions(page int, minHeight int64, maxHeight int64
 	if err != nil {
 		return txs, 0, err
 	}
-	txs = c.ReultBlockToComTxs(resultTxSearch, maxHeight)
+	txs = c.ResultBlockToComTxs(resultTxSearch, maxHeight)
 	return txs, resultTxSearch.TotalCount, nil
 }
 
-func (c *Client) ReultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64) []common.Transaction {
+func (c *Client) ResultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeight int64) []common.Transaction {
 	newTxs := []common.Transaction{}
 	for _, txData := range resultTxSearch.Txs {
 		txbase := tx.StdTx{}
