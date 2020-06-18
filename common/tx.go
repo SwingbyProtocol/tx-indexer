@@ -9,12 +9,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type UnspentTransactions struct {
-	Amount   int64
-	IsSpent  bool
-	Currency Symbol
-}
-
 type Txs []Transaction
 
 func (txs Txs) GetRangeTxs(fromNum int, toNum int) Txs {
@@ -143,7 +137,7 @@ type Transaction struct {
 	Spent         bool
 }
 
-type TransactionResponse struct {
+type TxFormat struct {
 	TxID          string `json:"txId"`
 	From          string `json:"from"`
 	To            string `json:"to"`
@@ -163,7 +157,7 @@ func (tx Transaction) Serialize() string {
 }
 
 func (tx Transaction) MarshalJSON() ([]byte, error) {
-	res := TransactionResponse{
+	res := TxFormat{
 		TxID:          tx.TxID,
 		From:          tx.From,
 		To:            tx.To,

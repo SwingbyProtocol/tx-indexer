@@ -33,14 +33,6 @@ type Keeper struct {
 	isScanEnd   bool
 }
 
-type State struct {
-	common.Response
-	InTxsMempool  []common.Transaction `json:"inTxsMempool"`
-	InTxs         []common.Transaction `json:"inTxs"`
-	OutTxsMempool []common.Transaction `json:"outTxsMempool"`
-	OutTxs        []common.Transaction `json:"outTxs"`
-}
-
 func NewKeeper(urlStr string, isTestnet bool) *Keeper {
 	bnbRPCURI, err := url.ParseRequestURI(urlStr)
 	if err != nil {
@@ -99,7 +91,8 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
 	inTxs := rangeTxs.Receive(watch).Page(pageNum, limitNum)
 	outTxs := rangeTxs.Send(watch).Page(pageNum, limitNum)
-	w.WriteJson(State{
+
+	w.WriteJson(common.TxResponse{
 		InTxsMempool:  []common.Transaction{},
 		OutTxsMempool: []common.Transaction{},
 		InTxs:         inTxs,

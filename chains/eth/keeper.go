@@ -31,14 +31,6 @@ type Keeper struct {
 	txs           map[string]common.Transaction
 }
 
-type State struct {
-	common.Response
-	InTxsMempool  []common.Transaction `json:"inTxsMempool"`
-	InTxs         []common.Transaction `json:"inTxs"`
-	OutTxsMempool []common.Transaction `json:"outTxsMempool"`
-	OutTxs        []common.Transaction `json:"outTxs"`
-}
-
 func NewKeeper(url string, isTestnet bool) *Keeper {
 	c := NewClinet(url)
 	k := &Keeper{
@@ -98,7 +90,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	inTxs := rangeTxs.Receive(watchAddr).Page(pageNum, limitNum)
 	outTxs := rangeTxs.Send(watchAddr).Page(pageNum, limitNum)
 
-	w.WriteJson(State{
+	w.WriteJson(common.TxResponse{
 		InTxsMempool:  inTxsMemPool,
 		OutTxsMempool: outTxsMemPool,
 		InTxs:         inTxs,

@@ -31,14 +31,6 @@ type Keeper struct {
 	isScanEnd    bool
 }
 
-type State struct {
-	common.Response
-	InTxsMempool  []common.Transaction `json:"inTxsMempool"`
-	InTxs         []common.Transaction `json:"inTxs"`
-	OutTxsMempool []common.Transaction `json:"outTxsMempool"`
-	OutTxs        []common.Transaction `json:"outTxs"`
-}
-
 func NewKeeper(url string, isTestnet bool) *Keeper {
 	c, err := NewBtcClient(url)
 	if err != nil {
@@ -129,7 +121,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	inTxs := rangeTxs.Receive(watch).Page(pageNum, limitNum)
 	outTxs := rangeTxs.Send(watch).Page(pageNum, limitNum)
 
-	w.WriteJson(State{
+	w.WriteJson(common.TxResponse{
 		InTxsMempool:  inTxsMemPool,
 		OutTxsMempool: outTxsMemPool,
 		InTxs:         inTxs,
