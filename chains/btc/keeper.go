@@ -92,8 +92,6 @@ func (k *Keeper) GetAddr() btcutil.Address {
 }
 
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
 	watch := r.URL.Query().Get("watch")
 	from := r.URL.Query().Get("height_from")
 	fromNum, _ := strconv.Atoi(from)
@@ -117,9 +115,11 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	}
 	//log.Info(k.Txs)
 	txs := common.Txs{}
+	k.mu.RLock()
 	for _, tx := range k.txs {
 		txs = append(txs, tx)
 	}
+	k.mu.RUnlock()
 	rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
 	memPoolTxs := txs.GetRangeTxs(0, 0).Sort()
 
