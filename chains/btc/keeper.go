@@ -166,10 +166,11 @@ func (k *Keeper) UpdateTxs() {
 func (k *Keeper) processKeep() {
 	depth := 16
 	k.mu.RLock()
-	if !k.isScanEnd {
-		depth = 320
-	}
+	isScan := k.isScanEnd
 	k.mu.RUnlock()
+	if !isScan {
+		depth = 290 // about 6 blocks / hour * 48
+	}
 	latestHeight, txs := k.client.GetBlockTxs(true, depth)
 	k.mu.Lock()
 	for _, tx := range txs {
