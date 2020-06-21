@@ -2,6 +2,7 @@ package btc
 
 import (
 	"net/url"
+	"sync"
 
 	"github.com/SwingbyProtocol/tx-indexer/chains/btc/types"
 	"github.com/SwingbyProtocol/tx-indexer/common"
@@ -20,6 +21,7 @@ const (
 type Client struct {
 	*rpcclient.Client
 	url        *url.URL
+	mu         *sync.RWMutex
 	sinceHash  *chainhash.Hash
 	vinAddress map[string]string
 }
@@ -47,7 +49,7 @@ func NewBtcClient(path string) (*Client, error) {
 	}
 	nHandlers := new(rpcclient.NotificationHandlers)
 	client, err := rpcclient.New(connCfg, nHandlers)
-	return &Client{client, u, nil, make(map[string]string)}, err
+	return &Client{client, u, new(sync.RWMutex), nil, make(map[string]string)}, err
 }
 
 func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []common.Transaction) {
@@ -127,7 +129,9 @@ func (c *Client) GetTxs(txs []types.Tx, hash *chainhash.Hash, height int64, dept
 }
 
 func (c *Client) getFirstVinAddr(txid string, vin []*types.Vin, testNet bool) (string, error) {
+	c.mu.Lock()
 	from := c.vinAddress[txid]
+	c.mu.Unlock()
 	if from != "" {
 		return from, nil
 	}
@@ -137,7 +141,9 @@ func (c *Client) getFirstVinAddr(txid string, vin []*types.Vin, testNet bool) (s
 		return "", err
 	}
 	addr := inTx0.Vout[vin[0].Vout].Addresses[0]
+	c.mu.Lock()
 	c.vinAddress[txid] = addr
+	c.mu.Unlock()
 	return addr, nil
 }
 
