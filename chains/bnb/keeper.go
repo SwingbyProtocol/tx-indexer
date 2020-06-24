@@ -17,7 +17,7 @@ import (
 
 const (
 	interval   = 10 * time.Second
-	loadBlocks = 345600
+	loadBlocks = 645600
 )
 
 type Keeper struct {
