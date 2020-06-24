@@ -75,10 +75,11 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	txs := common.Txs{}
 	k.mu.RLock()
 	isScan := k.isScanEnd
-	for _, tx := range k.txs {
+	txsMap := k.txs
+	k.mu.RUnlock()
+	for _, tx := range txsMap {
 		txs = append(txs, tx)
 	}
-	k.mu.RUnlock()
 	if !isScan {
 		res := common.Response{
 			Result: false,
