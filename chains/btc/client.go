@@ -65,47 +65,53 @@ func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []common.Transacti
 	rawTxs := c.GetTxs([]types.Tx{}, hash, int64(info.Blocks), depth, testNet)
 	txs := []common.Transaction{}
 	for _, tx := range rawTxs {
-		if len(tx.Vin) == 0 {
-			log.Errorf("Tx has no input id:%s", tx.Txid)
-			continue
-		}
-		// Remove coinbase transaction
-		if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
-			continue
-		}
-		from, err := c.getFirstVinAddr(tx.Txid, tx.Vin, testNet)
-		if err != nil {
-			continue
-		}
-		for _, vout := range tx.Vout {
-			amount, err := common.NewAmountFromInt64(vout.Value)
-			if err != nil {
-				log.Info(err)
-				continue
-			}
-			// Check script
-			if len(vout.Addresses) == 0 {
-				continue
-			}
-			tx := common.Transaction{
-				TxID:          tx.Txid,
-				From:          from,
-				To:            vout.Addresses[0],
-				Amount:        amount,
-				Currency:      common.BTC,
-				Height:        tx.Height,
-				Timestamp:     tx.MinedTime,
-				Confirmations: 0,
-				OutputIndex:   int(vout.N),
-				Spent:         false,
-			}
-			//if (params.Type == TxTypeSend && tx.From != params.Address) || (params.Type == TxTypeReceived && tx.To != params.Address) {
-			//	continue
-			//}
-			txs = append(txs, tx)
+		commonTxs := c.TxtoCommonTx(tx, testNet)
+		for _, comTx := range commonTxs {
+			txs = append(txs, comTx)
 		}
 	}
 	return int64(info.Blocks), txs
+}
+
+func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
+	txs := []common.Transaction{}
+	if len(tx.Vin) == 0 {
+		log.Errorf("Tx has no input id:%s", tx.Txid)
+		return txs
+	}
+	// Remove coinbase transaction
+	if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
+		return txs
+	}
+	from, err := c.getFirstVinAddr(tx.Txid, tx.Vin, testNet)
+	if err != nil {
+		return txs
+	}
+	for _, vout := range tx.Vout {
+		amount, err := common.NewAmountFromInt64(vout.Value)
+		if err != nil {
+			log.Info(err)
+			continue
+		}
+		// Check script
+		if len(vout.Addresses) == 0 {
+			continue
+		}
+		tx := common.Transaction{
+			TxID:          tx.Txid,
+			From:          from,
+			To:            vout.Addresses[0],
+			Amount:        amount,
+			Currency:      common.BTC,
+			Height:        tx.Height,
+			Timestamp:     tx.MinedTime,
+			Confirmations: 0,
+			OutputIndex:   int(vout.N),
+			Spent:         false,
+		}
+		txs = append(txs, tx)
+	}
+	return txs
 }
 
 func (c *Client) GetTxs(txs []types.Tx, hash *chainhash.Hash, height int64, depth int, testNet bool) []types.Tx {

@@ -241,44 +241,12 @@ func (k *Keeper) StartNode() {
 	go func() {
 		for {
 			tx := <-txChan
-			// Remove coinbase transaction
 			go func() {
-				time.Sleep(3 * time.Second)
-				if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
-					return
-				}
-				k.mu.RLock()
-				isTestnet := k.tesnet
-				k.mu.RUnlock()
-				from, err := k.client.getFirstVinAddr(tx.Txid, tx.Vin, isTestnet)
-				if err != nil {
-					return
-				}
-				for _, vout := range tx.Vout {
-					amount, err := common.NewAmountFromInt64(vout.Value)
-					if err != nil {
-						log.Info(err)
-						continue
-					}
-					// Check script
-					if len(vout.Addresses) == 0 {
-						continue
-					}
-
-					newTx := common.Transaction{
-						TxID:          tx.Txid,
-						From:          from,
-						To:            vout.Addresses[0],
-						Amount:        amount,
-						Currency:      common.BTC,
-						Height:        0,
-						Timestamp:     tx.Receivedtime,
-						Confirmations: 0,
-						OutputIndex:   int(vout.N),
-						Spent:         false,
-					}
+				time.Sleep(5 * time.Second)
+				commonTxs := k.client.TxtoCommonTx(*tx, k.tesnet)
+				for _, comTx := range commonTxs {
 					k.mu.Lock()
-					k.txs[newTx.Serialize()] = newTx
+					k.txs[comTx.Serialize()] = comTx
 					k.mu.Unlock()
 				}
 			}()
