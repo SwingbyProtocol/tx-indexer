@@ -164,7 +164,7 @@ func (k *Keeper) processKeep() {
 	isScan := k.isScanEnd
 	k.mu.RUnlock()
 	if !isScan {
-		depth = 290 // about 6 blocks / hour * 48
+		depth = 1290 // about 6 blocks / hour * 48
 	}
 	latestHeight, txs := k.client.GetBlockTxs(true, depth)
 	k.mu.Lock()

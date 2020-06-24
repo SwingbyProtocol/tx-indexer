@@ -158,7 +158,7 @@ func (k *Keeper) processKeep() {
 	if !k.isScanEnd {
 		wg := new(sync.WaitGroup)
 		heights := make(chan int64)
-		for w := 1; w <= 200; w++ {
+		for w := 1; w <= 100; w++ {
 			go k.SyncBlockTimes(wg, heights)
 		}
 		for h := maxHeight; h >= minHeight; h-- {
