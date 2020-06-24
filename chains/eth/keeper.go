@@ -103,21 +103,13 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) UpdateTxs() {
-	deleteList := []string{}
-	k.mu.RLock()
-	txs := k.txs
-	k.mu.RUnlock()
-	for _, tx := range txs {
+	k.mu.Lock()
+	for _, tx := range k.txs {
 		if tx.Timestamp.Add(48*time.Hour).Unix() < time.Now().Unix() {
-			deleteList = append(deleteList, tx.TxID)
-			continue
+			delete(k.txs, tx.Serialize())
 		}
 	}
-	for _, txID := range deleteList {
-		k.mu.Lock()
-		delete(k.txs, txID)
-		k.mu.Unlock()
-	}
+	k.mu.Unlock()
 }
 
 func (k *Keeper) Start() {
