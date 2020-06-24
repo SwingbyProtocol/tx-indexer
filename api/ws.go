@@ -45,13 +45,13 @@ func (ws *Websocket) mainHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// Time allowed to read the next pong message from the peer.
 	pongWait := 30 * time.Second
-	//writeWait := 30 * time.Second
+	// writeWait := 30 * time.Second
 	// Send pings to peer with this period. Must be less than pongWait.
 	pingPeriod := (pongWait * 9) / 10
 	// Connection
 	conn, err := ws.Pubsub.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Info("upgrade:", err)
+		log.Info(err)
 		conn.Close()
 		return
 	}
@@ -78,7 +78,7 @@ func (ws *Websocket) mainHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	// Register pubsub client to pubsub manager
 	ws.Pubsub.AddClient(&client)
-	// Send Hello msg
+	// Send hello msg
 	client.SendJSON(NewSuccessResponse("", "Websocket connection is successful", nil))
 	// Pubsub client
 	addr := client.connection.RemoteAddr().String()
