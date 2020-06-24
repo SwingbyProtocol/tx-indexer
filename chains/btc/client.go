@@ -65,6 +65,10 @@ func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []common.Transacti
 	rawTxs := c.GetTxs([]types.Tx{}, hash, int64(info.Blocks), depth, testNet)
 	txs := []common.Transaction{}
 	for _, tx := range rawTxs {
+		if len(tx.Vin) == 0 {
+			log.Errorf("Tx has no input id:%s", tx.Txid)
+			continue
+		}
 		// Remove coinbase transaction
 		if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
 			continue
@@ -137,7 +141,7 @@ func (c *Client) getFirstVinAddr(txid string, vin []*types.Vin, testNet bool) (s
 	}
 	inTx0, err := c.GetTxByTxID(vin[0].Txid, testNet)
 	if err != nil {
-		log.Warnf("%s tx:%s vin0:%s", err.Error(), txid, vin[0].Txid)
+		log.Warnf("%s tx: %s vin0: %s", err.Error(), txid, vin[0].Txid)
 		return "", err
 	}
 	addr := inTx0.Vout[vin[0].Vout].Addresses[0]

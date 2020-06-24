@@ -252,7 +252,6 @@ func (k *Keeper) StartNode() {
 				k.mu.RUnlock()
 				from, err := k.client.getFirstVinAddr(tx.Txid, tx.Vin, isTestnet)
 				if err != nil {
-					log.Info("Tx is not avaible to set vin0 %s", tx.Txid)
 					return
 				}
 				for _, vout := range tx.Vout {
