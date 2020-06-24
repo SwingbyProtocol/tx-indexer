@@ -98,6 +98,27 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, tokenName string, t
 	return txs
 }
 
+func (c *Client) GetEthereumTxs() error {
+	block, err := c.BlockByNumber(context.Background(), nil)
+	if err != nil {
+		return err
+	}
+	txs := block.Transactions()
+	for i, tx := range txs {
+		txSender, err := c.TransactionSender(context.Background(), tx, block.Hash(), uint(i))
+		if err != nil {
+			log.Info(err)
+			continue
+		}
+		if &txSender != nil {
+			log.Info("txsernder is nil")
+		}
+		log.Infof("%s from:%s to:%s", tx.Hash().String(), txSender.String(), tx.To().String())
+		log.Info(tx.Data())
+	}
+	return nil
+}
+
 func (c *Client) SyncLatestBlocks() error {
 	latestBlock, err := c.BlockByNumber(context.Background(), nil)
 	if err != nil {

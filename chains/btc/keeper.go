@@ -149,18 +149,21 @@ func (k *Keeper) Start() {
 }
 
 func (k *Keeper) UpdateTxs() {
-	targetTime := time.Now().Add(-48 * time.Hour)
 	deleteList := []string{}
-	k.mu.Lock()
-	for _, tx := range k.txs {
-		if tx.Timestamp.Unix() < targetTime.Unix() {
+	k.mu.RLock()
+	txs := k.txs
+	k.mu.RUnlock()
+	for _, tx := range txs {
+		if tx.Timestamp.Add(48*time.Hour).Unix() < time.Now().Unix() {
 			deleteList = append(deleteList, tx.TxID)
+			continue
 		}
 	}
 	for _, txID := range deleteList {
+		k.mu.Lock()
 		delete(k.txs, txID)
+		k.mu.Unlock()
 	}
-	k.mu.Unlock()
 }
 
 func (k *Keeper) processKeep() {

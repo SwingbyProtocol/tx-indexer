@@ -103,19 +103,21 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) UpdateTxs() {
-	targetTime := time.Now().Add(-48 * time.Hour)
 	deleteList := []string{}
-	k.mu.Lock()
-	for _, tx := range k.txs {
-		if tx.Timestamp.Unix() < targetTime.Unix() {
+	k.mu.RLock()
+	txs := k.txs
+	k.mu.RUnlock()
+	for _, tx := range txs {
+		if tx.Timestamp.Add(48*time.Hour).Unix() < time.Now().Unix() {
 			deleteList = append(deleteList, tx.TxID)
 			continue
 		}
 	}
 	for _, txID := range deleteList {
+		k.mu.Lock()
 		delete(k.txs, txID)
+		k.mu.Unlock()
 	}
-	k.mu.Unlock()
 }
 
 func (k *Keeper) Start() {
@@ -145,6 +147,7 @@ func (k *Keeper) processKeep() {
 		blocks = int64(7200 / 10)
 	}
 	k.mu.RUnlock()
+
 	txsMempool := k.client.GetMempoolTxs(k.tokenAddr, k.tokenName, k.tokenDecimals)
 	txs := k.client.GetTxs(k.tokenAddr, blocks, k.tokenName, k.tokenDecimals)
 	for _, tx := range txsMempool {
