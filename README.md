@@ -2,6 +2,9 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/SwingbyProtocol/tx-indexer)](https://goreportcard.com/report/github.com/SwingbyProtocol/tx-indexer)
 Tx-indexer is a modular blockchain transaction monitoring tool. the app can monitor send/receive tx for addresses over a specific period, multiple coins are supported and unified in a common tx format.
 
+## API docs
+https://new-testnet-indexer.swingby.network/docs
+
 ## Supporting coins
 - [x] BTC
 - [x] ERC20 (ETH is not support)
