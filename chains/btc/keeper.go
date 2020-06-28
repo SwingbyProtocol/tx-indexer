@@ -231,6 +231,7 @@ func (k *Keeper) StartNode() {
 	go func() {
 		for {
 			tx := <-txChan
+			// Set now time
 			go func() {
 				time.Sleep(5 * time.Second)
 				commonTxs := k.client.TxtoCommonTx(*tx, k.tesnet)

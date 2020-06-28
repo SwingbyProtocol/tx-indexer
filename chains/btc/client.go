@@ -97,6 +97,10 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 		if len(vout.Addresses) == 0 {
 			continue
 		}
+		time := tx.Receivedtime
+		if tx.Height != 0 {
+			time = tx.Mediantime
+		}
 		tx := common.Transaction{
 			TxID:          tx.Txid,
 			From:          from,
@@ -104,7 +108,7 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 			Amount:        amount,
 			Currency:      common.BTC,
 			Height:        tx.Height,
-			Timestamp:     tx.MinedTime,
+			Timestamp:     time,
 			Confirmations: 0,
 			OutputIndex:   int(vout.N),
 			Spent:         false,
