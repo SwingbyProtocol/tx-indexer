@@ -26,7 +26,7 @@ type Keeper struct {
 	ticker       *time.Ticker
 	watchAddr    btcutil.Address
 	tesnet       bool
-	txs          map[string]common.Transaction
+	txs          map[string]*common.Transaction
 	latestHeight int64
 	isScanEnd    bool
 }
@@ -40,7 +40,7 @@ func NewKeeper(url string, isTestnet bool) *Keeper {
 		mu:        new(sync.RWMutex),
 		client:    c,
 		tesnet:    isTestnet,
-		txs:       make(map[string]common.Transaction),
+		txs:       make(map[string]*common.Transaction),
 		isScanEnd: false,
 	}
 	return k
@@ -100,7 +100,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	}
 	txs := common.Txs{}
 	for _, tx := range k.txs {
-		txs = append(txs, tx)
+		txs = append(txs, *tx)
 	}
 	if !k.isScanEnd {
 		res := common.Response{
@@ -167,7 +167,7 @@ func (k *Keeper) processKeep() {
 	latestHeight, txs := k.client.GetBlockTxs(true, depth)
 	k.mu.Lock()
 	for _, tx := range txs {
-		k.txs[tx.Serialize()] = tx
+		k.txs[tx.Serialize()] = &tx
 	}
 	for _, tx := range k.txs {
 		if tx.Height == 0 {
@@ -239,7 +239,7 @@ func (k *Keeper) StartNode() {
 				}
 				for _, comTx := range commonTxs {
 					k.mu.Lock()
-					k.txs[comTx.Serialize()] = comTx
+					k.txs[comTx.Serialize()] = &comTx
 					k.mu.Unlock()
 				}
 			}()

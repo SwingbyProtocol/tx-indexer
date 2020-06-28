@@ -28,7 +28,7 @@ type Keeper struct {
 	network     types.ChainNetwork
 	testnet     bool
 	accessToken string
-	txs         map[string]common.Transaction
+	txs         map[string]*common.Transaction
 	timestamps  map[int64]time.Time
 	isScanEnd   bool
 }
@@ -49,7 +49,7 @@ func NewKeeper(urlStr string, isTestnet bool) *Keeper {
 		testnet:    isTestnet,
 		network:    bnbNetwork,
 		timestamps: make(map[int64]time.Time),
-		txs:        make(map[string]common.Transaction),
+		txs:        make(map[string]*common.Transaction),
 	}
 	return k
 }
@@ -76,7 +76,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	}
 	txs := common.Txs{}
 	for _, tx := range k.txs {
-		txs = append(txs, tx)
+		txs = append(txs, *tx)
 	}
 	if !k.isScanEnd {
 		res := common.Response{
@@ -175,7 +175,7 @@ func (k *Keeper) processKeep() {
 	for page := 1; page <= pageSize; page++ {
 		txs, itemCount, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage)
 		for _, tx := range txs {
-			loadTxs[tx.Serialize()] = tx
+			loadTxs[tx.Serialize()] = &tx
 		}
 		log.Infof("Tx scanning on the Binance chain -> total: %d, found: %d, per_page: %d, page: %d", itemCount, len(txs), perPage, page)
 		//log.Info(c, page)

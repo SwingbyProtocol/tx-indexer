@@ -28,7 +28,7 @@ type Keeper struct {
 	tokenDecimals int
 	tesnet        bool
 	isScanEnd     bool
-	txs           map[string]common.Transaction
+	txs           map[string]*common.Transaction
 }
 
 func NewKeeper(url string, isTestnet bool) *Keeper {
@@ -38,7 +38,7 @@ func NewKeeper(url string, isTestnet bool) *Keeper {
 		client:    c,
 		tesnet:    isTestnet,
 		isScanEnd: false,
-		txs:       make(map[string]common.Transaction),
+		txs:       make(map[string]*common.Transaction),
 	}
 	return k
 }
@@ -66,7 +66,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	}
 	txs := common.Txs{}
 	for _, tx := range k.txs {
-		txs = append(txs, tx)
+		txs = append(txs, *tx)
 	}
 	if !k.isScanEnd {
 		res := common.Response{
@@ -144,7 +144,7 @@ func (k *Keeper) processKeep() {
 	}
 	k.mu.Lock()
 	for _, tx := range txs {
-		k.txs[tx.Serialize()] = tx
+		k.txs[tx.Serialize()] = &tx
 	}
 	for _, tx := range k.txs {
 		tx.Confirmations = k.client.latestBlock - tx.Height
