@@ -84,6 +84,8 @@ func (k *Keeper) GetAddr() btcutil.Address {
 }
 
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
 	watch := r.URL.Query().Get("watch")
 	from := r.URL.Query().Get("height_from")
 	fromNum, _ := strconv.Atoi(from)
@@ -96,16 +98,11 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	if toNum == 0 {
 		toNum = 100000000
 	}
-	//log.Info(k.Txs)
 	txs := common.Txs{}
-	k.mu.RLock()
-	isScan := k.isScanEnd
-	txsMap := k.txs
-	k.mu.RUnlock()
-	for _, tx := range txsMap {
+	for _, tx := range k.txs {
 		txs = append(txs, tx)
 	}
-	if !isScan {
+	if !k.isScanEnd {
 		res := common.Response{
 			Result: false,
 			Msg:    "re-scanning",
