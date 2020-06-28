@@ -234,6 +234,9 @@ func (k *Keeper) StartNode() {
 			go func() {
 				time.Sleep(5 * time.Second)
 				commonTxs := k.client.TxtoCommonTx(*tx, k.tesnet)
+				if len(commonTxs) != 0 {
+					log.Warn("len(commonTxs) == 0. Something wrong on the pending tx")
+				}
 				for _, comTx := range commonTxs {
 					k.mu.Lock()
 					k.txs[comTx.Serialize()] = comTx
