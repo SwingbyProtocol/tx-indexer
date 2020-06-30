@@ -81,17 +81,16 @@ func (c *Client) ResultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeig
 					}
 					currency := common.NewSymbol(output.Coins[0].Denom, 8)
 					newTx := common.Transaction{
-						TxID:          txData.Hash.String(),
-						From:          realMsg.Inputs[0].Address.String(),
-						To:            output.Address.String(),
-						Amount:        amount,
-						Currency:      currency,
-						Height:        thisHeight,
-						Confirmations: maxHeight - thisHeight,
-						Memo:          txbase.Memo,
-						Spent:         false,
-						OutputIndex:   i,
-						Timestamp:     time.Time{},
+						TxID:        txData.Hash.String(),
+						From:        realMsg.Inputs[0].Address.String(),
+						To:          output.Address.String(),
+						Amount:      amount,
+						Currency:    currency,
+						Height:      thisHeight,
+						Memo:        txbase.Memo,
+						Spent:       false,
+						OutputIndex: i,
+						Timestamp:   time.Time{},
 					}
 					newTxs = append(newTxs, newTx)
 				}

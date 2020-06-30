@@ -7,6 +7,7 @@ type Response struct {
 
 type TxResponse struct {
 	Response
+	LatestHeight  int64         `json:"latestHeight"`
 	InTxsMempool  []Transaction `json:"inTxsMempool"`
 	InTxs         []Transaction `json:"inTxs"`
 	OutTxsMempool []Transaction `json:"outTxsMempool"`

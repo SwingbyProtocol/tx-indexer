@@ -2,56 +2,14 @@ package common
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"math/big"
 	"sort"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Txs []Transaction
-
-func (txs Txs) GetRangeTxs(fromNum int, toNum int) Txs {
-	rangeTxs := []Transaction{}
-	for _, tx := range txs {
-		if int64(fromNum) > tx.Height {
-			continue
-		}
-		if int64(toNum) < tx.Height {
-			continue
-		}
-		rangeTxs = append(rangeTxs, tx)
-	}
-	return rangeTxs
-}
-
-func (txs Txs) Send(address string) Txs {
-	sendTxs := []Transaction{}
-	for _, tx := range txs {
-		if tx.From != address {
-			continue
-		}
-		if tx.Height == 0 {
-			continue
-		}
-		sendTxs = append(sendTxs, tx)
-	}
-	return sendTxs
-}
-
-func (txs Txs) Receive(address string) Txs {
-	sendTxs := []Transaction{}
-	for _, tx := range txs {
-		if tx.To != address {
-			continue
-		}
-		if tx.Height == 0 {
-			continue
-		}
-		sendTxs = append(sendTxs, tx)
-	}
-	return sendTxs
-}
 
 func (txs Txs) SendMempool(address string) Txs {
 	sendTxs := []Transaction{}
@@ -111,45 +69,31 @@ func (txs Txs) Page(page int, limit int) Txs {
 	return base[page]
 }
 
-func (txs Txs) RemoveTxs(targetTime time.Time) Txs {
-	newTxs := []Transaction{}
-	for _, tx := range txs {
-		if tx.Timestamp.Unix() < targetTime.Unix() {
-			continue
-		}
-		newTxs = append(newTxs, tx)
-	}
-	log.Infof("Returns txs: %d removed: %d", len(newTxs), len(txs)-len(newTxs))
-	return newTxs
-}
-
 type Transaction struct {
-	TxID          string
-	From          string
-	To            string
-	Amount        Amount
-	Timestamp     time.Time
-	Currency      Symbol
-	Height        int64
-	Confirmations int64
-	Memo          string
-	OutputIndex   int
-	Spent         bool
+	TxID        string
+	From        string
+	To          string
+	Amount      Amount
+	Timestamp   time.Time
+	Currency    Symbol
+	Height      int64
+	Memo        string
+	OutputIndex int
+	Spent       bool
 }
 
-type TxFormat struct {
-	TxID          string `json:"txId"`
-	From          string `json:"from"`
-	To            string `json:"to"`
-	Amount        string `json:"amount"`
-	Currency      string `json:"currency"`
-	Decimals      int    `json:"decimals"`
-	Height        int64  `json:"height"`
-	Timestamp     int64  `json:"time"`
-	Confirmations int64  `json:"confirmations"`
-	Memo          string `json:"memo"`
-	OutputIndex   int    `json:"outputIndex"`
-	Spent         bool   `json:"spent"`
+type TxJSON struct {
+	TxID        string `json:"txId"`
+	From        string `json:"from"`
+	To          string `json:"to"`
+	Amount      string `json:"amount"`
+	Currency    string `json:"currency"`
+	Decimals    int    `json:"decimals"`
+	Height      int64  `json:"height"`
+	Timestamp   int64  `json:"time"`
+	Memo        string `json:"memo"`
+	OutputIndex int    `json:"outputIndex"`
+	Spent       bool   `json:"spent"`
 }
 
 func (tx Transaction) Serialize() string {
@@ -157,19 +101,42 @@ func (tx Transaction) Serialize() string {
 }
 
 func (tx Transaction) MarshalJSON() ([]byte, error) {
-	res := TxFormat{
-		TxID:          tx.TxID,
-		From:          tx.From,
-		To:            tx.To,
-		Amount:        tx.Amount.BigInt().String(),
-		Currency:      tx.Currency.String(),
-		Decimals:      tx.Currency.Decimlas(),
-		Height:        tx.Height,
-		Timestamp:     tx.Timestamp.Unix(),
-		Confirmations: tx.Confirmations,
-		Memo:          tx.Memo,
-		OutputIndex:   tx.OutputIndex,
-		Spent:         tx.Spent,
+	res := TxJSON{
+		TxID:        tx.TxID,
+		From:        tx.From,
+		To:          tx.To,
+		Amount:      tx.Amount.BigInt().String(),
+		Currency:    tx.Currency.String(),
+		Decimals:    tx.Currency.Decimlas(),
+		Height:      tx.Height,
+		Timestamp:   tx.Timestamp.Unix(),
+		Memo:        tx.Memo,
+		OutputIndex: tx.OutputIndex,
+		Spent:       tx.Spent,
 	}
 	return json.Marshal(res)
+}
+
+func (t TxJSON) ToCommTx() (Transaction, error) {
+	amt, result := new(big.Int).SetString(t.Amount, 0)
+	if !result {
+		return Transaction{}, errors.New("Error t.Amount can not convert to big.int")
+	}
+	amount, err := NewAmountFromBigInt(amt)
+	if err != nil {
+		return Transaction{}, err
+	}
+	tx := Transaction{
+		TxID:        t.TxID,
+		From:        t.From,
+		To:          t.To,
+		Amount:      amount,
+		Currency:    NewSymbol(t.Currency, t.Decimals),
+		Height:      t.Height,
+		Timestamp:   time.Unix(t.Timestamp, 0),
+		Memo:        t.Memo,
+		OutputIndex: t.OutputIndex,
+		Spent:       t.Spent,
+	}
+	return tx, nil
 }

@@ -17,23 +17,20 @@ import (
 
 const (
 	interval   = 10 * time.Second
-	loadBlocks = 645600
+	loadBlocks = 16600
 )
 
 type Keeper struct {
-	mu          *sync.RWMutex
-	client      *Client
-	ticker      *time.Ticker
-	watchAddr   types.AccAddress
-	network     types.ChainNetwork
-	testnet     bool
-	accessToken string
-	txs         map[string]*common.Transaction
-	timestamps  map[int64]time.Time
-	isScanEnd   bool
+	mu        *sync.RWMutex
+	client    *Client
+	ticker    *time.Ticker
+	network   types.ChainNetwork
+	testnet   bool
+	db        *common.Db
+	topHeight int64
 }
 
-func NewKeeper(urlStr string, isTestnet bool) *Keeper {
+func NewKeeper(urlStr string, isTestnet bool, dirPath string) *Keeper {
 	bnbRPCURI, err := url.ParseRequestURI(urlStr)
 	if err != nil {
 		log.Fatal(err)
@@ -42,14 +39,18 @@ func NewKeeper(urlStr string, isTestnet bool) *Keeper {
 	if isTestnet {
 		bnbNetwork = types.TestNetwork
 	}
+	db := common.NewDB()
+	err = db.Start(dirPath)
+	if err != nil {
+		log.Fatal(err)
+	}
 	c := NewClient(bnbRPCURI, bnbNetwork, 30*time.Second)
 	k := &Keeper{
-		mu:         new(sync.RWMutex),
-		client:     c,
-		testnet:    isTestnet,
-		network:    bnbNetwork,
-		timestamps: make(map[int64]time.Time),
-		txs:        make(map[string]*common.Transaction),
+		mu:      new(sync.RWMutex),
+		client:  c,
+		testnet: isTestnet,
+		network: bnbNetwork,
+		db:      db,
 	}
 	return k
 }
@@ -60,8 +61,6 @@ func (k *Keeper) StartReScanAddr(addr string, timestamp int64) error {
 }
 
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
 	watch := r.URL.Query().Get("watch")
 	from := r.URL.Query().Get("height_from")
 	fromNum, _ := strconv.Atoi(from)
@@ -74,24 +73,24 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	if toNum == 0 {
 		toNum = 100000000
 	}
-	txs := common.Txs{}
-	for _, tx := range k.txs {
-		txs = append(txs, *tx)
-	}
-	if !k.isScanEnd {
-		res := common.Response{
-			Result: false,
-			Msg:    "re-scanning",
-		}
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
-	inTxs := rangeTxs.Receive(watch).Page(pageNum, limitNum)
-	outTxs := rangeTxs.Send(watch).Page(pageNum, limitNum)
+	inTxs := common.Txs{}
+	outTxs := common.Txs{}
 
+	inIdxs, _ := k.db.GetIdxs(watch, true)
+	inIdxs = common.Idxs(inIdxs).GetRangeTxs(fromNum, toNum)
+	for _, idx := range inIdxs {
+		tx, err := k.db.GetTx(idx.ID)
+		if err != nil {
+			continue
+		}
+		inTxs = append(inTxs, *tx)
+	}
+
+	inTxs = inTxs.Sort().Page(pageNum, limitNum)
+	outTxs = inTxs.Sort().Page(pageNum, limitNum)
+	k.mu.RLock()
 	w.WriteJson(common.TxResponse{
+		LatestHeight:  k.topHeight,
 		InTxsMempool:  []common.Transaction{},
 		OutTxsMempool: []common.Transaction{},
 		InTxs:         inTxs,
@@ -101,6 +100,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 			Result: true,
 		},
 	})
+	k.mu.RUnlock()
 }
 
 func (k *Keeper) Start() {
@@ -111,24 +111,14 @@ func (k *Keeper) Start() {
 			select {
 			case <-k.ticker.C:
 				if !k.client.IsActive() {
-					log.Infof("bnc ws api is not active.. reset.")
+					log.Debugf("bnc ws api is not active.. reset.")
 					//k.client.Reset()
 				}
 				k.processKeep()
-				k.UpdateTxs()
+				//k.UpdateTxs()
 			}
 		}
 	}()
-}
-
-func (k *Keeper) UpdateTxs() {
-	k.mu.Lock()
-	for _, tx := range k.txs {
-		if tx.Timestamp.Add(48*time.Hour).Unix() < time.Now().Unix() {
-			delete(k.txs, tx.Serialize())
-		}
-	}
-	k.mu.Unlock()
 }
 
 func (k *Keeper) processKeep() {
@@ -139,93 +129,47 @@ func (k *Keeper) processKeep() {
 	}
 	if resultStatus.SyncInfo.CatchingUp {
 		// Still sync
-		log.Info("bnb chain still syncing...")
+		log.Debugf("bnb chain still syncing...")
 	}
 	if resultStatus.SyncInfo.LatestBlockHeight == 0 {
-		log.Info("Sync info latest block height is zero")
+		log.Warnf("Sync info latest block height is zero")
 		return
 	}
 	maxHeight, _, err := k.client.GetLatestBlockHeight()
 	if err != nil {
-		log.Info(err)
+		log.Error(err)
 		return
 	}
+	k.mu.Lock()
+	k.topHeight = maxHeight
+	k.mu.Unlock()
 	minHeight := maxHeight - loadBlocks
-	if k.isScanEnd {
-		minHeight = maxHeight - 12000
-	}
-	if !k.isScanEnd {
-		wg := new(sync.WaitGroup)
-		heights := make(chan int64)
-		for w := 1; w <= 100; w++ {
-			go k.SyncBlockTimes(wg, heights)
-		}
-		for h := maxHeight; h >= minHeight; h-- {
-			wg.Add(1)
-			heights <- h
-		}
-		close(heights)
-		wg.Wait()
-	}
 	perPage := 1000
 	pageSize := 100
-	k.mu.RLock()
-	loadTxs := k.txs
-	k.mu.RUnlock()
 	for page := 1; page <= pageSize; page++ {
 		txs, itemCount, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage)
-		for _, tx := range txs {
-			loadTxs[tx.Serialize()] = &tx
-		}
+		k.StoreTxs(txs)
 		log.Infof("Tx scanning on the Binance chain -> total: %d, found: %d, per_page: %d, page: %d", itemCount, len(txs), perPage, page)
-		//log.Info(c, page)
 		pageSize = 1 + itemCount/perPage
 	}
-	for _, tx := range loadTxs {
-		tx.Confirmations = maxHeight - tx.Height + 1
-		timestamp, err := k.GetBlockTime(tx.Height)
-		if err != nil {
-			log.Info(err)
+}
+
+func (k *Keeper) StoreTxs(txs []common.Transaction) {
+	for _, tx := range txs {
+		_, err := k.db.GetTx(tx.Serialize())
+		if err == nil {
+			// tx is already exist
 			continue
 		}
-		//log.Info(timestamp)
+		timestamp, err := k.client.GetBlockTimeStamp(tx.Height)
+		if err != nil {
+			log.Error(err)
+			continue
+		}
 		tx.Timestamp = timestamp
-		k.mu.Lock()
-		k.txs[tx.Serialize()] = tx
-		k.mu.Unlock()
-	}
-	k.mu.Lock()
-	k.isScanEnd = true
-	k.mu.Unlock()
-	log.Infof("BNC txs scanning done -> loadTxs: %d", len(loadTxs))
-}
-
-func (k *Keeper) GetBlockTime(height int64) (time.Time, error) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	if k.timestamps[height] != (time.Time{}) {
-		return k.timestamps[height], nil
-	}
-	timestamp, err := k.client.GetBlockTimeStamp(height)
-	if err != nil {
-		return time.Time{}, err
-	}
-	k.timestamps[height] = timestamp
-	return timestamp, nil
-}
-
-func (k *Keeper) SyncBlockTimes(wg *sync.WaitGroup, heights chan int64) {
-	for height := range heights {
-		timestamp, err := k.client.GetBlockTimeStamp(height)
-		if err != nil {
-			log.Info(err)
-			continue
-		}
-		k.mu.Lock()
-		k.timestamps[height] = timestamp
-		k.mu.Unlock()
-		wg.Done()
-		log.Infof("Sync blocktime height: %d", height)
+		k.db.StoreTx(tx.Serialize(), &tx)
+		k.db.StoreIdx(tx.Serialize(), &tx, true)
+		k.db.StoreIdx(tx.Serialize(), &tx, false)
 	}
 }
 

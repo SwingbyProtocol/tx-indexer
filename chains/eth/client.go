@@ -78,19 +78,19 @@ func (c *Client) GetMempoolTxs(tokenAddr eth_common.Address, tokenName string, t
 				log.Info(err)
 				continue
 			}
+			time := time.Now()
 			currency := common.NewSymbol(tokenName, tokenDecimals)
 			tx := common.Transaction{
-				TxID:          rawTx.Hash().String(),
-				From:          logTx.From.String(),
-				To:            logTx.To.String(),
-				Amount:        amount,
-				Currency:      currency,
-				Height:        0,
-				Confirmations: 0,
-				Memo:          "",
-				OutputIndex:   0,
-				Spent:         false,
-				Timestamp:     time.Now(),
+				TxID:        rawTx.Hash().String(),
+				From:        logTx.From.String(),
+				To:          logTx.To.String(),
+				Amount:      amount,
+				Currency:    currency,
+				Height:      0,
+				Memo:        "",
+				OutputIndex: 0,
+				Spent:       false,
+				Timestamp:   time,
 			}
 			txs = append(txs, tx)
 		}
@@ -171,23 +171,22 @@ func (c *Client) GetTxs(contractAddr eth_common.Address, blocks int64, tokenName
 				}
 				c.blockTimes[vLog.BlockNumber] = block.Time()
 			}
-			conf := int64(c.latestBlock) - int64(vLog.BlockNumber)
+			//conf := int64(c.latestBlock) - int64(vLog.BlockNumber)
 			from := eth_common.HexToAddress(vLog.Topics[1].String())
 			to := eth_common.HexToAddress(vLog.Topics[2].String())
 			currency := common.NewSymbol(tokenName, decimals)
 			timestamp := time.Unix(int64(c.blockTimes[vLog.BlockNumber]), 0)
 			tx := common.Transaction{
-				TxID:          vLog.TxHash.Hex(),
-				From:          from.String(),
-				To:            to.String(),
-				Amount:        amount,
-				Currency:      currency,
-				Height:        int64(vLog.BlockNumber),
-				Confirmations: conf,
-				Memo:          "",
-				OutputIndex:   0,
-				Spent:         false,
-				Timestamp:     timestamp,
+				TxID:        vLog.TxHash.Hex(),
+				From:        from.String(),
+				To:          to.String(),
+				Amount:      amount,
+				Currency:    currency,
+				Height:      int64(vLog.BlockNumber),
+				Memo:        "",
+				OutputIndex: 0,
+				Spent:       false,
+				Timestamp:   timestamp,
 			}
 			txs = append(txs, tx)
 

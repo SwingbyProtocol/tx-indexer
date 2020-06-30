@@ -2,7 +2,6 @@ package eth
 
 import (
 	"context"
-	"strconv"
 	"sync"
 	"time"
 
@@ -50,53 +49,55 @@ func (k *Keeper) SetToken(token string, tokenName string, decimlas int) {
 }
 
 func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
-	k.mu.RLock()
-	defer k.mu.RUnlock()
-	watch := r.URL.Query().Get("watch")
-	from := r.URL.Query().Get("height_from")
-	fromNum, _ := strconv.Atoi(from)
-	to := r.URL.Query().Get("height_to")
-	toNum, _ := strconv.Atoi(to)
-	page := r.URL.Query().Get("page")
-	pageNum, _ := strconv.Atoi(page)
-	limit := r.URL.Query().Get("limit")
-	limitNum, _ := strconv.Atoi(limit)
-	if toNum == 0 {
-		toNum = 100000000
-	}
-	txs := common.Txs{}
-	for _, tx := range k.txs {
-		txs = append(txs, *tx)
-	}
-	if !k.isScanEnd {
-		res := common.Response{
-			Result: false,
-			Msg:    "re-scanning",
+	/*
+		k.mu.RLock()
+		defer k.mu.RUnlock()
+		watch := r.URL.Query().Get("watch")
+		from := r.URL.Query().Get("height_from")
+		fromNum, _ := strconv.Atoi(from)
+		to := r.URL.Query().Get("height_to")
+		toNum, _ := strconv.Atoi(to)
+		page := r.URL.Query().Get("page")
+		pageNum, _ := strconv.Atoi(page)
+		limit := r.URL.Query().Get("limit")
+		limitNum, _ := strconv.Atoi(limit)
+		if toNum == 0 {
+			toNum = 100000000
 		}
-		w.WriteHeader(400)
-		w.WriteJson(res)
-		return
-	}
-	rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
-	memPoolTxs := txs.GetRangeTxs(0, 0).Sort()
+		txs := common.Txs{}
+		for _, tx := range k.txs {
+			txs = append(txs, *tx)
+		}
+		if !k.isScanEnd {
+			res := common.Response{
+				Result: false,
+				Msg:    "re-scanning",
+			}
+			w.WriteHeader(400)
+			w.WriteJson(res)
+			return
+		}
+		//rangeTxs := txs.GetRangeTxs(fromNum, toNum).Sort()
+		//memPoolTxs := txs.GetRangeTxs(0, 0).Sort()
 
-	watchAddr := eth_common.HexToAddress(watch).String()
+		//watchAddr := eth_common.HexToAddress(watch).String()
 
-	inTxsMemPool := memPoolTxs.ReceiveMempool(watchAddr).Page(pageNum, limitNum)
-	outTxsMemPool := memPoolTxs.SendMempool(watchAddr).Page(pageNum, limitNum)
-	inTxs := rangeTxs.Receive(watchAddr).Page(pageNum, limitNum)
-	outTxs := rangeTxs.Send(watchAddr).Page(pageNum, limitNum)
+		//inTxsMemPool := memPoolTxs.ReceiveMempool(watchAddr).Page(pageNum, limitNum)
+		//outTxsMemPool := memPoolTxs.SendMempool(watchAddr).Page(pageNum, limitNum)
+		//inTxs := rangeTxs.Receive(watchAddr).Page(pageNum, limitNum)
+		//outTxs := rangeTxs.Send(watchAddr).Page(pageNum, limitNum)
 
-	w.WriteJson(common.TxResponse{
-		InTxsMempool:  inTxsMemPool,
-		OutTxsMempool: outTxsMemPool,
-		InTxs:         inTxs,
-		OutTxs:        outTxs,
-		Response: common.Response{
-			Msg:    "",
-			Result: true,
-		},
-	})
+		w.WriteJson(common.TxResponse{
+			//InTxsMempool:  inTxsMemPool,
+			//OutTxsMempool: outTxsMemPool,
+			//InTxs:         inTxs,
+			//OutTxs:        outTxs,
+			Response: common.Response{
+				Msg:    "",
+				Result: true,
+			},
+		})
+	*/
 }
 
 func (k *Keeper) UpdateTxs() {
@@ -146,9 +147,7 @@ func (k *Keeper) processKeep() {
 	for _, tx := range txs {
 		k.txs[tx.Serialize()] = &tx
 	}
-	for _, tx := range k.txs {
-		tx.Confirmations = k.client.latestBlock - tx.Height
-	}
+
 	k.isScanEnd = true
 	log.Infof("ETH txs scanning done token is %s loadTxs: %d mempool: %d", k.tokenAddr.String(), len(k.txs), len(txsMempool))
 	k.mu.Unlock()

@@ -55,7 +55,7 @@ func NewBtcClient(path string) (*Client, error) {
 func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []common.Transaction) {
 	info, err := c.GetBlockChainInfo()
 	if err != nil {
-		log.Info("error", err)
+		log.Error(err)
 		return 0, []common.Transaction{}
 	}
 	if info.Blocks == 0 {
@@ -79,7 +79,7 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 		log.Errorf("Tx has no input id:%s", tx.Txid)
 		return txs
 	}
-	// Remove coinbase transaction
+	// Avoid coinbase transaction
 	if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
 		return txs
 	}
@@ -98,20 +98,19 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 			continue
 		}
 		time := tx.Receivedtime
-		if tx.Height != 0 {
-			time = tx.Mediantime
+		if tx.Height != int64(0) {
+			time = tx.MinedTime
 		}
 		tx := common.Transaction{
-			TxID:          tx.Txid,
-			From:          from,
-			To:            vout.Addresses[0],
-			Amount:        amount,
-			Currency:      common.BTC,
-			Height:        tx.Height,
-			Timestamp:     time,
-			Confirmations: 0,
-			OutputIndex:   int(vout.N),
-			Spent:         false,
+			TxID:        tx.Txid,
+			From:        from,
+			To:          vout.Addresses[0],
+			Amount:      amount,
+			Currency:    common.BTC,
+			Height:      tx.Height,
+			Timestamp:   time,
+			OutputIndex: int(vout.N),
+			Spent:       false,
 		}
 		txs = append(txs, tx)
 	}

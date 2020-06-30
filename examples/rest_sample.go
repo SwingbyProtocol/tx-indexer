@@ -15,10 +15,10 @@ var (
 
 type Res struct {
 	common.Response
-	InTxsMempool  []common.TxFormat `json:"inTxsMempool"`
-	InTxs         []common.TxFormat `json:"inTxs"`
-	OutTxsMempool []common.TxFormat `json:"outTxsMempool"`
-	OutTxs        []common.TxFormat `json:"outTxs"`
+	InTxsMempool  []common.TxJSON `json:"inTxsMempool"`
+	InTxs         []common.TxJSON `json:"inTxs"`
+	OutTxsMempool []common.TxJSON `json:"outTxsMempool"`
+	OutTxs        []common.TxJSON `json:"outTxs"`
 }
 
 func main() {

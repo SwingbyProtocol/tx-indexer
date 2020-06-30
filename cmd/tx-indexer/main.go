@@ -68,7 +68,7 @@ func main() {
 	/* BNB/BEP-2 */
 	if conf.BNCConfig.NodeAddr != config.DefaultBNCNode {
 
-		bnbKeeper = bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet)
+		bnbKeeper = bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet, ".data/bnb")
 
 		// BNB side
 		getBNBTxs := api.NewGet("/api/v1/bnb/txs", bnbKeeper.GetTxs)
@@ -97,7 +97,7 @@ func main() {
 
 	if conf.BTCConfig.NodeAddr != config.DefaultBTCNode {
 
-		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet)
+		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet, ".data/btc")
 
 		getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
 		broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
