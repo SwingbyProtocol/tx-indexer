@@ -95,23 +95,23 @@ func (d *Db) StoreTx(key string, tx *Transaction) error {
 	return nil
 }
 
-func (d *Db) GetAddrs() ([]string, error) {
-	addrs := []string{}
-	value, err := d.db.Get([]byte("addrs"), nil)
+func (d *Db) GetSelfTxIds() ([]string, error) {
+	txkeys := []string{}
+	value, err := d.db.Get([]byte("selftxs"), nil)
 	if err != nil {
 		return []string{}, err
 	}
-	json.Unmarshal(value, &addrs)
-	return addrs, nil
+	json.Unmarshal(value, &txkeys)
+	return txkeys, nil
 }
 
-func (d *Db) StoreAddrs(addr string) error {
-	addrs, _ := d.GetAddrs()
-	data, err := json.Marshal(addrs)
+func (d *Db) StoreSelfTxIds(txid string) error {
+	txkeys, _ := d.GetSelfTxIds()
+	data, err := json.Marshal(txkeys)
 	if err != nil {
 		return err
 	}
-	err = d.db.Put([]byte("addrs"), data, nil)
+	err = d.db.Put([]byte("selftxs"), data, nil)
 	if err != nil {
 		return err
 	}

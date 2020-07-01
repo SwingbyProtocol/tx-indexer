@@ -105,11 +105,15 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 
 func (k *Keeper) GetSeflSendTxs(w rest.ResponseWriter, r *rest.Request) {
 	txs := []common.Transaction{}
-	k.mu.RLock()
-	for _, tx := range k.selfSendTxs {
-		txs = append(txs, tx)
+	txKeys, _ := k.db.GetSelfTxIds()
+	for _, key := range txKeys {
+		tx, err := k.db.GetTx(key)
+		if err != nil {
+			continue
+		}
+		txs = append(txs, *tx)
 	}
-	k.mu.RUnlock()
+	txs = common.Txs(txs).Sort()
 	w.WriteJson(txs)
 }
 
@@ -159,7 +163,7 @@ func (k *Keeper) processKeep() {
 	for page := 1; page <= pageSize; page++ {
 		txs, itemCount, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage)
 		k.StoreTxs(txs)
-		log.Infof("Tx scanning on the Binance chain -> total: %d, found: %d, per_page: %d, page: %d", itemCount, len(txs), perPage, page)
+		log.Infof("Tx scanning on the BNC => max: %d, min: %d, total: %d, found: %d, per_page: %d, page: %d", maxHeight, minHeight, itemCount, len(txs), perPage, page)
 		pageSize = 1 + itemCount/perPage
 	}
 }
@@ -182,9 +186,7 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		k.db.StoreIdx(tx.Serialize(), &tx, false)
 		// Add self send
 		if tx.From == tx.To {
-			k.mu.Lock()
-			k.selfSendTxs[tx.Serialize()] = tx
-			k.mu.Unlock()
+			k.db.StoreSelfTxIds(tx.Serialize())
 		}
 	}
 }
