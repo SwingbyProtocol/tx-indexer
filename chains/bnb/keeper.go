@@ -27,7 +27,7 @@ type Keeper struct {
 	network     types.ChainNetwork
 	db          *common.Db
 	topHeight   int64
-	selfSendTxs map[string]*common.Transaction
+	selfSendTxs map[string]common.Transaction
 }
 
 func NewKeeper(urlStr string, isTestnet bool, dirPath string) *Keeper {
@@ -50,7 +50,7 @@ func NewKeeper(urlStr string, isTestnet bool, dirPath string) *Keeper {
 		client:      c,
 		network:     bnbNetwork,
 		db:          db,
-		selfSendTxs: make(map[string]*common.Transaction),
+		selfSendTxs: make(map[string]common.Transaction),
 	}
 	return k
 }
@@ -104,7 +104,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) GetSeflSendTxs(w rest.ResponseWriter, r *rest.Request) {
-	txs := []*common.Transaction{}
+	txs := []common.Transaction{}
 	k.mu.RLock()
 	for _, tx := range k.selfSendTxs {
 		txs = append(txs, tx)
@@ -183,7 +183,7 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		// Add self send
 		if tx.From == tx.To {
 			k.mu.Lock()
-			k.selfSendTxs[tx.Serialize()] = &tx
+			k.selfSendTxs[tx.Serialize()] = tx
 			k.mu.Unlock()
 		}
 	}
