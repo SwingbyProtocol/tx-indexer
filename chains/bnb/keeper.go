@@ -21,13 +21,13 @@ const (
 )
 
 type Keeper struct {
-	mu        *sync.RWMutex
-	client    *Client
-	ticker    *time.Ticker
-	network   types.ChainNetwork
-	testnet   bool
-	db        *common.Db
-	topHeight int64
+	mu          *sync.RWMutex
+	client      *Client
+	ticker      *time.Ticker
+	network     types.ChainNetwork
+	db          *common.Db
+	topHeight   int64
+	selfSendTxs map[string]*common.Transaction
 }
 
 func NewKeeper(urlStr string, isTestnet bool, dirPath string) *Keeper {
@@ -46,11 +46,11 @@ func NewKeeper(urlStr string, isTestnet bool, dirPath string) *Keeper {
 	}
 	c := NewClient(bnbRPCURI, bnbNetwork, 30*time.Second)
 	k := &Keeper{
-		mu:      new(sync.RWMutex),
-		client:  c,
-		testnet: isTestnet,
-		network: bnbNetwork,
-		db:      db,
+		mu:          new(sync.RWMutex),
+		client:      c,
+		network:     bnbNetwork,
+		db:          db,
+		selfSendTxs: make(map[string]*common.Transaction),
 	}
 	return k
 }
@@ -101,6 +101,16 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		},
 	})
 	k.mu.RUnlock()
+}
+
+func (k *Keeper) GetSeflSendTxs(w rest.ResponseWriter, r *rest.Request) {
+	txs := []*common.Transaction{}
+	k.mu.RLock()
+	for _, tx := range k.selfSendTxs {
+		txs = append(txs, tx)
+	}
+	k.mu.RUnlock()
+	w.WriteJson(txs)
 }
 
 func (k *Keeper) Start() {
@@ -170,6 +180,12 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		k.db.StoreTx(tx.Serialize(), &tx)
 		k.db.StoreIdx(tx.Serialize(), &tx, true)
 		k.db.StoreIdx(tx.Serialize(), &tx, false)
+		// Add self send
+		if tx.From == tx.To {
+			k.mu.Lock()
+			k.selfSendTxs[tx.Serialize()] = &tx
+			k.mu.Unlock()
+		}
 	}
 }
 
