@@ -105,6 +105,10 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 
 func (k *Keeper) GetSeflSendTxs(w rest.ResponseWriter, r *rest.Request) {
 	txs := []common.Transaction{}
+	page := r.URL.Query().Get("page")
+	pageNum, _ := strconv.Atoi(page)
+	limit := r.URL.Query().Get("limit")
+	limitNum, _ := strconv.Atoi(limit)
 	txKeys, _ := k.db.GetSelfTxkeys()
 	for _, key := range txKeys {
 		tx, err := k.db.GetTx(key)
@@ -113,7 +117,7 @@ func (k *Keeper) GetSeflSendTxs(w rest.ResponseWriter, r *rest.Request) {
 		}
 		txs = append(txs, *tx)
 	}
-	txs = common.Txs(txs).Sort()
+	txs = common.Txs(txs).Sort().Page(pageNum, limitNum)
 	w.WriteJson(txs)
 }
 
@@ -163,7 +167,7 @@ func (k *Keeper) processKeep() {
 	for page := 1; page <= pageSize; page++ {
 		txs, itemCount, _ := k.client.GetBlockTransactions(page, minHeight, maxHeight, perPage)
 		k.StoreTxs(txs)
-		log.Infof("Tx scanning on the BNC => max: %d, min: %d, total: %d, found: %d, per_page: %d, page: %d", maxHeight, minHeight, itemCount, len(txs), perPage, page)
+		log.Infof("Tx scanning on the BNC => maxHeight: %d, minHeight: %d, total: %d, per_page: %d, page: %d, found: %d", maxHeight, minHeight, itemCount, perPage, page, len(txs))
 		pageSize = 1 + itemCount/perPage
 	}
 }

@@ -105,8 +105,9 @@ func (d *Db) GetSelfTxkeys() ([]string, error) {
 	return txkeys, nil
 }
 
-func (d *Db) StoreSelfTxkeys(txid string) error {
+func (d *Db) StoreSelfTxkeys(txkey string) error {
 	txkeys, _ := d.GetSelfTxkeys()
+	txkeys = append(txkeys, txkey)
 	data, err := json.Marshal(txkeys)
 	if err != nil {
 		return err
