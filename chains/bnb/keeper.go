@@ -105,7 +105,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 
 func (k *Keeper) GetSeflSendTxs(w rest.ResponseWriter, r *rest.Request) {
 	txs := []common.Transaction{}
-	txKeys, _ := k.db.GetSelfTxIds()
+	txKeys, _ := k.db.GetSelfTxkeys()
 	for _, key := range txKeys {
 		tx, err := k.db.GetTx(key)
 		if err != nil {
@@ -186,7 +186,7 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		k.db.StoreIdx(tx.Serialize(), &tx, false)
 		// Add self send
 		if tx.From == tx.To {
-			k.db.StoreSelfTxIds(tx.Serialize())
+			k.db.StoreSelfTxkeys(tx.Serialize())
 		}
 	}
 }

@@ -95,7 +95,7 @@ func (d *Db) StoreTx(key string, tx *Transaction) error {
 	return nil
 }
 
-func (d *Db) GetSelfTxIds() ([]string, error) {
+func (d *Db) GetSelfTxkeys() ([]string, error) {
 	txkeys := []string{}
 	value, err := d.db.Get([]byte("selftxs"), nil)
 	if err != nil {
@@ -105,8 +105,8 @@ func (d *Db) GetSelfTxIds() ([]string, error) {
 	return txkeys, nil
 }
 
-func (d *Db) StoreSelfTxIds(txid string) error {
-	txkeys, _ := d.GetSelfTxIds()
+func (d *Db) StoreSelfTxkeys(txid string) error {
+	txkeys, _ := d.GetSelfTxkeys()
 	data, err := json.Marshal(txkeys)
 	if err != nil {
 		return err
