@@ -1,43 +1,71 @@
-swagger: '2.0'
+swagger: "2.0"
 info:
-  title: 'Tx-indexer API'
+  title: "Tx-indexer API"
   version: 0.0.1
-  description: 'Tx-indexer is a modular blockchain transaction monitoring tool. the app can monitor send/receive tx for a specific address over a specific period, multiple coins are supported and unified in a common tx format. repo: https://github.com/SwingbyProtocol/tx-indexer'
-  termsOfService: 'https://docs.swingby.network/terms.pdf'
+  description: "Tx-indexer is a modular blockchain transaction monitoring tool. the app can monitor send/receive tx for a specific address over a specific period, multiple coins are supported and unified in a common tx format. repo: https://github.com/SwingbyProtocol/tx-indexer"
+  termsOfService: "https://docs.swingby.network/terms.pdf"
   contact:
-    name: 'Support'
-    email: 'support@swingby.network'
+    name: "Support"
+    email: "support@swingby.network"
   license:
-    name: 'AGPL 3.0'
-    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+    name: "AGPL 3.0"
+    url: "http://www.apache.org/licenses/LICENSE-2.0.html"
 schemes:
   - https
 produces:
   - application/json
 
+tagsSorter: "method"
+
 paths:
   /api/v1/status:
     get:
       summary: Get API Status
-      description: Get API state 
+      description: Get API state
       operationId: getStatus
       produces:
         - application/json
       responses:
-        '200':
+        "200":
           description: Success
           schema:
-            $ref: '#/definitions/ResultStatus'
+            $ref: "#/definitions/ResultStatus"
+
+  /api/v1/bnb/self:
+    get:
+      summary: Get Self-send transactions
+      description: Get Self-send transactions on the Binance chain.
+      operationId: getSelfTxs
+      produces:
+        - application/json
+      parameters:
+        - name: page
+          in: query
+          required: false
+          type: integer
+          description: A param that specifies the page number (default=1)
+        - name: limit
+          in: query
+          required: false
+          type: integer
+          description: A param that specifies the number of tx to be acquired per page (default=25)
+      responses:
+        "200":
+          description: Success
+          schema:
+            type: array
+            items:
+              $ref: "#/definitions/Tx"
+
   /api/v1/{currency}/txs:
     get:
       summary: Get transaction
-      description: 
-        Get transactions (input/output)
+      description: Get transactions (input/output)
       operationId: getTxs
       produces:
         - application/json
       parameters:
-        - name: currency   
+        - name: currency
           in: path
           required: false
           type: string
@@ -63,20 +91,19 @@ paths:
           type: integer
           description: A param that specifies the page number (default=1)
         - name: limit
-          in: query 
+          in: query
           required: false
           type: integer
           description: A param that specifies the number of tx to be acquired per page (default=25)
       responses:
-        '200':
+        "200":
           description: Success
           schema:
-            $ref: '#/definitions/ResultGetTxs'
-        '400':
+            $ref: "#/definitions/ResultGetTxs"
+        "400":
           description: Bad Request (Re scan)
           schema:
-            $ref: '#/definitions/ResultRescan'
-
+            $ref: "#/definitions/ResultRescan"
 
 definitions:
   ResultStatus:
@@ -92,6 +119,9 @@ definitions:
       result:
         type: boolean
         example: true
+      latestHeight:
+        type: integer
+        example: 1772112
       inTxsMempool:
         type: array
         items:
@@ -104,17 +134,17 @@ definitions:
         type: array
         items:
           $ref: "#/definitions/Tx"
-      outTx: 
+      outTx:
         type: array
-        items: 
-          $ref: '#/definitions/Tx'
+        items:
+          $ref: "#/definitions/Tx"
   ResultRescan:
     type: object
     properties:
       result:
         type: boolean
         example: false
-      msg: 
+      msg:
         type: string
         example: "re-scanning"
   ResultSuccessConfig:
@@ -123,7 +153,7 @@ definitions:
       result:
         type: boolean
         example: true
-      msg: 
+      msg:
         type: string
         example: "success"
   ResultErrorConfig:
@@ -132,55 +162,48 @@ definitions:
       result:
         type: boolean
         example: false
-      msg: 
+      msg:
         type: string
         example: "<Error message()>"
   Tx:
     properties:
-      txId:         
+      txId:
         type: string
         title: TxId
-        example: 2f0f3d827a37de54a162db6226ee462f27dd26f7fddcbf36d109f4c5a42e1e56
-      from:                  
+        example: 1F842B199B790317A392420EDDBFE6EFAECB5A8A1A71A950EDA572E94804A6C0
+      from:
         type: string
         title: From
-        example: tb1qnc287t8hl3qgym6lha7mrfuqspn0ns45ce4d5m
-      to:            
+        example: bnb1pqx2c3fr5vh7fuc6pthucuujpcxphnsn5ac3ge
+      to:
         type: string
         title: To
-        example: 2MzwMRoQdT5gSGyqYgXAyoHRf7iZEZjf1GQ
-      amount:       
+        example: bnb1pqx2c3fr5vh7fuc6pthucuujpcxphnsn5ac3ge
+      amount:
         type: string
         title: Amount
         example: "1000000"
-      currency:     
+      currency:
         type: string
         title: Currency
-        example: BTC
-      decimals:  
-        type: integer   
+        example: BNB
+      decimals:
+        type: integer
         title: Decimals
         example: 8
-      time:    
+      time:
         type: integer
         title: Timestamp (unix)
         example: 1577488326
-      confirmations: 
-        type: integer
-        title: Confirmations
-        example: 1223
-      memo:      
+      memo:
         type: string
         title: Memo
         example: ""
-      outputIndex: 
+      outputIndex:
         type: integer
         title: OutputIndex
         example: 0
-      spent:    
+      spent:
         type: boolean
         title: Spent
-        example: false     
-     
-
- 
+        example: false
