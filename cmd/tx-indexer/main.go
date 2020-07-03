@@ -78,7 +78,7 @@ func main() {
 
 		apiConfig.Actions = append(apiConfig.Actions, getBNBTxs)
 		apiConfig.Actions = append(apiConfig.Actions, getMemoTxs)
-		apiConfig.Actions = append(apiConfig.Actions, getSelfSendTxs)
+		//apiConfig.Actions = append(apiConfig.Actions, getSelfSendTxs)
 		apiConfig.Actions = append(apiConfig.Actions, broadcastBNBTx)
 	}
 
