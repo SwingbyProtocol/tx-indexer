@@ -208,10 +208,11 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		k.db.StoreIdx(tx.Serialize(), &tx, false)
 		// Add self send
 		if tx.From == tx.To {
-			k.db.StoreSelfTxkeys(tx.Serialize())
+			//k.db.StoreSelfTxkeys(tx.Serialize())
 		}
 		if tx.Memo != "" {
 			k.db.StoreMemoTxs(tx.Memo, tx.Serialize())
+			log.Infof("Tx is memo tx : %s", tx.Memo)
 		}
 	}
 }

@@ -72,8 +72,8 @@ func main() {
 
 		// BNB side
 		getBNBTxs := api.NewGet("/api/v1/bnb/txs", bnbKeeper.GetTxs)
-		getMemoTxs := api.NewGet("/api/v1/bnb/memo", bnbKeeper.GetMemoTxs)
-		getSelfSendTxs := api.NewGet("/api/v1/bnb/self", bnbKeeper.GetSeflSendTxs)
+		getMemoTxs := api.NewGet("/api/v1/bnb/memo_txs", bnbKeeper.GetMemoTxs)
+		//getSelfSendTxs := api.NewGet("/api/v1/bnb/self", bnbKeeper.GetSeflSendTxs)
 		broadcastBNBTx := api.NewPOST("/api/v1/bnb/broadcast", bnbKeeper.BroadcastTx)
 
 		apiConfig.Actions = append(apiConfig.Actions, getBNBTxs)
