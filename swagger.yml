@@ -131,10 +131,7 @@ paths:
           description: Success
           schema:
             $ref: "#/definitions/ResultGetTxs"
-        "400":
-          description: Bad Request (Re scan)
-          schema:
-            $ref: "#/definitions/ResultRescan"
+  
 
 definitions:
   ResultStatus:
