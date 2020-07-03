@@ -118,3 +118,27 @@ func (d *Db) StoreSelfTxkeys(txkey string) error {
 	}
 	return nil
 }
+
+func (d *Db) GetMemoTxs(memo string) ([]string, error) {
+	txkeys := []string{}
+	value, err := d.db.Get([]byte("memotxs_"+memo), nil)
+	if err != nil {
+		return []string{}, err
+	}
+	json.Unmarshal(value, &txkeys)
+	return txkeys, nil
+}
+
+func (d *Db) StoreMemoTxs(memo string, txkey string) error {
+	txkeys, _ := d.GetMemoTxs(memo)
+	txkeys = append(txkeys, txkey)
+	data, err := json.Marshal(txkeys)
+	if err != nil {
+		return err
+	}
+	err = d.db.Put([]byte("memotxs_"+memo), data, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}

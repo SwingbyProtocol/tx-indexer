@@ -72,12 +72,14 @@ func main() {
 
 		// BNB side
 		getBNBTxs := api.NewGet("/api/v1/bnb/txs", bnbKeeper.GetTxs)
+		getMemoTxs := api.NewGet("/api/v1/bnb/memo", bnbKeeper.GetMemoTxs)
 		getSelfSendTxs := api.NewGet("/api/v1/bnb/self", bnbKeeper.GetSeflSendTxs)
 		broadcastBNBTx := api.NewPOST("/api/v1/bnb/broadcast", bnbKeeper.BroadcastTx)
 
 		apiConfig.Actions = append(apiConfig.Actions, getBNBTxs)
-		apiConfig.Actions = append(apiConfig.Actions, broadcastBNBTx)
+		apiConfig.Actions = append(apiConfig.Actions, getMemoTxs)
 		apiConfig.Actions = append(apiConfig.Actions, getSelfSendTxs)
+		apiConfig.Actions = append(apiConfig.Actions, broadcastBNBTx)
 	}
 
 	/* ETH/ERC20 */

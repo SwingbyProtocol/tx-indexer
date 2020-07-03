@@ -121,6 +121,25 @@ func (k *Keeper) GetSeflSendTxs(w rest.ResponseWriter, r *rest.Request) {
 	w.WriteJson(txs)
 }
 
+func (k *Keeper) GetMemoTxs(w rest.ResponseWriter, r *rest.Request) {
+	txs := []common.Transaction{}
+	memo := r.URL.Query().Get("memo")
+	page := r.URL.Query().Get("page")
+	pageNum, _ := strconv.Atoi(page)
+	limit := r.URL.Query().Get("limit")
+	limitNum, _ := strconv.Atoi(limit)
+	txKeys, _ := k.db.GetMemoTxs(memo)
+	for _, key := range txKeys {
+		tx, err := k.db.GetTx(key)
+		if err != nil {
+			continue
+		}
+		txs = append(txs, *tx)
+	}
+	txs = common.Txs(txs).Sort().Page(pageNum, limitNum)
+	w.WriteJson(txs)
+}
+
 func (k *Keeper) Start() {
 	k.ticker = time.NewTicker(interval)
 	k.processKeep()
@@ -133,7 +152,6 @@ func (k *Keeper) Start() {
 					//k.client.Reset()
 				}
 				k.processKeep()
-				//k.UpdateTxs()
 			}
 		}
 	}()
@@ -191,6 +209,9 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		// Add self send
 		if tx.From == tx.To {
 			k.db.StoreSelfTxkeys(tx.Serialize())
+		}
+		if tx.Memo != "" {
+			k.db.StoreMemoTxs(tx.Memo, tx.Serialize())
 		}
 	}
 }
