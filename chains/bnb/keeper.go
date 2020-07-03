@@ -212,7 +212,7 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		}
 		if tx.Memo != "" {
 			k.db.StoreMemoTxs(tx.Memo, tx.Serialize())
-			log.Infof("Tx is memo tx : %s", tx.Memo)
+			log.Infof("Tx %s has a memo : %s", tx.TxID, tx.Memo)
 		}
 	}
 }
