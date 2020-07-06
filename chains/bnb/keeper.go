@@ -103,7 +103,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	k.mu.RUnlock()
 }
 
-func (k *Keeper) GetSeflSendTxs(w rest.ResponseWriter, r *rest.Request) {
+func (k *Keeper) GetSelfSendTxs(w rest.ResponseWriter, r *rest.Request) {
 	txs := []common.Transaction{}
 	page := r.URL.Query().Get("page")
 	pageNum, _ := strconv.Atoi(page)
