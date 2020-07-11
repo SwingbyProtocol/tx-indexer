@@ -30,13 +30,13 @@ type Keeper struct {
 	topHeight  int64
 }
 
-func NewKeeper(url string, isTestnet bool, dirPath string) *Keeper {
+func NewKeeper(url string, isTestnet bool, dirPath string, pruneTime int64) *Keeper {
 	c, err := NewBtcClient(url)
 	if err != nil {
 		log.Fatal(err)
 	}
 	newDB := common.NewDB()
-	err = newDB.Start(dirPath)
+	err = newDB.Start(dirPath, pruneTime)
 	if err != nil {
 		log.Fatal(err)
 	}

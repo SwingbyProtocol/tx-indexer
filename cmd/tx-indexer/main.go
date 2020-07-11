@@ -50,6 +50,7 @@ func main() {
 	if loglevel == "debug" {
 		log.SetLevel(log.DebugLevel)
 	}
+	log.Infof("Set prune duration: %d hours", conf.PruneTime)
 
 	// Define API config
 	// Define REST and WS api listener address
@@ -68,15 +69,16 @@ func main() {
 	/* BNB/BEP-2 */
 	if conf.BNCConfig.NodeAddr != config.DefaultBNCNode {
 
-		bnbKeeper = bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet, ".data/bnb")
-
+		bnbKeeper = bnb.NewKeeper(conf.BNCConfig.NodeAddr, conf.BNCConfig.Testnet, ".data/bnb", conf.PruneTime)
 		// BNB side
 		getBNBTxs := api.NewGet("/api/v1/bnb/txs", bnbKeeper.GetTxs)
+		getBNBTx := api.NewGet("/api/v1/bnb/tx", bnbKeeper.GetTx)
 		getMemoTxs := api.NewGet("/api/v1/bnb/memo_txs", bnbKeeper.GetMemoTxs)
 		//getSelfSendTxs := api.NewGet("/api/v1/bnb/self", bnbKeeper.GetSelfSendTxs)
 		broadcastBNBTx := api.NewPOST("/api/v1/bnb/broadcast", bnbKeeper.BroadcastTx)
 
 		apiConfig.Actions = append(apiConfig.Actions, getBNBTxs)
+		apiConfig.Actions = append(apiConfig.Actions, getBNBTx)
 		apiConfig.Actions = append(apiConfig.Actions, getMemoTxs)
 		//apiConfig.Actions = append(apiConfig.Actions, getSelfSendTxs)
 		apiConfig.Actions = append(apiConfig.Actions, broadcastBNBTx)
@@ -101,7 +103,7 @@ func main() {
 
 	if conf.BTCConfig.NodeAddr != config.DefaultBTCNode {
 
-		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet, ".data/btc")
+		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet, ".data/btc", conf.PruneTime)
 
 		getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
 		broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)

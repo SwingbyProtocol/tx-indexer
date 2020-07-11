@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"flag"
 
 	"github.com/spf13/pflag"
@@ -23,6 +24,7 @@ type Config struct {
 	LogConfig  LogConfig  `mapstructure:"log" json:"log"`
 	RESTConfig RESTConfig `mapstructure:"rest" json:"rest"`
 	WSConfig   WSConfig   `mapstructure:"ws" json:"ws"`
+	PruneTime  int64      `mapstructure:"prune" json:"prune"`
 }
 
 type BTCConfig struct {
@@ -61,6 +63,8 @@ type WSConfig struct {
 }
 
 func init() {
+	// Prune
+	pflag.Int("prune", 24, "Prune time (hours)")
 	// Logger
 	pflag.String("log.level", "info", "The log level")
 	// Set BTC Network
@@ -93,6 +97,9 @@ func NewDefaultConfig() (*Config, error) {
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, err
+	}
+	if config.PruneTime < 1 {
+		return nil, errors.New("prune time should be > 1 hours")
 	}
 	return &config, nil
 }

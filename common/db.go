@@ -7,22 +7,22 @@ import (
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
-var pruneTime = 1 * time.Hour
-
 type Db struct {
-	db *leveldb.DB
+	db        *leveldb.DB
+	pruneTime time.Duration
 }
 
 func NewDB() *Db {
 	return &Db{}
 }
 
-func (d *Db) Start(path string) error {
+func (d *Db) Start(path string, pruneHours int64) error {
 	db, err := leveldb.OpenFile(path, nil)
 	if err != nil {
 		return err
 	}
 	d.db = db
+	d.pruneTime = time.Duration(pruneHours) * time.Hour
 	return nil
 }
 
@@ -51,7 +51,9 @@ func (d *Db) StoreIdx(id string, tx *Transaction, isReceived bool) error {
 	idxs, _ := d.GetIdxs(addr, isReceived)
 	for _, idx := range idxs {
 		// Prune logic
-		if time.Unix(idx.Timestamp, 0).Add(pruneTime).Unix() < time.Now().Unix() {
+		if time.Unix(idx.Timestamp, 0).Add(d.pruneTime).Unix() < time.Now().Unix() {
+			// Remove tx
+			d.db.Delete([]byte(idx.ID), nil)
 			continue
 		}
 		newIdx = append(newIdx, idx)
@@ -89,30 +91,6 @@ func (d *Db) StoreTx(key string, tx *Transaction) error {
 		return err
 	}
 	err = d.db.Put([]byte(key), data, nil)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (d *Db) GetSelfTxkeys() ([]string, error) {
-	txkeys := []string{}
-	value, err := d.db.Get([]byte("selftxs"), nil)
-	if err != nil {
-		return []string{}, err
-	}
-	json.Unmarshal(value, &txkeys)
-	return txkeys, nil
-}
-
-func (d *Db) StoreSelfTxkeys(txkey string) error {
-	txkeys, _ := d.GetSelfTxkeys()
-	txkeys = append(txkeys, txkey)
-	data, err := json.Marshal(txkeys)
-	if err != nil {
-		return err
-	}
-	err = d.db.Put([]byte("selftxs"), data, nil)
 	if err != nil {
 		return err
 	}
