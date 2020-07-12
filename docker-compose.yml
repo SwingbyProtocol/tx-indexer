@@ -1,6 +1,14 @@
 version: '3.7'
 
 services:
+  indexer:
+    image: indexer
+    volumes:
+      - ./indexer_data:/var/app/.data
+    ports:
+      - "9096:9096"
+    command: ${CMD}
+      
   api-docs:
     image: quay.io/goswagger/swagger
     volumes:
