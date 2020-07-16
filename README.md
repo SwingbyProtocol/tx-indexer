@@ -6,6 +6,13 @@
 
 Tx-indexer is a modular blockchain transaction monitoring tool. the app can monitor send/receive tx for addresses over a specific period, multiple coins are supported and unified in a common tx format.
 
+## Requirements
+
+This app needs fullnodes that fully synced all blocks. there are supporting node.
+
+- bitcoin-core ^v0.18.0 and need to setup rpc endpoint
+- [binance-node](https://github.com/binance-chain/node-binary) ^v0.7.2 
+
 ## API docs
 https://new-testnet-indexer.swingby.network/docs
 
@@ -19,14 +26,14 @@ https://new-testnet-indexer.swingby.network/docs
 $ go run ./cmd/tx-indexer --btc.node http://192.168.1.101:8332 --btc.testnet
 ```
 ## Flags
-```
-      --bnc.node string      The address for connect bnc fullnode (default "tcp://192.168.1.230:26657")
-      --bnc.testnet          This is a bnc testnet
-      --btc.node string      The address for connect btc fullnode (default "http://192.168.1.230:8332")
-      --btc.nodeSize int     The maximum node count for connect p2p (default 25)
-      --btc.testnet          This is a btc testnet
-      --eth.node string      The address for connect eth fullnode (default "http://192.168.1.230:8545")
-      --eth.testnet          This is a eth testnet (Goerli)
+```     
+      --bnc.node string      The address for connect bnc fullnode (default "tcp://192.168.1.146:26657")
+      --bnc.testnet          This is a flag to set testnet-mode on bnc network
+      --btc.node string      The address for connect btc fullnode (default "http://bitcoinrpc:DVnnAgN2vYvgS26UR8lH9QJVgbq5nFerycMuwh8P7Sw@192.168.1.146:18332")
+      --btc.nodeSize int     The maximum node count for connect p2p fullnode (default 25)
+      --btc.testnet          This is a flag to set testnet-mode on btc network
+      --eth.node string      The address for connect eth fullnode (default "http://192.168.1.146:8545")
+      --eth.testnet          This is a flag to set testnet-mode on eth network
       --eth.token string     The token address for watch (default "0xaff4481d10270f50f203e0763e2597776068cbc5")
       --log.level string     The log level (default "info")
       --prune int            Prune time (hours) (default 24)
@@ -45,4 +52,9 @@ $ make build-linux-amd64
 ### Build Docker container
 ```
 $ make docker
+```
+### Run Docker
+```
+$ export CMD={your command} 
+$ docker-compose up -d
 ```

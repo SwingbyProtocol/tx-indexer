@@ -4,7 +4,7 @@ services:
   indexer:
     image: indexer
     volumes:
-      - ./indexer_data:/var/app/.data
+      - ./.data:/var/app/.data
     ports:
       - "9096:9096"
     command: ${CMD}
