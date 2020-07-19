@@ -8,7 +8,7 @@ Tx-indexer is a modular blockchain transaction monitoring tool. the app can moni
 
 ## Requirements
 
-This app needs fullnodes that fully synced all blocks. there are supporting node.
+This app needs full nodes that fully synced all blocks. there are supported nodes.
 
 - bitcoin-core ^v0.18.0 and need to setup rpc endpoint
 - [binance-node](https://github.com/binance-chain/node-binary) ^v0.7.2 

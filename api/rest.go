@@ -19,11 +19,11 @@ func NewREST(conf *APIConfig) *Rest {
 		listen:  conf.ListenREST,
 		actions: conf.Actions,
 	}
-	re.api.Use(&rest.CorsMiddleware{
-		OriginValidator: func(origin string, request *rest.Request) bool {
-			return true
-		},
-	})
+	// re.api.Use(&rest.CorsMiddleware{
+	// 	OriginValidator: func(origin string, request *rest.Request) bool {
+	// 		return true
+	// 	},
+	// })
 	return re
 }
 
