@@ -3,6 +3,7 @@ package bnb
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -17,7 +18,7 @@ import (
 
 const (
 	interval   = 2 * time.Second
-	loadBlocks = 300
+	loadBlocks = 1100
 )
 
 type Keeper struct {
@@ -113,14 +114,17 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) GetTx(w rest.ResponseWriter, r *rest.Request) {
-	txKey := r.URL.Query().Get("tx_key")
+	txHash := r.URL.Query().Get("tx_hash")
 	txs := []common.Transaction{}
-	tx, err := k.db.GetTx(txKey)
-	if err != nil {
-		w.WriteJson(txs)
-		return
+	for i := 0; i <= 10000; i++ {
+		key := fmt.Sprintf("%s;%d;", strings.ToUpper(txHash), i)
+		tx, err := k.db.GetTx(key)
+		if err != nil {
+			w.WriteJson(txs)
+			return
+		}
+		txs = append(txs, *tx)
 	}
-	txs = append(txs, *tx)
 	w.WriteJson(txs)
 }
 
@@ -161,19 +165,6 @@ func (k *Keeper) Start() {
 }
 
 func (k *Keeper) processKeep() {
-	// resultStatus, err := k.client.Status()
-	// if err != nil {
-	// 	log.Info(err)
-	// 	return
-	// }
-	// if resultStatus.SyncInfo.CatchingUp {
-	// 	// Still sync
-	// 	log.Debugf("bnb chain still syncing...")
-	// }
-	// if resultStatus.SyncInfo.LatestBlockHeight == 0 {
-	// 	log.Warnf("Sync info latest block height is zero")
-	// 	return
-	// }
 	maxHeight, _, err := k.client.GetLatestBlockHeight()
 	if err != nil {
 		log.Error(err)

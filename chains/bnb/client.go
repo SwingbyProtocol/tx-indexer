@@ -70,29 +70,33 @@ func (c *Client) ResultBlockToComTxs(resultTxSearch *rpc.ResultTxSearch, maxHeig
 				if len(realMsg.Inputs) != 1 {
 					continue
 				}
-				for i, output := range realMsg.Outputs {
+				index := 0
+				for _, output := range realMsg.Outputs {
 					//if output.Coins[0].Denom != "BTC.B-888" {
 					//	continue
 					//}
-					amount, err := common.NewAmountFromInt64(output.Coins[0].Amount)
-					if err != nil {
-						log.Info(err)
-						continue
+					for _, coin := range output.Coins {
+						amount, err := common.NewAmountFromInt64(coin.Amount)
+						if err != nil {
+							log.Info(err)
+							continue
+						}
+						currency := common.NewSymbol(coin.Denom, 8)
+						newTx := common.Transaction{
+							TxID:        txData.Hash.String(),
+							From:        realMsg.Inputs[0].Address.String(),
+							To:          output.Address.String(),
+							Amount:      amount,
+							Currency:    currency,
+							Height:      thisHeight,
+							Memo:        txbase.Memo,
+							Spent:       false,
+							OutputIndex: index,
+							Timestamp:   time.Time{},
+						}
+						index++
+						newTxs = append(newTxs, newTx)
 					}
-					currency := common.NewSymbol(output.Coins[0].Denom, 8)
-					newTx := common.Transaction{
-						TxID:        txData.Hash.String(),
-						From:        realMsg.Inputs[0].Address.String(),
-						To:          output.Address.String(),
-						Amount:      amount,
-						Currency:    currency,
-						Height:      thisHeight,
-						Memo:        txbase.Memo,
-						Spent:       false,
-						OutputIndex: i,
-						Timestamp:   time.Time{},
-					}
-					newTxs = append(newTxs, newTx)
 				}
 			}
 		}
