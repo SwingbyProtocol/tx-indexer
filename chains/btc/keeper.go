@@ -26,8 +26,13 @@ type Keeper struct {
 	ticker     *time.Ticker
 	tesnet     bool
 	db         *common.Db
-	mempoolTxs map[string]common.Transaction
+	mempoolTxs map[string]MempoolTx
 	topHeight  int64
+}
+
+type MempoolTx struct {
+	common.Transaction
+	end time.Time
 }
 
 func NewKeeper(url string, isTestnet bool, dirPath string, pruneTime int64) *Keeper {
@@ -45,7 +50,7 @@ func NewKeeper(url string, isTestnet bool, dirPath string, pruneTime int64) *Kee
 		client:     c,
 		tesnet:     isTestnet,
 		db:         newDB,
-		mempoolTxs: make(map[string]common.Transaction),
+		mempoolTxs: make(map[string]MempoolTx),
 	}
 	return k
 }
@@ -86,7 +91,7 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	mempoolTxs := common.Txs{}
 	k.mu.Lock()
 	for _, tx := range k.mempoolTxs {
-		mempoolTxs = append(mempoolTxs, tx)
+		mempoolTxs = append(mempoolTxs, tx.Transaction)
 	}
 	k.mu.Unlock()
 	k.mu.RLock()
@@ -112,7 +117,7 @@ func (k *Keeper) GetTx(w rest.ResponseWriter, r *rest.Request) {
 		// Check mempool
 		k.mu.RLock()
 		if _, ok := k.mempoolTxs[key]; ok {
-			txs = append(txs, k.mempoolTxs[key])
+			txs = append(txs, k.mempoolTxs[key].Transaction)
 			k.mu.RUnlock()
 			continue
 		}
@@ -148,6 +153,7 @@ func (k *Keeper) processKeep() {
 	k.topHeight = topHeight
 	log.Infof("BTC txs scanning done -> txs: %d mempool: %d", len(txs), len(k.mempoolTxs))
 	k.mu.Unlock()
+	k.UpdateMempool()
 }
 
 func (k *Keeper) StoreTxs(txs []common.Transaction) {
@@ -159,11 +165,27 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		k.db.StoreTx(tx.Serialize(), &tx)
 		k.db.StoreIdx(tx.Serialize(), &tx, true)
 		k.db.StoreIdx(tx.Serialize(), &tx, false)
-		k.UpdateMempool(&tx)
+		k.RemoveMempoolTx(&tx)
 	}
 }
 
-func (k *Keeper) UpdateMempool(tx *common.Transaction) {
+func (k *Keeper) UpdateMempool() {
+	keys := []string{}
+	k.mu.RLock()
+	for _, memTx := range k.mempoolTxs {
+		if memTx.end.Unix() < time.Now().Unix() {
+			keys = append(keys, memTx.Serialize())
+		}
+	}
+	k.mu.RUnlock()
+	for _, key := range keys {
+		k.mu.Lock()
+		delete(k.mempoolTxs, key)
+		k.mu.Unlock()
+	}
+}
+
+func (k *Keeper) RemoveMempoolTx(tx *common.Transaction) {
 	go func() {
 		k.mu.Lock()
 		if _, ok := k.mempoolTxs[tx.Serialize()]; ok {
@@ -225,7 +247,7 @@ func (k *Keeper) StartNode() {
 			tx := <-txChan
 			// Set now time
 			go func() {
-				time.Sleep(10 * time.Second)
+				time.Sleep(11 * time.Second)
 				commonTxs := k.client.TxtoCommonTx(*tx, k.tesnet)
 				if len(commonTxs) == 0 {
 					log.Warn("len(commonTxs) == 0. Something wrong on the pending tx")
@@ -233,7 +255,7 @@ func (k *Keeper) StartNode() {
 				}
 				for _, tx := range commonTxs {
 					k.mu.Lock()
-					k.mempoolTxs[tx.Serialize()] = tx
+					k.mempoolTxs[tx.Serialize()] = MempoolTx{tx, time.Now().Add(30 * time.Minute)}
 					k.mu.Unlock()
 				}
 			}()
