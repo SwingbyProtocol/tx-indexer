@@ -164,17 +164,15 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 }
 
 func (k *Keeper) UpdateMempool(tx *common.Transaction) {
-	k.mu.Lock()
-	defer k.mu.Unlock()
-	if _, ok := k.mempoolTxs[tx.Serialize()]; ok {
-		// Even if the tx is mined, tx is still exist on the mempool until prune time expired.
-		go func() {
+	go func() {
+		k.mu.Lock()
+		if _, ok := k.mempoolTxs[tx.Serialize()]; ok {
+			// Even if the tx is mined, tx is still exist on the mempool until prune time expired.
 			//time.Sleep(30 * time.Minute)
-			k.mu.Lock()
 			delete(k.mempoolTxs, tx.Serialize())
-			k.mu.Unlock()
-		}()
-	}
+		}
+		k.mu.Unlock()
+	}()
 }
 
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
