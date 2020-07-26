@@ -1,7 +1,9 @@
 package btc
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -10,20 +12,18 @@ import (
 	"github.com/SwingbyProtocol/tx-indexer/common"
 	"github.com/SwingbyProtocol/tx-indexer/utils"
 	"github.com/ant0ine/go-json-rest/rest"
-	"github.com/btcsuite/btcutil"
 	log "github.com/sirupsen/logrus"
 )
 
 const (
 	interval   = 30 * time.Second
-	loadBlocks = 10
+	loadBlocks = 3
 )
 
 type Keeper struct {
 	mu         *sync.RWMutex
 	client     *Client
 	ticker     *time.Ticker
-	watchAddr  btcutil.Address
 	tesnet     bool
 	db         *common.Db
 	mempoolTxs map[string]common.Transaction
@@ -104,6 +104,29 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	k.mu.RUnlock()
 }
 
+func (k *Keeper) GetTx(w rest.ResponseWriter, r *rest.Request) {
+	txHash := r.URL.Query().Get("tx_hash")
+	txs := []common.Transaction{}
+	for i := 0; i <= 10000; i++ {
+		key := fmt.Sprintf("%s;%d;", strings.ToLower(txHash), i)
+		// Check mempool
+		k.mu.RLock()
+		if _, ok := k.mempoolTxs[key]; ok {
+			txs = append(txs, k.mempoolTxs[key])
+			k.mu.RUnlock()
+			continue
+		}
+		k.mu.RUnlock()
+		tx, err := k.db.GetTx(key)
+		if err != nil {
+			w.WriteJson(txs)
+			return
+		}
+		txs = append(txs, *tx)
+	}
+	w.WriteJson(txs)
+}
+
 func (k *Keeper) Start() {
 	k.ticker = time.NewTicker(interval)
 	k.processKeep()
@@ -119,7 +142,7 @@ func (k *Keeper) Start() {
 }
 
 func (k *Keeper) processKeep() {
-	topHeight, txs := k.client.GetBlockTxs(true, loadBlocks)
+	topHeight, txs := k.client.GetBlockTxs(k.tesnet, loadBlocks)
 	k.StoreTxs(txs)
 	k.mu.Lock()
 	k.topHeight = topHeight
@@ -146,7 +169,7 @@ func (k *Keeper) UpdateMempool(tx *common.Transaction) {
 	if _, ok := k.mempoolTxs[tx.Serialize()]; ok {
 		// Even if the tx is mined, tx is still exist on the mempool until prune time expired.
 		go func() {
-			time.Sleep(30 * time.Minute)
+			//time.Sleep(30 * time.Minute)
 			k.mu.Lock()
 			delete(k.mempoolTxs, tx.Serialize())
 			k.mu.Unlock()
@@ -204,10 +227,11 @@ func (k *Keeper) StartNode() {
 			tx := <-txChan
 			// Set now time
 			go func() {
-				time.Sleep(7 * time.Second)
+				time.Sleep(10 * time.Second)
 				commonTxs := k.client.TxtoCommonTx(*tx, k.tesnet)
 				if len(commonTxs) == 0 {
 					log.Warn("len(commonTxs) == 0. Something wrong on the pending tx")
+					return
 				}
 				for _, tx := range commonTxs {
 					k.mu.Lock()

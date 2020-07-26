@@ -73,13 +73,13 @@ func main() {
 		// BNB side
 		getBNBTxs := api.NewGet("/api/v1/bnb/txs", bnbKeeper.GetTxs)
 		getBNBTx := api.NewGet("/api/v1/bnb/tx", bnbKeeper.GetTx)
-		getMemoTxs := api.NewGet("/api/v1/bnb/memo_txs", bnbKeeper.GetMemoTxs)
+		//getMemoTxs := api.NewGet("/api/v1/bnb/memo_txs", bnbKeeper.GetMemoTxs)
 		//getSelfSendTxs := api.NewGet("/api/v1/bnb/self", bnbKeeper.GetSelfSendTxs)
 		broadcastBNBTx := api.NewPOST("/api/v1/bnb/broadcast", bnbKeeper.BroadcastTx)
 
 		apiConfig.Actions = append(apiConfig.Actions, getBNBTxs)
 		apiConfig.Actions = append(apiConfig.Actions, getBNBTx)
-		apiConfig.Actions = append(apiConfig.Actions, getMemoTxs)
+		//apiConfig.Actions = append(apiConfig.Actions, getMemoTxs)
 		//apiConfig.Actions = append(apiConfig.Actions, getSelfSendTxs)
 		apiConfig.Actions = append(apiConfig.Actions, broadcastBNBTx)
 	}
@@ -106,8 +106,10 @@ func main() {
 		btcKeeper = btc.NewKeeper(conf.BTCConfig.NodeAddr, conf.BTCConfig.Testnet, ".data/btc", conf.PruneTime)
 
 		getBTCTxs := api.NewGet("/api/v1/btc/txs", btcKeeper.GetTxs)
+		getBTCTx := api.NewGet("/api/v1/btc/tx", btcKeeper.GetTx)
 		broadcastBTCTx := api.NewPOST("/api/v1/btc/broadcast", btcKeeper.BroadcastTx)
 
+		apiConfig.Actions = append(apiConfig.Actions, getBTCTx)
 		apiConfig.Actions = append(apiConfig.Actions, getBTCTxs)
 		apiConfig.Actions = append(apiConfig.Actions, broadcastBTCTx)
 	}
