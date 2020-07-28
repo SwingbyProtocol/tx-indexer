@@ -1,6 +1,7 @@
 package btc
 
 import (
+	"errors"
 	"net/url"
 	"sync"
 
@@ -16,6 +17,7 @@ import (
 const (
 	TxTypeReceived = "receive"
 	TxTypeSend     = "send"
+	MinMempoolFees = int64(300)
 )
 
 type Client struct {
@@ -52,24 +54,17 @@ func NewBtcClient(path string) (*Client, error) {
 	return &Client{client, u, new(sync.RWMutex), nil, make(map[string]string)}, err
 }
 
-func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []common.Transaction) {
+func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []types.Tx) {
 	info, err := c.GetBlockChainInfo()
 	if err != nil {
 		log.Error(err)
-		return 0, []common.Transaction{}
+		return 0, []types.Tx{}
 	}
 	if info.Blocks == 0 {
-		return 0, []common.Transaction{}
+		return 0, []types.Tx{}
 	}
 	hash, _ := chainhash.NewHashFromStr(info.BestBlockHash)
-	rawTxs := c.GetTxs([]types.Tx{}, hash, int64(info.Blocks), depth, testNet)
-	txs := []common.Transaction{}
-	for _, tx := range rawTxs {
-		commonTxs := c.TxtoCommonTx(tx, testNet)
-		for _, comTx := range commonTxs {
-			txs = append(txs, comTx)
-		}
-	}
+	txs := c.GetTxs([]types.Tx{}, hash, int64(info.Blocks), depth, testNet)
 	return int64(info.Blocks), txs
 }
 
@@ -83,9 +78,18 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 	if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
 		return txs
 	}
-	from, err := c.getFirstVinAddr(tx.Txid, tx.Vin, testNet)
+	froms, fees, err := c.getVinAddrsAndFees(tx.Txid, tx.Vin, tx.Vout, testNet)
 	if err != nil {
 		return txs
+	}
+	// Except mempool tx that hasn't minimum fees
+	if fees <= MinMempoolFees && tx.Height == int64(0) {
+		log.Warnf("Tx fees insufficient actual:%d expected >= %d", fees, MinMempoolFees)
+		return txs
+	}
+	time := tx.Receivedtime
+	if tx.Height != int64(0) {
+		time = tx.MinedTime
 	}
 	for _, vout := range tx.Vout {
 		amount, err := common.NewAmountFromInt64(vout.Value)
@@ -97,13 +101,9 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 		if len(vout.Addresses) == 0 {
 			continue
 		}
-		time := tx.Receivedtime
-		if tx.Height != int64(0) {
-			time = tx.MinedTime
-		}
 		tx := common.Transaction{
 			TxID:        tx.Txid,
-			From:        from,
+			From:        froms[0],
 			To:          vout.Addresses[0],
 			Amount:      amount,
 			Currency:    common.BTC,
@@ -141,23 +141,29 @@ func (c *Client) GetTxs(txs []types.Tx, hash *chainhash.Hash, height int64, dept
 	return c.GetTxs(txs, &block.Header.PrevBlock, height, depth, testNet)
 }
 
-func (c *Client) getFirstVinAddr(txid string, vin []*types.Vin, testNet bool) (string, error) {
-	c.mu.Lock()
-	from := c.vinAddress[txid]
-	c.mu.Unlock()
-	if from != "" {
-		return from, nil
+func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types.Vout, testNet bool) ([]string, int64, error) {
+	if len(vin) == 0 {
+		return []string{}, 0, errors.New("fetch error of input txs")
 	}
-	inTx0, err := c.GetTxByTxID(vin[0].Txid, testNet)
-	if err != nil {
-		log.Warnf("%s tx: %s vin0: %s", err.Error(), txid, vin[0].Txid)
-		return "", err
+	targets := []string{}
+	vinTotal := int64(0)
+	for _, in := range vin {
+		inTx, err := c.GetTxByTxID(in.Txid, testNet)
+		if err != nil {
+			log.Warnf("%s vin: %s", err.Error(), in.Txid)
+			return []string{}, 0, errors.New("fetch input tx error")
+		}
+		target := inTx.Vout[in.Vout]
+		inAddress := target.Addresses[0]
+		targets = append(targets, inAddress)
+		vinTotal += target.Value
 	}
-	addr := inTx0.Vout[vin[0].Vout].Addresses[0]
-	c.mu.Lock()
-	c.vinAddress[txid] = addr
-	c.mu.Unlock()
-	return addr, nil
+	voutTotal := int64(0)
+	for _, vout := range vout {
+		voutTotal += vout.Value
+	}
+	fees := vinTotal - voutTotal
+	return targets, fees, nil
 }
 
 func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {

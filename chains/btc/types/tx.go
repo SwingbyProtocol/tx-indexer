@@ -1,6 +1,8 @@
 package types
 
-import "time"
+import (
+	"time"
+)
 
 type Tx struct {
 	Txid         string    `json:"txid"`

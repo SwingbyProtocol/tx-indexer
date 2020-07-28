@@ -147,7 +147,29 @@ func (k *Keeper) Start() {
 }
 
 func (k *Keeper) processKeep() {
-	topHeight, txs := k.client.GetBlockTxs(k.tesnet, loadBlocks)
+	topHeight, rawTxs := k.client.GetBlockTxs(k.tesnet, loadBlocks)
+	txs := []common.Transaction{}
+	for _, tx := range rawTxs {
+		// if index == 0 {
+		// 	// coinbase tx
+		// 	continue
+		// }
+		isNew := false
+		for i := range tx.Vout {
+			// coinbse tx
+			key := fmt.Sprintf("%s;%d;", tx.Txid, i)
+			_, err := k.db.GetTx(key)
+			if err != nil {
+				isNew = true
+			}
+		}
+		if isNew {
+			commonTxs := k.client.TxtoCommonTx(tx, k.tesnet)
+			for _, comTx := range commonTxs {
+				txs = append(txs, comTx)
+			}
+		}
+	}
 	k.StoreTxs(txs)
 	k.mu.Lock()
 	k.topHeight = topHeight
@@ -247,10 +269,9 @@ func (k *Keeper) StartNode() {
 			tx := <-txChan
 			// Set now time
 			go func() {
-				time.Sleep(11 * time.Second)
+				time.Sleep(5 * time.Second)
 				commonTxs := k.client.TxtoCommonTx(*tx, k.tesnet)
 				if len(commonTxs) == 0 {
-					log.Warn("len(commonTxs) == 0. Something wrong on the pending tx")
 					return
 				}
 				for _, tx := range commonTxs {
