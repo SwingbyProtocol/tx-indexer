@@ -22,8 +22,6 @@ var (
 	DefaultNodeAddTimes = 4
 
 	DefaultNodeTimeout = 5 * time.Second
-
-	DefaultNodeRankSize = uint64(300)
 )
 
 type NodeConfig struct {
@@ -87,10 +85,9 @@ func NewNode(config *NodeConfig) *Node {
 	if config.IsTestnet {
 		node.peerConfig.ChainParams = &chaincfg.TestNet3Params
 		DefaultNodeAddTimes = 16
-		DefaultNodeRankSize = 100
 	}
 	log.Infof("Using network -> %s", node.peerConfig.ChainParams.Net.String())
-	log.Infof("Using settings -> DefaultNodeAddTimes: %d DefaultNodeRankSize: %d TargetOutbound %d", DefaultNodeAddTimes, DefaultNodeRankSize, node.targetOutbound)
+	log.Infof("Using settings -> DefaultNodeAddTimes: %d TargetOutbound %d", DefaultNodeAddTimes, node.targetOutbound)
 	return node
 }
 

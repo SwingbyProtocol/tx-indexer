@@ -84,7 +84,7 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 	}
 	// Except mempool tx that hasn't minimum fees
 	if fees <= MinMempoolFees && tx.Height == int64(0) {
-		log.Warnf("Tx fees insufficient actual:%d expected >= %d", fees, MinMempoolFees)
+		log.Warnf("Skip because Tx: %s fees insufficient actual:%d expected >= %d", tx.Txid, fees, MinMempoolFees)
 		return txs
 	}
 	time := tx.Receivedtime

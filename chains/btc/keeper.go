@@ -184,10 +184,10 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		if err == nil {
 			continue
 		}
+		k.RemoveMempoolTx(&tx)
 		k.db.StoreTx(tx.Serialize(), &tx)
 		k.db.StoreIdx(tx.Serialize(), &tx, true)
 		k.db.StoreIdx(tx.Serialize(), &tx, false)
-		k.RemoveMempoolTx(&tx)
 	}
 }
 
@@ -209,12 +209,10 @@ func (k *Keeper) UpdateMempool() {
 
 func (k *Keeper) RemoveMempoolTx(tx *common.Transaction) {
 	go func() {
+		// Even if the tx is mined, tx is still exist on the mempool until prune time expired.
+		time.Sleep(3 * time.Second)
 		k.mu.Lock()
-		if _, ok := k.mempoolTxs[tx.Serialize()]; ok {
-			// Even if the tx is mined, tx is still exist on the mempool until prune time expired.
-			//time.Sleep(30 * time.Minute)
-			delete(k.mempoolTxs, tx.Serialize())
-		}
+		delete(k.mempoolTxs, tx.Serialize())
 		k.mu.Unlock()
 	}()
 }
