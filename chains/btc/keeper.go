@@ -170,12 +170,14 @@ func (k *Keeper) processKeep() {
 			}
 		}
 	}
+	k.UpdateMempool()
 	k.StoreTxs(txs)
 	k.mu.Lock()
 	k.topHeight = topHeight
-	log.Infof("BTC txs scanning done -> txs: %d mempool: %d", len(txs), len(k.mempoolTxs))
 	k.mu.Unlock()
-	k.UpdateMempool()
+	k.mu.RLock()
+	log.Infof("BTC txs scanning done -> txs: %d mempool: %d", len(txs), len(k.mempoolTxs))
+	k.mu.RUnlock()
 }
 
 func (k *Keeper) StoreTxs(txs []common.Transaction) {
@@ -184,10 +186,10 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		if err == nil {
 			continue
 		}
-		k.RemoveMempoolTx(&tx)
 		k.db.StoreTx(tx.Serialize(), &tx)
 		k.db.StoreIdx(tx.Serialize(), &tx, true)
 		k.db.StoreIdx(tx.Serialize(), &tx, false)
+		k.RemoveMempoolTx(&tx)
 	}
 }
 
@@ -210,7 +212,7 @@ func (k *Keeper) UpdateMempool() {
 func (k *Keeper) RemoveMempoolTx(tx *common.Transaction) {
 	go func() {
 		// Even if the tx is mined, tx is still exist on the mempool until prune time expired.
-		time.Sleep(3 * time.Second)
+		//time.Sleep(3 * time.Second)
 		k.mu.Lock()
 		delete(k.mempoolTxs, tx.Serialize())
 		k.mu.Unlock()

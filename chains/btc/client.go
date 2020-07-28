@@ -71,7 +71,7 @@ func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []types.Tx) {
 func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 	txs := []common.Transaction{}
 	if len(tx.Vin) == 0 {
-		log.Errorf("Tx has no input id:%s", tx.Txid)
+		log.Errorf("Tx has no input id: %s", tx.Txid)
 		return txs
 	}
 	// Avoid coinbase transaction
@@ -84,7 +84,7 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 	}
 	// Except mempool tx that hasn't minimum fees
 	if fees <= MinMempoolFees && tx.Height == int64(0) {
-		log.Warnf("Skip because Tx: %s fees insufficient actual:%d expected >= %d", tx.Txid, fees, MinMempoolFees)
+		log.Warnf("Skip because Tx: %s fees insufficient fees: %d expected >= %d", tx.Txid, fees, MinMempoolFees)
 		return txs
 	}
 	time := tx.Receivedtime
@@ -143,7 +143,7 @@ func (c *Client) GetTxs(txs []types.Tx, hash *chainhash.Hash, height int64, dept
 
 func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types.Vout, testNet bool) ([]string, int64, error) {
 	if len(vin) == 0 {
-		return []string{}, 0, errors.New("fetch error of input txs")
+		return []string{}, 0, errors.New("vin is not exist")
 	}
 	targets := []string{}
 	vinTotal := int64(0)
@@ -151,7 +151,7 @@ func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types
 		inTx, err := c.GetTxByTxID(in.Txid, testNet)
 		if err != nil {
 			log.Warnf("%s vin: %s", err.Error(), in.Txid)
-			return []string{}, 0, errors.New("fetch input tx error")
+			return []string{}, 0, errors.New("fetch error of input txs")
 		}
 		target := inTx.Vout[in.Vout]
 		inAddress := target.Addresses[0]
