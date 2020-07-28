@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	DefualtNodeBootstrapCount = 25
+	DefualtNodeBootstrapCount = 17
 
 	DefaultNodeAddTimes = 4
 
@@ -86,7 +86,6 @@ func NewNode(config *NodeConfig) *Node {
 		node.peerConfig.ChainParams = &chaincfg.TestNet3Params
 		DefaultNodeAddTimes = 16
 	}
-	DefualtNodeBootstrapCount = int(node.targetOutbound)
 	log.Infof("Using network -> %s", node.peerConfig.ChainParams.Net.String())
 	log.Infof("Using settings -> DefaultNodeAddTimes: %d TargetOutbound %d", DefaultNodeAddTimes, node.targetOutbound)
 	return node
