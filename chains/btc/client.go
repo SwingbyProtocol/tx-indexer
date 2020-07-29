@@ -150,7 +150,7 @@ func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types
 	for _, in := range vin {
 		inTx, err := c.GetTxByTxID(in.Txid, testNet)
 		if err != nil {
-			log.Warnf("%s vin: %s", err.Error(), in.Txid)
+			log.Debugf("%s vin: %s", err.Error(), in.Txid)
 			return []string{}, 0, errors.New("fetch error of input txs")
 		}
 		target := inTx.Vout[in.Vout]
