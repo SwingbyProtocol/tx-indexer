@@ -26,7 +26,7 @@ type Keeper struct {
 	ticker     *time.Ticker
 	tesnet     bool
 	db         *common.Db
-	mempoolTxs map[string]MempoolTx
+	mempoolTxs map[string]bool
 	topHeight  int64
 }
 
@@ -50,7 +50,7 @@ func NewKeeper(url string, isTestnet bool, dirPath string, pruneTime int64) *Kee
 		client:     c,
 		tesnet:     isTestnet,
 		db:         newDB,
-		mempoolTxs: make(map[string]MempoolTx),
+		mempoolTxs: make(map[string]bool),
 	}
 	return k
 }
@@ -88,17 +88,12 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 		}
 		outTxs = append(outTxs, *tx)
 	}
-	mempoolTxs := common.Txs{}
-	k.mu.Lock()
-	for _, tx := range k.mempoolTxs {
-		mempoolTxs = append(mempoolTxs, tx.Transaction)
-	}
-	k.mu.Unlock()
+	mempoolTxs, _ := k.db.GetMempoolTxs(watch)
 	k.mu.RLock()
 	w.WriteJson(common.TxResponse{
 		LatestHeight:  k.topHeight,
-		InTxsMempool:  mempoolTxs.Sort().ReceiveMempool(watch).Page(pageNum, limitNum),
-		OutTxsMempool: mempoolTxs.Sort().SendMempool(watch).Page(pageNum, limitNum),
+		InTxsMempool:  common.Txs(mempoolTxs).Sort().ReceiveMempool(watch).Page(pageNum, limitNum),
+		OutTxsMempool: common.Txs(mempoolTxs).Sort().Sort().SendMempool(watch).Page(pageNum, limitNum),
 		InTxs:         inTxs.Sort().Page(pageNum, limitNum),
 		OutTxs:        outTxs.Sort().Page(pageNum, limitNum),
 		Response: common.Response{
@@ -117,7 +112,7 @@ func (k *Keeper) GetTx(w rest.ResponseWriter, r *rest.Request) {
 		// Check mempool
 		k.mu.RLock()
 		if _, ok := k.mempoolTxs[key]; ok {
-			txs = append(txs, k.mempoolTxs[key].Transaction)
+			//txs = append(txs, k.mempoolTxs[key].Transaction)
 			k.mu.RUnlock()
 			continue
 		}
@@ -144,6 +139,15 @@ func (k *Keeper) Start() {
 			}
 		}
 	}()
+	memPoolChecker := time.NewTicker(2 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-memPoolChecker.C:
+				k.UpdateMemPoolTxs()
+			}
+		}
+	}()
 }
 
 func (k *Keeper) processKeep() {
@@ -164,13 +168,12 @@ func (k *Keeper) processKeep() {
 			}
 		}
 		if isNew {
-			commonTxs := k.client.TxtoCommonTx(tx, k.tesnet)
+			commonTxs, _ := k.client.TxtoCommonTx(tx, k.tesnet)
 			for _, comTx := range commonTxs {
 				txs = append(txs, comTx)
 			}
 		}
 	}
-	k.UpdateMempool()
 	k.StoreTxs(txs)
 	k.mu.Lock()
 	k.topHeight = topHeight
@@ -189,36 +192,36 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 		k.db.StoreTx(tx.Serialize(), &tx)
 		k.db.StoreIdx(tx.Serialize(), &tx, true)
 		k.db.StoreIdx(tx.Serialize(), &tx, false)
-		k.RemoveMempoolTx(tx)
 	}
 }
 
-func (k *Keeper) UpdateMempool() {
-	keys := []string{}
-	k.mu.RLock()
-	for _, memTx := range k.mempoolTxs {
-		if memTx.end.Unix() < time.Now().Unix() {
-			keys = append(keys, memTx.Serialize())
+func (k *Keeper) UpdateMemPoolTxs() {
+	for txid := range k.mempoolTxs {
+		tx, err := k.client.GetTxByTxID(txid, k.tesnet)
+		if err != nil {
+			log.Warn(err)
+			continue
 		}
-	}
-	k.mu.RUnlock()
-	for _, key := range keys {
+		commonTxs, err := k.client.TxtoCommonTx(*tx, k.tesnet)
+		if err != nil {
+			log.Warn(err)
+			k.mu.Lock()
+			delete(k.mempoolTxs, txid)
+			k.mu.Unlock()
+			continue
+		}
+		if len(commonTxs) == 0 {
+			continue
+		}
+		for _, commTx := range commonTxs {
+			k.db.AddMempoolTxs(commTx.From, commTx)
+			k.db.AddMempoolTxs(commTx.To, commTx)
+		}
 		k.mu.Lock()
-		delete(k.mempoolTxs, key)
+		delete(k.mempoolTxs, txid)
 		k.mu.Unlock()
 	}
 }
-
-func (k *Keeper) RemoveMempoolTx(tx common.Transaction) {
-	go func() {
-		// Even if the tx is mined, tx is still exist on the mempool until prune time expired.
-		time.Sleep(2 * time.Second)
-		k.mu.Lock()
-		delete(k.mempoolTxs, tx.Serialize())
-		k.mu.Unlock()
-	}()
-}
-
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 	req := common.BroadcastParams{}
 	res := common.BroadcastResponse{}
@@ -267,19 +270,9 @@ func (k *Keeper) StartNode() {
 	go func() {
 		for {
 			tx := <-txChan
-			// Set now time
-			go func() {
-				time.Sleep(5 * time.Second)
-				commonTxs := k.client.TxtoCommonTx(*tx, k.tesnet)
-				if len(commonTxs) == 0 {
-					return
-				}
-				for _, tx := range commonTxs {
-					k.mu.Lock()
-					k.mempoolTxs[tx.Serialize()] = MempoolTx{tx, time.Now().Add(30 * time.Minute)}
-					k.mu.Unlock()
-				}
-			}()
+			k.mu.Lock()
+			k.mempoolTxs[tx.Txid] = true
+			k.mu.Unlock()
 		}
 	}()
 }

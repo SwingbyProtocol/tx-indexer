@@ -94,6 +94,70 @@ func (d *Db) StoreTx(key string, tx *Transaction) error {
 	if err != nil {
 		return err
 	}
+	// mempool check
+	txs, _ := d.GetMempoolTxs(tx.From)
+	newTxs := []Transaction{}
+	for _, mempoolTx := range txs {
+		if mempoolTx.Serialize() == tx.Serialize() {
+			continue
+		}
+		newTxs = append(newTxs, mempoolTx)
+	}
+	d.StoreMempoolTxs(tx.From, newTxs)
+	txs, _ = d.GetMempoolTxs(tx.To)
+	newTxs = []Transaction{}
+	for _, mempoolTx := range txs {
+		if mempoolTx.Serialize() == tx.Serialize() {
+			continue
+		}
+		newTxs = append(newTxs, mempoolTx)
+	}
+	d.StoreMempoolTxs(tx.To, newTxs)
+	return nil
+}
+
+func (d *Db) GetMempoolTxs(addr string) ([]Transaction, error) {
+	txs := []Transaction{}
+	txJsons := []TxJSON{}
+	value, err := d.db.Get([]byte("mempool_"+addr), nil)
+	if err != nil {
+		return txs, err
+	}
+	json.Unmarshal(value, &txJsons)
+	for _, j := range txJsons {
+		tx, _ := j.ToCommTx()
+		txs = append(txs, tx)
+	}
+	return txs, nil
+}
+
+func (d *Db) AddMempoolTxs(addr string, tx Transaction) error {
+	txs, _ := d.GetMempoolTxs(addr)
+	isNew := true
+	for _, loadTx := range txs {
+		if loadTx.Serialize() == tx.Serialize() {
+			isNew = false
+		}
+	}
+	if isNew {
+		txs = append(txs, tx)
+	}
+	err := d.StoreMempoolTxs(addr, txs)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (d *Db) StoreMempoolTxs(addr string, txs []Transaction) error {
+	data, err := json.Marshal(txs)
+	if err != nil {
+		return err
+	}
+	err = d.db.Put([]byte("mempool_"+addr), data, nil)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

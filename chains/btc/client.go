@@ -2,6 +2,7 @@ package btc
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"sync"
 
@@ -68,24 +69,23 @@ func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []types.Tx) {
 	return int64(info.Blocks), txs
 }
 
-func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
+func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) ([]common.Transaction, error) {
 	txs := []common.Transaction{}
 	if len(tx.Vin) == 0 {
-		log.Errorf("Tx has no input id: %s", tx.Txid)
-		return txs
+		return txs, errors.New("Tx has no input :" + tx.Txid)
 	}
 	// Avoid coinbase transaction
 	if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
-		return txs
+		return txs, nil
 	}
 	froms, fees, err := c.getVinAddrsAndFees(tx.Txid, tx.Vin, tx.Vout, testNet)
 	if err != nil {
-		return txs
+		return txs, nil
 	}
 	// Except mempool tx that hasn't minimum fees
 	if fees <= MinMempoolFees && tx.Height == int64(0) {
-		log.Warnf("Skip because Tx: %s fees insufficient fees: %d expected >= %d", tx.Txid, fees, MinMempoolFees)
-		return txs
+		text := fmt.Sprintf("Skip because Tx: %s fees insufficient fees: %d expected >= %d", tx.Txid, fees, MinMempoolFees)
+		return txs, errors.New(text)
 	}
 	time := tx.Receivedtime
 	if tx.Height != int64(0) {
@@ -94,7 +94,7 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 	for _, vout := range tx.Vout {
 		amount, err := common.NewAmountFromInt64(vout.Value)
 		if err != nil {
-			log.Info(err)
+			log.Warn(err)
 			continue
 		}
 		// Check script
@@ -114,7 +114,7 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) []common.Transaction {
 		}
 		txs = append(txs, tx)
 	}
-	return txs
+	return txs, nil
 }
 
 func (c *Client) GetTxs(txs []types.Tx, hash *chainhash.Hash, height int64, depth int, testNet bool) []types.Tx {

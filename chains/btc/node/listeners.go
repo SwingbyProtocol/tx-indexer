@@ -86,12 +86,6 @@ func (node *Node) onInv(p *peer.Peer, msg *wire.MsgInv) {
 }
 
 func (node *Node) onTx(p *peer.Peer, msg *wire.MsgTx) {
-	// Update node rank
-	txHash := msg.TxHash().String()
-	if node.isReceived(txHash) {
-		return
-	}
-	node.addReceived(txHash)
 	tx := utils.MsgTxToTx(msg, node.peerConfig.ChainParams)
 	go func() {
 		node.txChan <- &tx
@@ -139,25 +133,4 @@ func (node *Node) onDisconneted(p *peer.Peer, conn net.Conn) {
 	delete(node.connectedPeers, conn.RemoteAddr().String())
 	node.mu.Unlock()
 	log.Infof("Peer %s disconnected", p)
-}
-
-func (node *Node) addReceived(hash string) {
-	node.mu.Lock()
-	node.receivedTxs[hash] = true
-	node.mu.Unlock()
-	go func() {
-		time.Sleep(4 * time.Minute)
-		node.mu.Lock()
-		delete(node.receivedTxs, hash)
-		node.mu.Unlock()
-	}()
-}
-
-func (node *Node) isReceived(hash string) bool {
-	node.mu.RLock()
-	defer node.mu.RUnlock()
-	if node.receivedTxs[hash] {
-		return true
-	}
-	return false
 }
