@@ -199,12 +199,11 @@ func (k *Keeper) UpdateMemPoolTxs() {
 	for txid := range k.mempoolTxs {
 		tx, err := k.client.GetTxByTxID(txid, k.tesnet)
 		if err != nil {
-			log.Warn(err)
+			log.Debug(err)
 			continue
 		}
 		commonTxs, err := k.client.TxtoCommonTx(*tx, k.tesnet)
 		if err != nil {
-			log.Warn(err)
 			k.mu.Lock()
 			delete(k.mempoolTxs, txid)
 			k.mu.Unlock()

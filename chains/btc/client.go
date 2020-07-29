@@ -80,6 +80,7 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) ([]common.Transaction, 
 	}
 	froms, fees, err := c.getVinAddrsAndFees(tx.Txid, tx.Vin, tx.Vout, testNet)
 	if err != nil {
+		log.Debug(err)
 		return txs, nil
 	}
 	// Except mempool tx that hasn't minimum fees
@@ -150,8 +151,8 @@ func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types
 	for _, in := range vin {
 		inTx, err := c.GetTxByTxID(in.Txid, testNet)
 		if err != nil {
-			log.Debugf("%s vin: %s", err.Error(), in.Txid)
-			return []string{}, 0, errors.New("fetch error of input txs")
+			text := fmt.Sprintf("%s vin: %s", err.Error(), in.Txid)
+			return []string{}, 0, errors.New(text)
 		}
 		target := inTx.Vout[in.Vout]
 		inAddress := target.Addresses[0]
