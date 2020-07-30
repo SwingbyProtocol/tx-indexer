@@ -155,12 +155,12 @@ func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types
 }
 
 func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {
-	c.mu.RLock()
-	inTx := c.inTxs[txid]
-	c.mu.RUnlock()
-	if inTx != nil {
-		return inTx, nil
-	}
+	// c.mu.RLock()
+	// inTx := c.inTxs[txid]
+	// c.mu.RUnlock()
+	// if inTx != nil {
+	// 	return inTx, nil
+	// }
 	btcNet := &chaincfg.MainNetParams
 	if testNet {
 		btcNet = &chaincfg.TestNet3Params
@@ -174,8 +174,8 @@ func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {
 		return nil, err
 	}
 	tx := utils.MsgTxToTx(txData.MsgTx(), btcNet)
-	c.mu.Lock()
-	c.inTxs[txid] = &tx
-	c.mu.Unlock()
+	// c.mu.Lock()
+	// c.inTxs[txid] = &tx
+	// c.mu.Unlock()
 	return &tx, nil
 }
