@@ -26,7 +26,7 @@ type Keeper struct {
 	ticker     *time.Ticker
 	tesnet     bool
 	db         *common.Db
-	mempoolTxs map[string]bool
+	mempoolTxs map[string]int
 	topHeight  int64
 }
 
@@ -50,7 +50,7 @@ func NewKeeper(url string, isTestnet bool, dirPath string, pruneTime int64) *Kee
 		client:     c,
 		tesnet:     isTestnet,
 		db:         newDB,
-		mempoolTxs: make(map[string]bool),
+		mempoolTxs: make(map[string]int),
 	}
 	return k
 }
@@ -179,7 +179,7 @@ func (k *Keeper) processKeep() {
 	k.topHeight = topHeight
 	k.mu.Unlock()
 	k.mu.RLock()
-	log.Infof("BTC txs scanning done -> txs: %d mempool: %d", len(txs), len(k.mempoolTxs))
+	log.Infof("BTC txs scanning done -> txs: %d pendings: %d", len(txs), len(k.mempoolTxs))
 	k.mu.RUnlock()
 }
 
@@ -196,31 +196,35 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 }
 
 func (k *Keeper) UpdateMemPoolTxs() {
-	for txid := range k.mempoolTxs {
+	k.mu.Lock()
+	for txid, count := range k.mempoolTxs {
+		if count >= 50 {
+			delete(k.mempoolTxs, txid)
+			continue
+		}
 		tx, err := k.client.GetTxByTxID(txid, k.tesnet)
 		if err != nil {
-			log.Debug(err)
+			k.mempoolTxs[txid]++
 			continue
 		}
 		commonTxs, err := k.client.TxtoCommonTx(*tx, k.tesnet)
 		if err != nil {
-			k.mu.Lock()
 			delete(k.mempoolTxs, txid)
-			k.mu.Unlock()
 			continue
 		}
 		if len(commonTxs) == 0 {
+			k.mempoolTxs[txid]++
 			continue
 		}
 		for _, commTx := range commonTxs {
 			k.db.AddMempoolTxs(commTx.From, commTx)
 			k.db.AddMempoolTxs(commTx.To, commTx)
 		}
-		k.mu.Lock()
 		delete(k.mempoolTxs, txid)
-		k.mu.Unlock()
 	}
+	k.mu.Unlock()
 }
+
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 	req := common.BroadcastParams{}
 	res := common.BroadcastResponse{}
@@ -270,7 +274,7 @@ func (k *Keeper) StartNode() {
 		for {
 			tx := <-txChan
 			k.mu.Lock()
-			k.mempoolTxs[tx.Txid] = true
+			k.mempoolTxs[tx.Txid] = 1
 			k.mu.Unlock()
 		}
 	}()

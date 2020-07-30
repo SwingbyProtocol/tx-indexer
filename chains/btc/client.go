@@ -23,10 +23,10 @@ const (
 
 type Client struct {
 	*rpcclient.Client
-	url        *url.URL
-	mu         *sync.RWMutex
-	sinceHash  *chainhash.Hash
-	vinAddress map[string]string
+	url       *url.URL
+	mu        *sync.RWMutex
+	sinceHash *chainhash.Hash
+	inTxs     map[string]*types.Tx
 }
 
 func NewBtcClient(path string) (*Client, error) {
@@ -34,13 +34,7 @@ func NewBtcClient(path string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	disableTLS, useLegacyHTTP := false, false
-	if u.Scheme == "ws" || u.Scheme == "http" || u.Scheme == "tcp" {
-		disableTLS = true
-	}
-	if u.Scheme == "http" || u.Scheme == "tcp" {
-		useLegacyHTTP = true
-	}
+	disableTLS, useLegacyHTTP := true, true
 	pass, _ := u.User.Password()
 	connCfg := &rpcclient.ConnConfig{
 		Host:         u.Host,
@@ -52,7 +46,7 @@ func NewBtcClient(path string) (*Client, error) {
 	}
 	nHandlers := new(rpcclient.NotificationHandlers)
 	client, err := rpcclient.New(connCfg, nHandlers)
-	return &Client{client, u, new(sync.RWMutex), nil, make(map[string]string)}, err
+	return &Client{client, u, new(sync.RWMutex), nil, make(map[string]*types.Tx)}, err
 }
 
 func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []types.Tx) {
@@ -64,8 +58,25 @@ func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []types.Tx) {
 	if info.Blocks == 0 {
 		return 0, []types.Tx{}
 	}
-	hash, _ := chainhash.NewHashFromStr(info.BestBlockHash)
-	txs := c.GetTxs([]types.Tx{}, hash, int64(info.Blocks), depth, testNet)
+	btcNet := &chaincfg.MainNetParams
+	if testNet {
+		btcNet = &chaincfg.TestNet3Params
+	}
+	txs := []types.Tx{}
+	for blockNum := int64(info.Blocks); blockNum > int64(info.Blocks)-3; blockNum-- {
+		hash, err := c.Client.GetBlockHash(blockNum)
+		block, err := c.Client.GetBlock(hash)
+		if err != nil {
+			continue
+		}
+		log.Infof("BTC txs scaning... block: %d", blockNum)
+		for _, tx := range block.Transactions {
+			newTx := utils.MsgTxToTx(tx, btcNet)
+			newTx.Height = blockNum
+			newTx.MinedTime = block.Header.Timestamp
+			txs = append(txs, newTx)
+		}
+	}
 	return int64(info.Blocks), txs
 }
 
@@ -118,30 +129,6 @@ func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) ([]common.Transaction, 
 	return txs, nil
 }
 
-func (c *Client) GetTxs(txs []types.Tx, hash *chainhash.Hash, height int64, depth int, testNet bool) []types.Tx {
-	btcNet := &chaincfg.MainNetParams
-	if testNet {
-		btcNet = &chaincfg.TestNet3Params
-	}
-	if depth == 0 {
-		return txs
-	}
-	depth--
-	block, err := c.Client.GetBlock(hash)
-	if err != nil {
-		return txs
-	}
-	log.Infof("BTC txs scaning... block: %d", height)
-	for _, tx := range block.Transactions {
-		newTx := utils.MsgTxToTx(tx, btcNet)
-		newTx.Height = height
-		newTx.MinedTime = block.Header.Timestamp
-		txs = append(txs, newTx)
-	}
-	height--
-	return c.GetTxs(txs, &block.Header.PrevBlock, height, depth, testNet)
-}
-
 func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types.Vout, testNet bool) ([]string, int64, error) {
 	if len(vin) == 0 {
 		return []string{}, 0, errors.New("vin is not exist")
@@ -168,6 +155,12 @@ func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types
 }
 
 func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {
+	c.mu.RLock()
+	inTx := c.inTxs[txid]
+	c.mu.RUnlock()
+	if inTx != nil {
+		return inTx, nil
+	}
 	btcNet := &chaincfg.MainNetParams
 	if testNet {
 		btcNet = &chaincfg.TestNet3Params
@@ -181,5 +174,8 @@ func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {
 		return nil, err
 	}
 	tx := utils.MsgTxToTx(txData.MsgTx(), btcNet)
+	c.mu.Lock()
+	c.inTxs[txid] = &tx
+	c.mu.Unlock()
 	return &tx, nil
 }
