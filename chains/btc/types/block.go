@@ -7,6 +7,10 @@ type ChainInfo struct {
 	Bestblockhash string `json:"bestblockhash"`
 }
 
+type BlockHash struct {
+	Blockhash string `json:"blockhash"`
+}
+
 type Block struct {
 	Hash              string `json:"hash"`
 	Confirmations     int64  `json:"confirmations"`

@@ -23,7 +23,7 @@ const (
 
 type Client struct {
 	*rpcclient.Client
-	url       *url.URL
+	rest      *Rest
 	mu        *sync.RWMutex
 	sinceHash *chainhash.Hash
 	inTxs     map[string]*types.Tx
@@ -37,35 +37,36 @@ func NewBtcClient(path string) (*Client, error) {
 	disableTLS, useLegacyHTTP := true, true
 	pass, _ := u.User.Password()
 	connCfg := &rpcclient.ConnConfig{
-		Host:         u.Host,
-		Endpoint:     u.Path,
-		User:         u.User.Username(),
-		Pass:         pass,
-		HTTPPostMode: useLegacyHTTP,
-		DisableTLS:   disableTLS,
+		Host:                 u.Host,
+		Endpoint:             u.Path,
+		User:                 u.User.Username(),
+		Pass:                 pass,
+		HTTPPostMode:         useLegacyHTTP,
+		DisableTLS:           disableTLS,
+		DisableAutoReconnect: true,
 	}
 	nHandlers := new(rpcclient.NotificationHandlers)
 	client, err := rpcclient.New(connCfg, nHandlers)
-	return &Client{client, u, new(sync.RWMutex), nil, make(map[string]*types.Tx)}, err
+	return &Client{client, NewRest(u.Host), new(sync.RWMutex), nil, make(map[string]*types.Tx)}, err
 }
 
-func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []types.Tx) {
+func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []*types.Tx) {
 	info, err := c.GetBlockChainInfo()
 	if err != nil {
 		log.Error(err)
-		return 0, []types.Tx{}
+		return 0, []*types.Tx{}
 	}
 	if info.Blocks == 0 {
-		return 0, []types.Tx{}
+		return 0, []*types.Tx{}
 	}
 	btcNet := &chaincfg.MainNetParams
 	if testNet {
 		btcNet = &chaincfg.TestNet3Params
 	}
-	txs := []types.Tx{}
+	txs := []*types.Tx{}
 	for blockNum := int64(info.Blocks); blockNum > int64(info.Blocks)-3; blockNum-- {
-		hash, err := c.Client.GetBlockHash(blockNum)
-		block, err := c.Client.GetBlock(hash)
+		hash, err := c.GetBlockHash(blockNum)
+		block, err := c.GetBlock(hash)
 		if err != nil {
 			continue
 		}
@@ -74,7 +75,7 @@ func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []types.Tx) {
 			newTx := utils.MsgTxToTx(tx, btcNet)
 			newTx.Height = blockNum
 			newTx.MinedTime = block.Header.Timestamp
-			txs = append(txs, newTx)
+			txs = append(txs, &newTx)
 		}
 	}
 	return int64(info.Blocks), txs

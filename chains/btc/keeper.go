@@ -168,13 +168,13 @@ func (k *Keeper) processKeep() {
 			}
 		}
 		if isNew {
-			commonTxs, _ := k.client.TxtoCommonTx(tx, k.tesnet)
-			for _, comTx := range commonTxs {
-				txs = append(txs, comTx)
-			}
+			// commonTxs, _ := k.client.TxtoCommonTx(tx, k.tesnet)
+			// for _, comTx := range commonTxs {
+			// 	txs = append(txs, comTx)
+			// }
 		}
 	}
-	k.StoreTxs(txs)
+	//k.StoreTxs(txs)
 	k.mu.Lock()
 	k.topHeight = topHeight
 	k.mu.Unlock()
@@ -256,7 +256,7 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) StartNode() {
-	txChan := make(chan *types.Tx)
+	txChan := make(chan *types.Tx, 10000)
 	BChan := make(chan *types.Block)
 	nodeConfig := &node.NodeConfig{
 		IsTestnet:        k.tesnet,
@@ -276,6 +276,11 @@ func (k *Keeper) StartNode() {
 			k.mu.Lock()
 			k.mempoolTxs[tx.Txid] = 1
 			k.mu.Unlock()
+		}
+	}()
+	go func() {
+		for {
+			_ = <-BChan
 		}
 	}()
 }
