@@ -168,13 +168,13 @@ func (k *Keeper) processKeep() {
 			}
 		}
 		if isNew {
-			// commonTxs, _ := k.client.TxtoCommonTx(tx, k.tesnet)
-			// for _, comTx := range commonTxs {
-			// 	txs = append(txs, comTx)
-			// }
+			commonTxs, _ := k.client.TxtoCommonTx(tx, k.tesnet)
+			for _, comTx := range commonTxs {
+				txs = append(txs, comTx)
+			}
 		}
 	}
-	//k.StoreTxs(txs)
+	k.StoreTxs(txs)
 	k.mu.Lock()
 	k.topHeight = topHeight
 	k.mu.Unlock()
@@ -207,7 +207,7 @@ func (k *Keeper) UpdateMemPoolTxs() {
 			k.mempoolTxs[txid]++
 			continue
 		}
-		commonTxs, err := k.client.TxtoCommonTx(*tx, k.tesnet)
+		commonTxs, err := k.client.TxtoCommonTx(tx, k.tesnet)
 		if err != nil {
 			delete(k.mempoolTxs, txid)
 			continue

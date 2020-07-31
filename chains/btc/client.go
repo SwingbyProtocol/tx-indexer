@@ -81,7 +81,7 @@ func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []*types.Tx) {
 	return int64(info.Blocks), txs
 }
 
-func (c *Client) TxtoCommonTx(tx types.Tx, testNet bool) ([]common.Transaction, error) {
+func (c *Client) TxtoCommonTx(tx *types.Tx, testNet bool) ([]common.Transaction, error) {
 	txs := []common.Transaction{}
 	if len(tx.Vin) == 0 {
 		return txs, errors.New("Tx has no input :" + tx.Txid)
