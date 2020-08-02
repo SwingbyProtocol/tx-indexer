@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -54,6 +55,7 @@ func (d *Db) StoreIdx(id string, tx *Transaction, isReceived bool) error {
 		if time.Unix(idx.Timestamp, 0).Add(d.pruneTime).Unix() < time.Now().Unix() {
 			// Remove tx
 			d.db.Delete([]byte(idx.ID), nil)
+			log.Info("removed tx -> ", idx.ID)
 			continue
 		}
 		newIdx = append(newIdx, idx)
@@ -94,25 +96,25 @@ func (d *Db) StoreTx(key string, tx *Transaction) error {
 	if err != nil {
 		return err
 	}
-	// mempool check
-	txs, _ := d.GetMempoolTxs(tx.From)
-	newTxs := []Transaction{}
-	for _, mempoolTx := range txs {
+	// Check and Remove mempool tx for sender
+	senderTxsRaw, _ := d.GetMempoolTxs(tx.From)
+	senderTxs := []Transaction{}
+	for _, mempoolTx := range senderTxsRaw {
 		if mempoolTx.Serialize() == tx.Serialize() {
 			continue
 		}
-		newTxs = append(newTxs, mempoolTx)
+		senderTxs = append(senderTxs, mempoolTx)
 	}
-	d.StoreMempoolTxs(tx.From, newTxs)
-	txs, _ = d.GetMempoolTxs(tx.To)
-	newTxs = []Transaction{}
-	for _, mempoolTx := range txs {
+	d.StoreMempoolTxs(tx.From, senderTxs)
+	receiverTxsRaw, _ := d.GetMempoolTxs(tx.To)
+	receiverTxs := []Transaction{}
+	for _, mempoolTx := range receiverTxsRaw {
 		if mempoolTx.Serialize() == tx.Serialize() {
 			continue
 		}
-		newTxs = append(newTxs, mempoolTx)
+		receiverTxs = append(receiverTxs, mempoolTx)
 	}
-	d.StoreMempoolTxs(tx.To, newTxs)
+	d.StoreMempoolTxs(tx.To, receiverTxs)
 	return nil
 }
 

@@ -21,13 +21,13 @@ const (
 )
 
 type Keeper struct {
-	mu         *sync.RWMutex
-	client     *Client
-	ticker     *time.Ticker
-	tesnet     bool
-	db         *common.Db
-	mempoolTxs map[string]int
-	topHeight  int64
+	mu        *sync.RWMutex
+	client    *Client
+	ticker    *time.Ticker
+	tesnet    bool
+	db        *common.Db
+	pendings  map[string]int
+	topHeight int64
 }
 
 type MempoolTx struct {
@@ -46,11 +46,11 @@ func NewKeeper(url string, isTestnet bool, dirPath string, pruneTime int64) *Kee
 		log.Fatal(err)
 	}
 	k := &Keeper{
-		mu:         new(sync.RWMutex),
-		client:     c,
-		tesnet:     isTestnet,
-		db:         newDB,
-		mempoolTxs: make(map[string]int),
+		mu:       new(sync.RWMutex),
+		client:   c,
+		tesnet:   isTestnet,
+		db:       newDB,
+		pendings: make(map[string]int),
 	}
 	return k
 }
@@ -90,10 +90,12 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	}
 	mempoolTxs, _ := k.db.GetMempoolTxs(watch)
 	k.mu.RLock()
+	topHeight := k.topHeight
+	k.mu.RUnlock()
 	w.WriteJson(common.TxResponse{
-		LatestHeight:  k.topHeight,
+		LatestHeight:  topHeight,
 		InTxsMempool:  common.Txs(mempoolTxs).Sort().ReceiveMempool(watch).Page(pageNum, limitNum),
-		OutTxsMempool: common.Txs(mempoolTxs).Sort().Sort().SendMempool(watch).Page(pageNum, limitNum),
+		OutTxsMempool: common.Txs(mempoolTxs).Sort().SendMempool(watch).Page(pageNum, limitNum),
 		InTxs:         inTxs.Sort().Page(pageNum, limitNum),
 		OutTxs:        outTxs.Sort().Page(pageNum, limitNum),
 		Response: common.Response{
@@ -101,7 +103,6 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 			Result: true,
 		},
 	})
-	k.mu.RUnlock()
 }
 
 func (k *Keeper) GetTx(w rest.ResponseWriter, r *rest.Request) {
@@ -111,7 +112,7 @@ func (k *Keeper) GetTx(w rest.ResponseWriter, r *rest.Request) {
 		key := fmt.Sprintf("%s;%d;", strings.ToLower(txHash), i)
 		// Check mempool
 		k.mu.RLock()
-		if _, ok := k.mempoolTxs[key]; ok {
+		if _, ok := k.pendings[key]; ok {
 			//txs = append(txs, k.mempoolTxs[key].Transaction)
 			k.mu.RUnlock()
 			continue
@@ -139,7 +140,7 @@ func (k *Keeper) Start() {
 			}
 		}
 	}()
-	memPoolChecker := time.NewTicker(2 * time.Second)
+	memPoolChecker := time.NewTicker(1 * time.Second)
 	go func() {
 		for {
 			select {
@@ -160,7 +161,6 @@ func (k *Keeper) processKeep() {
 		// }
 		isNew := false
 		for i := range tx.Vout {
-			// coinbse tx
 			key := fmt.Sprintf("%s;%d;", tx.Txid, i)
 			_, err := k.db.GetTx(key)
 			if err != nil {
@@ -174,13 +174,13 @@ func (k *Keeper) processKeep() {
 			}
 		}
 	}
+	k.mu.RLock()
+	log.Infof("BTC txs scanning done -> txs: %d pendings: %d", len(txs), len(k.pendings))
+	k.mu.RUnlock()
 	k.StoreTxs(txs)
 	k.mu.Lock()
 	k.topHeight = topHeight
 	k.mu.Unlock()
-	k.mu.RLock()
-	log.Infof("BTC txs scanning done -> txs: %d pendings: %d", len(txs), len(k.mempoolTxs))
-	k.mu.RUnlock()
 }
 
 func (k *Keeper) StoreTxs(txs []common.Transaction) {
@@ -196,31 +196,42 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 }
 
 func (k *Keeper) UpdateMemPoolTxs() {
-	k.mu.Lock()
-	for txid, count := range k.mempoolTxs {
+	countUpIds := []string{}
+	deleteIds := []string{}
+	k.mu.RLock()
+	pendings := k.pendings
+	k.mu.RUnlock()
+	for txid, count := range pendings {
 		if count >= 50 {
-			delete(k.mempoolTxs, txid)
+			deleteIds = append(deleteIds, txid)
 			continue
 		}
 		tx, err := k.client.GetTxByTxID(txid, k.tesnet)
 		if err != nil {
-			k.mempoolTxs[txid]++
+			countUpIds = append(countUpIds, txid)
 			continue
 		}
 		commonTxs, err := k.client.TxtoCommonTx(tx, k.tesnet)
 		if err != nil {
-			delete(k.mempoolTxs, txid)
+			deleteIds = append(deleteIds, txid)
 			continue
 		}
 		if len(commonTxs) == 0 {
-			k.mempoolTxs[txid]++
+			countUpIds = append(countUpIds, txid)
 			continue
 		}
 		for _, commTx := range commonTxs {
 			k.db.AddMempoolTxs(commTx.From, commTx)
 			k.db.AddMempoolTxs(commTx.To, commTx)
 		}
-		delete(k.mempoolTxs, txid)
+		deleteIds = append(deleteIds, txid)
+	}
+	k.mu.Lock()
+	for _, id := range countUpIds {
+		k.pendings[id]++
+	}
+	for _, id := range deleteIds {
+		delete(k.pendings, id)
 	}
 	k.mu.Unlock()
 }
@@ -274,7 +285,7 @@ func (k *Keeper) StartNode() {
 		for {
 			tx := <-txChan
 			k.mu.Lock()
-			k.mempoolTxs[tx.Txid] = 1
+			k.pendings[tx.Txid] = 1
 			k.mu.Unlock()
 		}
 	}()

@@ -23,10 +23,7 @@ const (
 
 type Client struct {
 	*rpcclient.Client
-	rest      *Rest
-	mu        *sync.RWMutex
-	sinceHash *chainhash.Hash
-	inTxs     map[string]*types.Tx
+	mu *sync.RWMutex
 }
 
 func NewBtcClient(path string) (*Client, error) {
@@ -47,7 +44,7 @@ func NewBtcClient(path string) (*Client, error) {
 	}
 	nHandlers := new(rpcclient.NotificationHandlers)
 	client, err := rpcclient.New(connCfg, nHandlers)
-	return &Client{client, NewRest(u.Host), new(sync.RWMutex), nil, make(map[string]*types.Tx)}, err
+	return &Client{client, new(sync.RWMutex)}, err
 }
 
 func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []*types.Tx) {
@@ -156,12 +153,6 @@ func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types
 }
 
 func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {
-	// c.mu.RLock()
-	// inTx := c.inTxs[txid]
-	// c.mu.RUnlock()
-	// if inTx != nil {
-	// 	return inTx, nil
-	// }
 	btcNet := &chaincfg.MainNetParams
 	if testNet {
 		btcNet = &chaincfg.TestNet3Params
@@ -175,8 +166,5 @@ func (c *Client) GetTxByTxID(txid string, testNet bool) (*types.Tx, error) {
 		return nil, err
 	}
 	tx := utils.MsgTxToTx(txData.MsgTx(), btcNet)
-	// c.mu.Lock()
-	// c.inTxs[txid] = &tx
-	// c.mu.Unlock()
 	return &tx, nil
 }

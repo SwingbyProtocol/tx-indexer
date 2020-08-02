@@ -99,8 +99,10 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 	inTxs = inTxs.Sort().Page(pageNum, limitNum)
 	outTxs = outTxs.Sort().Page(pageNum, limitNum)
 	k.mu.RLock()
+	topHeight := k.topHeight
+	k.mu.RUnlock()
 	w.WriteJson(common.TxResponse{
-		LatestHeight:  k.topHeight,
+		LatestHeight:  topHeight,
 		InTxsMempool:  []common.Transaction{},
 		OutTxsMempool: []common.Transaction{},
 		InTxs:         inTxs,
@@ -110,7 +112,6 @@ func (k *Keeper) GetTxs(w rest.ResponseWriter, r *rest.Request) {
 			Result: true,
 		},
 	})
-	k.mu.RUnlock()
 }
 
 func (k *Keeper) GetTx(w rest.ResponseWriter, r *rest.Request) {
