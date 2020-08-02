@@ -10,7 +10,7 @@ Tx-indexer is a modular blockchain transaction monitoring tool. the app can moni
 
 This app needs full nodes that fully synced all blocks. there are supported nodes.
 
-- bitcoin-core ^v0.18.0 and need to setup rpc endpoint
+- [bitcoin-core](https://github.com/bitcoin/bitcoin) ^v0.18.0 and need to setup rpc endpoint
 - [binance-node](https://github.com/binance-chain/node-binary) ^v0.7.2 
 
 ## API docs
@@ -23,7 +23,7 @@ https://new-testnet-indexer.swingby.network/docs
 
 ## Usage
 ```
-$ go run ./cmd/tx-indexer --btc.node http://192.168.1.101:8332 --btc.testnet
+$ go run ./cmd/tx-indexer
 ```
 ## Flags
 ```     
