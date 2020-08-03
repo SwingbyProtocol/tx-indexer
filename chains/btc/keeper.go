@@ -174,9 +174,7 @@ func (k *Keeper) processKeep() {
 			}
 		}
 	}
-	k.mu.RLock()
-	log.Infof("BTC txs scanning done -> txs: %d pendings: %d", len(txs), len(k.pendings))
-	k.mu.RUnlock()
+	log.Infof("BTC txs scanning done -> txs: %d pendings: %d", len(txs))
 	k.StoreTxs(txs)
 	k.mu.Lock()
 	k.topHeight = topHeight
@@ -196,15 +194,22 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 }
 
 func (k *Keeper) GetPendings() map[string]int {
+	pendings := make(map[string]int)
 	k.mu.RLock()
 	defer k.mu.RUnlock()
-	return k.pendings
+	for txid, count := range pendings {
+		pendings[txid] = count
+	}
+	return pendings
 }
 
 func (k *Keeper) UpdateMemPoolTxs() {
 	countUpIds := []string{}
 	deleteIds := []string{}
 	pendings := k.GetPendings()
+	if len(pendings) == 0 {
+		return
+	}
 	for txid, count := range pendings {
 		if count >= 50 {
 			deleteIds = append(deleteIds, txid)
@@ -230,6 +235,7 @@ func (k *Keeper) UpdateMemPoolTxs() {
 		}
 		deleteIds = append(deleteIds, txid)
 	}
+	log.Infof("pendings => %d", len(pendings))
 	k.mu.Lock()
 	for _, id := range countUpIds {
 		k.pendings[id]++
