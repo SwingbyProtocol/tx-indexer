@@ -174,7 +174,7 @@ func (k *Keeper) processKeep() {
 			}
 		}
 	}
-	log.Infof("BTC txs scanning done -> txs: %d pendings: %d", len(txs))
+	log.Infof("BTC txs scanning done -> txs: %d", len(txs))
 	k.StoreTxs(txs)
 	k.mu.Lock()
 	k.topHeight = topHeight
@@ -210,6 +210,7 @@ func (k *Keeper) UpdateMemPoolTxs() {
 	if len(pendings) == 0 {
 		return
 	}
+	log.Infof("BTC pending txs => %d", len(pendings))
 	for txid, count := range pendings {
 		if count >= 50 {
 			deleteIds = append(deleteIds, txid)
@@ -235,7 +236,6 @@ func (k *Keeper) UpdateMemPoolTxs() {
 		}
 		deleteIds = append(deleteIds, txid)
 	}
-	log.Infof("pendings => %d", len(pendings))
 	k.mu.Lock()
 	for _, id := range countUpIds {
 		k.pendings[id]++
