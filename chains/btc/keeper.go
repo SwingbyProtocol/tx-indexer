@@ -195,12 +195,16 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 	}
 }
 
+func (k *Keeper) GetPendings() map[string]int {
+	k.mu.RLock()
+	defer k.mu.RUnlock()
+	return k.pendings
+}
+
 func (k *Keeper) UpdateMemPoolTxs() {
 	countUpIds := []string{}
 	deleteIds := []string{}
-	k.mu.RLock()
-	pendings := k.pendings
-	k.mu.RUnlock()
+	pendings := k.GetPendings()
 	for txid, count := range pendings {
 		if count >= 50 {
 			deleteIds = append(deleteIds, txid)
