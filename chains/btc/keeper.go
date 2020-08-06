@@ -197,7 +197,7 @@ func (k *Keeper) GetPendings() map[string]int {
 	pendings := make(map[string]int)
 	k.mu.RLock()
 	defer k.mu.RUnlock()
-	for txid, count := range pendings {
+	for txid, count := range k.pendings {
 		pendings[txid] = count
 	}
 	return pendings
