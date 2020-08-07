@@ -140,9 +140,13 @@ func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types
 			return []string{}, 0, errors.New(text)
 		}
 		target := inTx.Vout[in.Vout]
+		vinTotal += target.Value
+		if len(target.Addresses) == 0 {
+			log.Warnf("inAddress decode error tx:%s %d", inTx.Txid, in.Vout)
+			continue
+		}
 		inAddress := target.Addresses[0]
 		targets = append(targets, inAddress)
-		vinTotal += target.Value
 	}
 	voutTotal := int64(0)
 	for _, vout := range vout {
