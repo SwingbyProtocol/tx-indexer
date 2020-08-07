@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -55,7 +54,6 @@ func (d *Db) StoreIdx(id string, tx *Transaction, isReceived bool) error {
 		if time.Unix(idx.Timestamp, 0).Add(d.pruneTime).Unix() < time.Now().Unix() {
 			// Remove tx
 			d.db.Delete([]byte(idx.ID), nil)
-			log.Info("removed tx -> ", idx.ID)
 			continue
 		}
 		newIdx = append(newIdx, idx)
