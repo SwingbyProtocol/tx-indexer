@@ -198,51 +198,57 @@ func (k *Keeper) GetPendings() map[string]int {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	for txid, count := range k.pendings {
+		if len(pendings) >= 60 {
+			continue
+		}
 		pendings[txid] = count
 	}
 	return pendings
 }
 
 func (k *Keeper) UpdateMemPoolTxs() {
-	countUpIds := []string{}
-	deleteIds := []string{}
 	pendings := k.GetPendings()
 	if len(pendings) == 0 {
 		return
 	}
-	log.Infof("BTC pending txs => %d", len(pendings))
 	for txid, count := range pendings {
-		if count >= 50 {
-			deleteIds = append(deleteIds, txid)
-			continue
-		}
-		tx, err := k.client.GetTxByTxID(txid, k.tesnet)
-		if err != nil {
-			countUpIds = append(countUpIds, txid)
-			continue
-		}
-		commonTxs, err := k.client.TxtoCommonTx(tx, k.tesnet)
-		if err != nil {
-			deleteIds = append(deleteIds, txid)
-			continue
-		}
-		if len(commonTxs) == 0 {
-			countUpIds = append(countUpIds, txid)
-			continue
-		}
-		for _, commTx := range commonTxs {
-			k.db.AddMempoolTxs(commTx.From, commTx)
-			k.db.AddMempoolTxs(commTx.To, commTx)
-		}
-		deleteIds = append(deleteIds, txid)
+		go k.UpdateTx(txid, count)
+	}
+}
+
+func (k *Keeper) UpdateTx(txid string, count int) {
+	if count >= 50 {
+		k.mu.Lock()
+		delete(k.pendings, txid)
+		k.mu.Unlock()
+		return
+	}
+	tx, err := k.client.GetTxByTxID(txid, k.tesnet)
+	if err != nil {
+		k.mu.Lock()
+		k.pendings[txid]++
+		k.mu.Unlock()
+		return
+	}
+	commonTxs, err := k.client.TxtoCommonTx(tx, k.tesnet)
+	if err != nil {
+		k.mu.Lock()
+		delete(k.pendings, txid)
+		k.mu.Unlock()
+		return
+	}
+	if len(commonTxs) == 0 {
+		k.mu.Lock()
+		k.pendings[txid]++
+		k.mu.Unlock()
+		return
+	}
+	for _, commTx := range commonTxs {
+		k.db.AddMempoolTxs(commTx.From, commTx)
+		k.db.AddMempoolTxs(commTx.To, commTx)
 	}
 	k.mu.Lock()
-	for _, id := range countUpIds {
-		k.pendings[id]++
-	}
-	for _, id := range deleteIds {
-		delete(k.pendings, id)
-	}
+	delete(k.pendings, txid)
 	k.mu.Unlock()
 }
 
