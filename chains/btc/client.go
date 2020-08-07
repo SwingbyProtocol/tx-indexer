@@ -87,16 +87,16 @@ func (c *Client) TxtoCommonTx(tx *types.Tx, testNet bool) ([]common.Transaction,
 	if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
 		return txs, nil
 	}
-	froms, fees, err := c.getVinAddrsAndFees(tx.Txid, tx.Vin, tx.Vout, testNet)
+	froms, _, err := c.getVinAddrsAndFees(tx.Txid, tx.Vin, tx.Vout, testNet)
 	if err != nil {
 		log.Debug(err)
 		return txs, nil
 	}
 	// Except mempool tx that hasn't minimum fees
-	if fees <= MinMempoolFees && tx.Height == int64(0) {
-		text := fmt.Sprintf("Skip because Tx: %s fees insufficient fees: %d expected >= %d", tx.Txid, fees, MinMempoolFees)
-		return txs, errors.New(text)
-	}
+	// if fees <= MinMempoolFees && tx.Height == int64(0) {
+	// 	text := fmt.Sprintf("Skip because Tx: %s fees insufficient fees: %d expected >= %d", tx.Txid, fees, MinMempoolFees)
+	// 	return txs, errors.New(text)
+	// }
 	time := tx.Receivedtime
 	if tx.Height != int64(0) {
 		time = tx.MinedTime
@@ -133,7 +133,10 @@ func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types
 	}
 	targets := []string{}
 	vinTotal := int64(0)
-	for _, in := range vin {
+	for i, in := range vin {
+		if i != 0 {
+			continue
+		}
 		inTx, err := c.GetTxByTxID(in.Txid, testNet)
 		if err != nil {
 			text := fmt.Sprintf("%s vin: %s", err.Error(), in.Txid)
