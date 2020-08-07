@@ -40,7 +40,7 @@ func NewBtcClient(path string) (*Client, error) {
 		Pass:                 pass,
 		HTTPPostMode:         useLegacyHTTP,
 		DisableTLS:           disableTLS,
-		DisableAutoReconnect: true,
+		DisableAutoReconnect: false,
 	}
 	nHandlers := new(rpcclient.NotificationHandlers)
 	client, err := rpcclient.New(connCfg, nHandlers)
