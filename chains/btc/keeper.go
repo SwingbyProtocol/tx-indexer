@@ -168,10 +168,6 @@ func (k *Keeper) processKeep() {
 	topHeight, rawTxs := k.c1.GetBlockTxs(k.tesnet, loadBlocks)
 	txs := []common.Transaction{}
 	for _, tx := range rawTxs {
-		// if index == 0 {
-		// 	// coinbase tx
-		// 	continue
-		// }
 		isNew := false
 		for i := range tx.Vout {
 			key := fmt.Sprintf("%s;%d;", tx.Txid, i)
