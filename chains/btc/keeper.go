@@ -17,20 +17,19 @@ import (
 
 const (
 	interval   = 24 * time.Second
-	loadBlocks = 3
+	loadBlocks = 1
 )
 
 type Keeper struct {
-	mu         *sync.RWMutex
-	c1         *Client
-	c2         *Client
-	ticker     *time.Ticker
-	tesnet     bool
-	db         *common.Db
-	pendings   map[string]int
-	pendingTxs map[string]*types.Tx
-	isScan     bool
-	topHeight  int64
+	mu        *sync.RWMutex
+	c1        *Client
+	c2        *Client
+	ticker    *time.Ticker
+	tesnet    bool
+	db        *common.Db
+	pendings  map[string]int
+	isScan    bool
+	topHeight int64
 }
 
 type MempoolTx struct {
@@ -53,13 +52,12 @@ func NewKeeper(url string, isTestnet bool, dirPath string, pruneTime int64) *Kee
 		log.Fatal(err)
 	}
 	k := &Keeper{
-		mu:         new(sync.RWMutex),
-		c1:         c1,
-		c2:         c2,
-		tesnet:     isTestnet,
-		db:         newDB,
-		pendings:   make(map[string]int),
-		pendingTxs: make(map[string]*types.Tx),
+		mu:       new(sync.RWMutex),
+		c1:       c1,
+		c2:       c2,
+		tesnet:   isTestnet,
+		db:       newDB,
+		pendings: make(map[string]int),
 	}
 	return k
 }
@@ -168,35 +166,37 @@ func (k *Keeper) processKeep() {
 	topHeight, rawTxs := k.c1.GetBlockTxs(k.tesnet, loadBlocks)
 	txs := []common.Transaction{}
 	for _, tx := range rawTxs {
-		isNew := false
-		for i := range tx.Vout {
-			key := fmt.Sprintf("%s;%d;", tx.Txid, i)
-			_, err := k.db.GetTx(key)
-			if err != nil {
-				isNew = true
-			}
-		}
-		if isNew {
-			commonTxs, _ := k.c2.TxtoCommonTx(tx, k.tesnet)
-			for _, comTx := range commonTxs {
-				txs = append(txs, comTx)
-			}
-		}
+		k.StoreTx(tx)
 	}
 	log.Infof("BTC txs scanning done -> txs: %d", len(txs))
-	k.StoreTxs(txs)
 	k.isScan = false
 	k.mu.Lock()
 	k.topHeight = topHeight
 	k.mu.Unlock()
 }
 
-func (k *Keeper) StoreTxs(txs []common.Transaction) {
-	for _, tx := range txs {
-		_, err := k.db.GetTx(tx.Serialize())
-		if err == nil {
-			continue
+func (k *Keeper) StoreTx(tx *types.Tx) {
+	isNew := false
+	// Check tx in the disk
+	for i := range tx.Vout {
+		key := fmt.Sprintf("%s;%d;", tx.Txid, i)
+		_, err := k.db.GetTx(key)
+		if err != nil {
+			isNew = true
 		}
+	}
+	txs := []common.Transaction{}
+	if isNew {
+		commonTxs, err := k.c1.TxtoCommonTx(tx, k.tesnet)
+		if err != nil {
+			log.Info(err)
+			return
+		}
+		for _, comTx := range commonTxs {
+			txs = append(txs, comTx)
+		}
+	}
+	for _, tx := range txs {
 		k.db.StoreTx(tx.Serialize(), &tx)
 		k.db.StoreIdx(tx.Serialize(), &tx, true)
 		k.db.StoreIdx(tx.Serialize(), &tx, false)
@@ -228,7 +228,6 @@ func (k *Keeper) UpdateTx(txid string, count int) {
 	if count >= 20 {
 		k.mu.Lock()
 		delete(k.pendings, txid)
-		delete(k.pendingTxs, txid)
 		k.mu.Unlock()
 		return
 	}
@@ -243,7 +242,6 @@ func (k *Keeper) UpdateTx(txid string, count int) {
 	if err != nil {
 		k.mu.Lock()
 		delete(k.pendings, txid)
-		delete(k.pendingTxs, txid)
 		k.mu.Unlock()
 		return
 	}
@@ -255,7 +253,6 @@ func (k *Keeper) UpdateTx(txid string, count int) {
 	}
 	k.mu.Lock()
 	delete(k.pendings, txid)
-	delete(k.pendingTxs, txid)
 	k.mu.Unlock()
 	for _, commTx := range commonTxs {
 		k.db.AddMempoolTxs(commTx.From, commTx)
@@ -314,7 +311,6 @@ func (k *Keeper) StartNode() {
 			case tx := <-txChan:
 				k.mu.Lock()
 				k.pendings[tx.Txid] = 1
-				k.pendingTxs[tx.Txid] = tx
 				k.mu.Unlock()
 			}
 		}

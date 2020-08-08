@@ -61,7 +61,7 @@ func (c *Client) GetBlockTxs(testNet bool, depth int) (int64, []*types.Tx) {
 		btcNet = &chaincfg.TestNet3Params
 	}
 	txs := []*types.Tx{}
-	for blockNum := int64(info.Blocks); blockNum > int64(info.Blocks)-3; blockNum-- {
+	for blockNum := int64(info.Blocks); blockNum > int64(info.Blocks)-int64(depth); blockNum-- {
 		hash, err := c.GetBlockHash(blockNum)
 		block, err := c.GetBlock(hash)
 		if err != nil {
@@ -83,15 +83,17 @@ func (c *Client) TxtoCommonTx(tx *types.Tx, testNet bool) ([]common.Transaction,
 	if len(tx.Vin) == 0 {
 		return txs, errors.New("Tx has no input :" + tx.Txid)
 	}
-	// Avoid coinbase transaction
+	froms := []string{}
 	if len(tx.Vin[0].Addresses) == 1 && tx.Vin[0].Addresses[0] == "coinbase" {
-		return txs, nil
+		froms = []string{"coinbase"}
+	} else {
+		addrs, _, err := c.getVinAddrsAndFees(tx.Txid, tx.Vin, tx.Vout, testNet)
+		if err != nil {
+			return txs, errors.New("Tx hasn't from address :" + tx.Txid)
+		}
+		froms = addrs
 	}
-	froms, _, err := c.getVinAddrsAndFees(tx.Txid, tx.Vin, tx.Vout, testNet)
-	if err != nil {
-		log.Debug(err)
-		return txs, nil
-	}
+
 	// Except mempool tx that hasn't minimum fees
 	// if fees <= MinMempoolFees && tx.Height == int64(0) {
 	// 	text := fmt.Sprintf("Skip because Tx: %s fees insufficient fees: %d expected >= %d", tx.Txid, fees, MinMempoolFees)
