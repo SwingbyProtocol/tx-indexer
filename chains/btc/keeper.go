@@ -181,10 +181,10 @@ func (k *Keeper) processKeep() {
 			}
 		}
 		if isNew {
-			// commonTxs, _ := k.c2.TxtoCommonTx(tx, k.tesnet)
-			// for _, comTx := range commonTxs {
-			// 	txs = append(txs, comTx)
-			// }
+			commonTxs, _ := k.c2.TxtoCommonTx(tx, k.tesnet)
+			for _, comTx := range commonTxs {
+				txs = append(txs, comTx)
+			}
 		}
 	}
 	log.Infof("BTC txs scanning done -> txs: %d", len(txs))
