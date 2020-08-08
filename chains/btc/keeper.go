@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	interval   = 24 * time.Second
-	loadBlocks = 1
+	loadBlockInterval   = 24 * time.Second
+	loadMempoolInterval = 3 * time.Second
+	loadBlocks          = 1
 )
 
 type Keeper struct {
@@ -136,7 +137,7 @@ func (k *Keeper) GetTx(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) Start() {
-	k.ticker = time.NewTicker(interval)
+	k.ticker = time.NewTicker(loadBlockInterval)
 	k.processKeep()
 	go func() {
 		for {
@@ -146,11 +147,11 @@ func (k *Keeper) Start() {
 			}
 		}
 	}()
-	updateMempool := time.NewTicker(1 * time.Second)
+	mempoolTicker := time.NewTicker(loadMempoolInterval)
 	go func() {
 		for {
 			select {
-			case <-updateMempool.C:
+			case <-mempoolTicker.C:
 				k.UpdateMemPoolTxs()
 			}
 		}
