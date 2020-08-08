@@ -167,16 +167,24 @@ func (k *Keeper) processKeep() {
 	topHeight, rawTxs := k.c1.GetBlockTxs(k.tesnet, loadBlocks)
 	txs := []common.Transaction{}
 	for _, tx := range rawTxs {
-		k.StoreTx(tx)
+		comTxs := k.txToComTxs(tx)
+		for _, tx := range comTxs {
+			txs = append(txs, tx)
+		}
 	}
 	log.Infof("BTC txs scanning done -> txs: %d", len(txs))
+	for _, tx := range txs {
+		k.db.StoreTx(tx.Serialize(), &tx)
+		k.db.StoreIdx(tx.Serialize(), &tx, true)
+		k.db.StoreIdx(tx.Serialize(), &tx, false)
+	}
 	k.isScan = false
 	k.mu.Lock()
 	k.topHeight = topHeight
 	k.mu.Unlock()
 }
 
-func (k *Keeper) StoreTx(tx *types.Tx) {
+func (k *Keeper) txToComTxs(tx *types.Tx) []common.Transaction {
 	isNew := false
 	// Check tx in the disk
 	for i := range tx.Vout {
@@ -191,17 +199,13 @@ func (k *Keeper) StoreTx(tx *types.Tx) {
 		commonTxs, err := k.c1.TxtoCommonTx(tx, k.tesnet)
 		if err != nil {
 			log.Info(err)
-			return
+			return txs
 		}
 		for _, comTx := range commonTxs {
 			txs = append(txs, comTx)
 		}
 	}
-	for _, tx := range txs {
-		k.db.StoreTx(tx.Serialize(), &tx)
-		k.db.StoreIdx(tx.Serialize(), &tx, true)
-		k.db.StoreIdx(tx.Serialize(), &tx, false)
-	}
+	return txs
 }
 
 func (k *Keeper) GetPendings() map[string]int {
