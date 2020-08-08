@@ -16,18 +16,21 @@ import (
 )
 
 const (
-	interval   = 30 * time.Second
+	interval   = 24 * time.Second
 	loadBlocks = 3
 )
 
 type Keeper struct {
-	mu        *sync.RWMutex
-	client    *Client
-	ticker    *time.Ticker
-	tesnet    bool
-	db        *common.Db
-	pendings  map[string]int
-	topHeight int64
+	mu         *sync.RWMutex
+	c1         *Client
+	c2         *Client
+	ticker     *time.Ticker
+	tesnet     bool
+	db         *common.Db
+	pendings   map[string]int
+	pendingTxs map[string]*types.Tx
+	isScan     bool
+	topHeight  int64
 }
 
 type MempoolTx struct {
@@ -36,7 +39,11 @@ type MempoolTx struct {
 }
 
 func NewKeeper(url string, isTestnet bool, dirPath string, pruneTime int64) *Keeper {
-	c, err := NewBtcClient(url)
+	c1, err := NewBtcClient(url)
+	if err != nil {
+		log.Fatal(err)
+	}
+	c2, err := NewBtcClient(url)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -46,11 +53,13 @@ func NewKeeper(url string, isTestnet bool, dirPath string, pruneTime int64) *Kee
 		log.Fatal(err)
 	}
 	k := &Keeper{
-		mu:       new(sync.RWMutex),
-		client:   c,
-		tesnet:   isTestnet,
-		db:       newDB,
-		pendings: make(map[string]int),
+		mu:         new(sync.RWMutex),
+		c1:         c1,
+		c2:         c2,
+		tesnet:     isTestnet,
+		db:         newDB,
+		pendings:   make(map[string]int),
+		pendingTxs: make(map[string]*types.Tx),
 	}
 	return k
 }
@@ -131,7 +140,6 @@ func (k *Keeper) GetTx(w rest.ResponseWriter, r *rest.Request) {
 func (k *Keeper) Start() {
 	k.ticker = time.NewTicker(interval)
 	k.processKeep()
-	k.StartNode()
 	go func() {
 		for {
 			select {
@@ -140,19 +148,24 @@ func (k *Keeper) Start() {
 			}
 		}
 	}()
-	memPoolChecker := time.NewTicker(1 * time.Second)
+	updateMempool := time.NewTicker(1 * time.Second)
 	go func() {
 		for {
 			select {
-			case <-memPoolChecker.C:
+			case <-updateMempool.C:
 				k.UpdateMemPoolTxs()
 			}
 		}
 	}()
+	k.StartNode()
 }
 
 func (k *Keeper) processKeep() {
-	topHeight, rawTxs := k.client.GetBlockTxs(k.tesnet, loadBlocks)
+	if k.isScan {
+		return
+	}
+	k.isScan = true
+	topHeight, rawTxs := k.c1.GetBlockTxs(k.tesnet, loadBlocks)
 	txs := []common.Transaction{}
 	for _, tx := range rawTxs {
 		// if index == 0 {
@@ -168,14 +181,15 @@ func (k *Keeper) processKeep() {
 			}
 		}
 		if isNew {
-			commonTxs, _ := k.client.TxtoCommonTx(tx, k.tesnet)
-			for _, comTx := range commonTxs {
-				txs = append(txs, comTx)
-			}
+			// commonTxs, _ := k.c2.TxtoCommonTx(tx, k.tesnet)
+			// for _, comTx := range commonTxs {
+			// 	txs = append(txs, comTx)
+			// }
 		}
 	}
 	log.Infof("BTC txs scanning done -> txs: %d", len(txs))
 	k.StoreTxs(txs)
+	k.isScan = false
 	k.mu.Lock()
 	k.topHeight = topHeight
 	k.mu.Unlock()
@@ -198,9 +212,6 @@ func (k *Keeper) GetPendings() map[string]int {
 	k.mu.RLock()
 	defer k.mu.RUnlock()
 	for txid, count := range k.pendings {
-		if len(pendings) >= 60 {
-			continue
-		}
 		pendings[txid] = count
 	}
 	return pendings
@@ -211,29 +222,32 @@ func (k *Keeper) UpdateMemPoolTxs() {
 	if len(pendings) == 0 {
 		return
 	}
+	log.Info("pendings -> ", len(pendings))
 	for txid, count := range pendings {
 		go k.UpdateTx(txid, count)
 	}
 }
 
 func (k *Keeper) UpdateTx(txid string, count int) {
-	if count >= 50 {
+	if count >= 20 {
 		k.mu.Lock()
 		delete(k.pendings, txid)
+		delete(k.pendingTxs, txid)
 		k.mu.Unlock()
 		return
 	}
-	tx, err := k.client.GetTxByTxID(txid, k.tesnet)
+	tx, err := k.c2.GetTxByTxID(txid, k.tesnet)
 	if err != nil {
 		k.mu.Lock()
 		k.pendings[txid]++
 		k.mu.Unlock()
 		return
 	}
-	commonTxs, err := k.client.TxtoCommonTx(tx, k.tesnet)
+	commonTxs, err := k.c2.TxtoCommonTx(tx, k.tesnet)
 	if err != nil {
 		k.mu.Lock()
 		delete(k.pendings, txid)
+		delete(k.pendingTxs, txid)
 		k.mu.Unlock()
 		return
 	}
@@ -243,13 +257,14 @@ func (k *Keeper) UpdateTx(txid string, count int) {
 		k.mu.Unlock()
 		return
 	}
+	k.mu.Lock()
+	delete(k.pendings, txid)
+	delete(k.pendingTxs, txid)
+	k.mu.Unlock()
 	for _, commTx := range commonTxs {
 		k.db.AddMempoolTxs(commTx.From, commTx)
 		k.db.AddMempoolTxs(commTx.To, commTx)
 	}
-	k.mu.Lock()
-	delete(k.pendings, txid)
-	k.mu.Unlock()
 }
 
 func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
@@ -269,7 +284,7 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 		w.WriteJson(res)
 		return
 	}
-	hash, err := k.client.SendRawTransaction(msgTx, false)
+	hash, err := k.c2.SendRawTransaction(msgTx, false)
 	if err != nil {
 		res.Msg = err.Error()
 		w.WriteHeader(400)
@@ -284,7 +299,7 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 
 func (k *Keeper) StartNode() {
 	txChan := make(chan *types.Tx, 10000)
-	BChan := make(chan *types.Block)
+	BChan := make(chan *types.Block, 3)
 	nodeConfig := &node.NodeConfig{
 		IsTestnet:        k.tesnet,
 		TargetOutbound:   25,
@@ -299,15 +314,13 @@ func (k *Keeper) StartNode() {
 	go n.Start()
 	go func() {
 		for {
-			tx := <-txChan
-			k.mu.Lock()
-			k.pendings[tx.Txid] = 1
-			k.mu.Unlock()
-		}
-	}()
-	go func() {
-		for {
-			_ = <-BChan
+			select {
+			case tx := <-txChan:
+				k.mu.Lock()
+				k.pendings[tx.Txid] = 1
+				k.pendingTxs[tx.Txid] = tx
+				k.mu.Unlock()
+			}
 		}
 	}()
 }
