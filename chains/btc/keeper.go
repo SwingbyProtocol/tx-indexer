@@ -18,7 +18,7 @@ import (
 const (
 	loadBlockInterval   = 24 * time.Second
 	loadMempoolInterval = 3 * time.Second
-	loadBlocks          = 1
+	loadBlocks          = 3
 )
 
 type Keeper struct {
@@ -174,7 +174,7 @@ func (k *Keeper) processKeep() {
 	}
 	log.Infof("BTC txs scanning done -> txs: %d", len(txs))
 	for _, tx := range txs {
-		k.db.StoreTx(tx.Serialize(), &tx)
+		k.db.StoreTx(tx.Serialize(), tx)
 		k.db.StoreIdx(tx.Serialize(), &tx, true)
 		k.db.StoreIdx(tx.Serialize(), &tx, false)
 	}

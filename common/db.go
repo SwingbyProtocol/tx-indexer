@@ -85,7 +85,7 @@ func (d *Db) GetTx(key string) (*Transaction, error) {
 	return &tx, nil
 }
 
-func (d *Db) StoreTx(key string, tx *Transaction) error {
+func (d *Db) StoreTx(key string, tx Transaction) error {
 	data, err := tx.MarshalJSON()
 	if err != nil {
 		return err

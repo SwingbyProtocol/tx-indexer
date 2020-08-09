@@ -202,7 +202,7 @@ func (k *Keeper) StoreTxs(txs []common.Transaction) {
 			continue
 		}
 		tx.Timestamp = timestamp
-		err = k.db.StoreTx(tx.Serialize(), &tx)
+		err = k.db.StoreTx(tx.Serialize(), tx)
 		if err != nil {
 			log.Error(err)
 			continue

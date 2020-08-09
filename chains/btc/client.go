@@ -111,6 +111,7 @@ func (c *Client) TxtoCommonTx(tx *types.Tx, testNet bool) ([]common.Transaction,
 		}
 		// Check script
 		if len(vout.Addresses) == 0 {
+			log.Infof("to script send %s %d", tx.Txid, int(vout.N))
 			continue
 		}
 		tx := common.Transaction{
@@ -148,6 +149,7 @@ func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types
 		vinTotal += target.Value
 		if len(target.Addresses) == 0 {
 			log.Warnf("inAddress decode error tx:%s %d", inTx.Txid, in.Vout)
+			targets = append(targets, "address invalid")
 			continue
 		}
 		inAddress := target.Addresses[0]
