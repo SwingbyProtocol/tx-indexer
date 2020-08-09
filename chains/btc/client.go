@@ -148,8 +148,8 @@ func (c *Client) getVinAddrsAndFees(txid string, vin []*types.Vin, vout []*types
 		target := inTx.Vout[in.Vout]
 		vinTotal += target.Value
 		if len(target.Addresses) == 0 {
-			log.Warnf("inAddress decode error tx:%s %d", inTx.Txid, in.Vout)
-			targets = append(targets, "address invalid")
+			log.Warnf("inAddress output decode error tx:%s %d", inTx.Txid, in.Vout)
+			targets = append(targets, "Unkown script")
 			continue
 		}
 		inAddress := target.Addresses[0]

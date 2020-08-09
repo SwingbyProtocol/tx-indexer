@@ -320,4 +320,11 @@ func (k *Keeper) StartNode() {
 			}
 		}
 	}()
+	go func() {
+		for {
+			select {
+			case _ = <-BChan:
+			}
+		}
+	}()
 }
