@@ -296,8 +296,8 @@ func (k *Keeper) BroadcastTx(w rest.ResponseWriter, r *rest.Request) {
 }
 
 func (k *Keeper) StartNode() {
-	txChan := make(chan *types.Tx, 10000)
-	BChan := make(chan *types.Block, 3)
+	txChan := make(chan *types.Tx)
+	BChan := make(chan *types.Block)
 	nodeConfig := &node.NodeConfig{
 		IsTestnet:        k.tesnet,
 		TargetOutbound:   25,
