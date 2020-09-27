@@ -252,11 +252,19 @@ func (node *Node) GetNodes() []string {
 	return list
 }
 
+func (node *Node) GetNodeMap() map[string]int {
+	nodes := map[string]int{}
+	node.mu.RLock()
+	defer node.mu.RUnlock()
+	for ip, latency := range node.restNodes {
+		nodes[ip] = latency
+	}
+	return nodes
+}
+
 func (node *Node) ScanRestNodes() {
 	wg := new(sync.WaitGroup)
-	node.mu.RLock()
-	nodes := node.restNodes
-	node.mu.RUnlock()
+	nodes := node.GetNodeMap()
 	if len(nodes) == 0 {
 		log.Info("nodes count is zero")
 		return
